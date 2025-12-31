@@ -1,0 +1,11 @@
+/storage/app/public/uploads/*
+/storage/app/public/temp_surat/*
+/public/storage/uploads/*
+/public/storage/temp_surat/*
+storage.zip
+.srikandi.zip
+/vendor/
+/node_modules/
+.env
+/storage/logs/*.log
+/storage/logs/laravel.log
