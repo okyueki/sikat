@@ -45,7 +45,17 @@
                 </tr>
                 <tr>
                     <th>Harga</th>
-                    <td>{{ number_format($inventaris->harga, 2) }}</td>
+                    <td>
+                        @php
+                            if (!function_exists('formatRupiah')) {
+                                $formatPath = app_path('Helpers/FormatHelper.php');
+                                if (file_exists($formatPath)) {
+                                    require_once $formatPath;
+                                }
+                            }
+                        @endphp
+                        {{ function_exists('formatRupiah') ? formatRupiah($inventaris->harga, true) : 'Rp ' . number_format($inventaris->harga, 2, ',', '.') }}
+                    </td>
                 </tr>
                 <tr>
                     <th>Status Barang</th>
@@ -66,13 +76,42 @@
             </table>
 
             <h4>Gambar Inventaris</h4>
-            <div class="row">
-                @foreach ($inventaris->gambar as $gambar)
-                    <div class="col-md-3">
-                        <img src="http://192.168.10.74/webapps2/inventaris/{{ $gambar->photo }}" class="img-fluid" alt="Gambar Inventaris">
-                    </div>
-                @endforeach
-            </div>
+            @php
+                // Load helper function if not loaded
+                if (!function_exists('getInventarisImageBase64')) {
+                    $helperPath = app_path('Helpers/InventarisHelper.php');
+                    if (file_exists($helperPath)) {
+                        require_once $helperPath;
+                    }
+                }
+                
+                $hasGambar = $inventaris->gambar && $inventaris->gambar->count() > 0;
+            @endphp
+            
+            @if($hasGambar)
+                <div class="row">
+                    @foreach ($inventaris->gambar as $gambar)
+                        @if(!empty($gambar->photo))
+                            <div class="col-md-3 mb-3">
+                                @php
+                                    $base64Image = function_exists('getInventarisImageBase64') ? getInventarisImageBase64($gambar->photo) : null;
+                                @endphp
+                                @if($base64Image)
+                                    <img src="{{ $base64Image }}" class="img-fluid rounded shadow-sm" alt="Gambar Inventaris" style="max-height: 200px; object-fit: cover; cursor: pointer;" onclick="window.open(this.src, '_blank')">
+                                @else
+                                    <div class="alert alert-warning small mb-0">
+                                        <i class="fa fa-exclamation-triangle me-1"></i>Gambar tidak dapat dimuat
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
+                    @endforeach
+                </div>
+            @else
+                <div class="alert alert-info">
+                    <i class="fa fa-info-circle me-2"></i>Tidak ada gambar untuk inventaris ini.
+                </div>
+            @endif
         </div>
     </div>
 </div>

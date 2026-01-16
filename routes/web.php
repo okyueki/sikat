@@ -18,6 +18,10 @@ use App\Http\Controllers\{
     SuratMasukController,
     SuratController,
     TemplateSuratController,
+    InventarisJenisController,
+    InventarisKategoriController,
+    InventarisMerkController,
+    InventarisProdusenController,
     FullCalendarController,
     AgendaController,
     AbsensiEventController,
@@ -40,6 +44,7 @@ use App\Http\Controllers\Kepegawaian\{
 use App\Http\Controllers\Inventaris\{
     InventarisBarangController,
     InventarisController,
+    InventarisVisualisasiController,
     PermintaanPerbaikanInventarisController,
     PerbaikanInventarisController
 };
@@ -109,6 +114,12 @@ Route::get('/pengajuan_libur/ijin/pdf/{kode_pengajuan_libur}', [PengajuanLiburCo
 Route::get('/rekap-libur', [PengajuanLiburController::class, 'rekapLibur'])->name('pengajuan_libur.rekap-libur')->middleware('auth');
 
 Route::resource('pengajuan_lembur', PengajuanLemburController::class)->middleware('auth');
+
+// Inventaris Routes
+Route::resource('jenis-inventaris', InventarisJenisController::class)->middleware('auth');
+Route::resource('kategori-inventaris', InventarisKategoriController::class)->middleware('auth');
+Route::resource('merk-inventaris', InventarisMerkController::class)->middleware('auth');
+Route::resource('produsen-inventaris', InventarisProdusenController::class)->middleware('auth');
 Route::get('/verifikasi_pengajuan_lembur', [VerifikasiPengajuanLemburController::class, 'index'])->name('verifikasi_pengajuan_lembur.index')->middleware('auth');
 Route::get('/verifikasi_pengajuan_lembur/detail/{id}', [VerifikasiPengajuanLemburController::class, 'detail'])->name('verifikasi_pengajuan_lembur.detail')->middleware('auth');
 Route::put('/verifikasi_pengajuan_lembur/update/{id}', [VerifikasiPengajuanLemburController::class, 'update'])->name('verifikasi_pengajuan_lembur.update')->middleware('auth');
@@ -142,6 +153,12 @@ Route::middleware(['auth'])->group(function () {
     ]);
 });
 Route::middleware(['auth'])->group(function () {
+    // Route khusus harus diletakkan SEBELUM resource route
+    Route::get('inventaris/visualisasi', [InventarisVisualisasiController::class, 'index'])->name('inventaris.visualisasi');
+    Route::get('inventaris/visualisasi/api/data-ruang', [InventarisVisualisasiController::class, 'getDataPerRuangApi'])->name('inventaris.visualisasi.api.ruang');
+    Route::get('inventaris/{no_inventaris}/barcode', [InventarisController::class, 'generateBarcode'])->name('inventaris.barcode');
+    
+    // Resource route harus diletakkan di akhir
     Route::resource('inventaris', InventarisController::class)->names([
         'index' => 'inventaris.index',
         'create' => 'inventaris.create',
@@ -151,7 +168,6 @@ Route::middleware(['auth'])->group(function () {
         'update' => 'inventaris.update',
         'destroy' => 'inventaris.destroy'
     ]);
-    Route::get('inventaris/{no_inventaris}/barcode', [InventarisController::class, 'generateBarcode'])->name('inventaris.barcode');
 });
 
     Route::get('inventaris/{no_inventaris}/detail', [InventarisController::class, 'detail'])->name('inventaris.detail');
@@ -219,6 +235,7 @@ Route::post('/helpdesk/ticket/{ticket}/teknisi', [TicketTeknisiController::class
 Route::middleware(['auth'])->group(function () {
     Route::get('/jadwal', [JadwalController::class, 'index'])->name('jadwal.index');
     Route::get('jadwal/{id}/edit/{bulan}/{tahun}', [JadwalController::class, 'edit'])->name('jadwal.edit');
+    Route::get('jadwal/{id}/data/{bulan}/{tahun}', [JadwalController::class, 'getJadwalData'])->name('jadwal.data');
     Route::put('jadwal/{id}/update/{bulan}/{tahun}', [JadwalController::class, 'update'])->name('jadwal.update');
 });
 

@@ -9,3 +9,13 @@ storage.zip
 .env
 /storage/logs/*.log
 /storage/logs/laravel.log
+
+# Laravel Framework Storage (Auto-generated files)
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+/storage/framework/cache/*
+!/storage/framework/cache/.gitignore
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+/storage/framework/testing/*
+!/storage/framework/testing/.gitignore

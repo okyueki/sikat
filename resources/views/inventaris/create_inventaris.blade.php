@@ -48,19 +48,55 @@
     $(document).ready(function() {
         $('#kode_barang').change(function() {
             var kode_barang = $(this).val();
+            var produsenField = $('#produsen');
+            var merkField = $('#merk');
+            
             if (kode_barang) {
+                // Show loading state
+                produsenField.prop('disabled', true).val('Memuat...');
+                merkField.prop('disabled', true).val('Memuat...');
+                
                 $.ajax({
                     url: '/get-barang-info/' + kode_barang,
                     type: 'GET',
                     dataType: 'json',
+                    timeout: 10000, // 10 seconds timeout
+                    beforeSend: function() {
+                        // Additional loading indicator if needed
+                    },
                     success: function(data) {
-                        $('#produsen').val(data.produsen);
-                        $('#merk').val(data.merk);
+                        if (data && data.produsen !== undefined && data.merk !== undefined) {
+                            produsenField.val(data.produsen || 'Tidak Diketahui');
+                            merkField.val(data.merk || 'Tidak Diketahui');
+                        } else {
+                            produsenField.val('Tidak Diketahui');
+                            merkField.val('Tidak Diketahui');
+                            console.warn('Data tidak lengkap dari server');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error loading barang info:', error);
+                        produsenField.val('Tidak Diketahui');
+                        merkField.val('Tidak Diketahui');
+                        
+                        // Show user-friendly error message
+                        if (status === 'timeout') {
+                            alert('Waktu koneksi habis. Silakan coba lagi.');
+                        } else if (xhr.status === 404) {
+                            console.warn('Endpoint tidak ditemukan');
+                        } else {
+                            alert('Gagal memuat data barang. Silakan coba lagi.');
+                        }
+                    },
+                    complete: function() {
+                        // Re-enable fields
+                        produsenField.prop('disabled', false);
+                        merkField.prop('disabled', false);
                     }
                 });
             } else {
-                $('#produsen').val('Tidak Diketahui');
-                $('#merk').val('Tidak Diketahui');
+                produsenField.val('Tidak Diketahui');
+                merkField.val('Tidak Diketahui');
             }
         });
     });

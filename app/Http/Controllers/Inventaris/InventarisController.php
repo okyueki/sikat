@@ -40,10 +40,12 @@ public function index(Request $request)
 
         // Mengembalikan data dalam format yang dapat digunakan oleh DataTables
         return DataTables::of($query)
-            ->addIndexColumn() // Menambahkan nomor urut
             ->addColumn('no_inventaris', function ($row) {
-                    return '<a href="'.route('inventaris.barcode', $row->no_inventaris).'" target="_blank"><span class="badge text-bg-primary">'.$row->no_inventaris.'</span></a>';
-                })
+                return '<a href="'.route('inventaris.barcode', $row->no_inventaris).'" target="_blank"><span class="badge text-bg-primary">'.$row->no_inventaris.'</span></a>';
+            })
+            ->addColumn('kode_barang', function ($row) {
+                return $row->kode_barang ?? '-';
+            })
             ->addColumn('nama_barang', function ($row) {
                 return $row->barang->nama_barang ?? '-';
             })
@@ -56,23 +58,70 @@ public function index(Request $request)
             ->addColumn('nama_ruang', function ($row) {
                 return $row->ruang->nama_ruang ?? '-';
             })
-            ->addColumn('photo', function ($row) {
-                if (!empty($row->gambar->photo)) {
-                    return '<img src="http://192.168.10.74/webapps2/inventaris/' . $row->gambar->photo . '" class="img-thumbnail" alt="...">';
+            ->addColumn('asal_barang', function ($row) {
+                return $row->asal_barang ?? '-';
+            })
+            ->addColumn('tgl_pengadaan', function ($row) {
+                return $row->tgl_pengadaan ? date('d/m/Y', strtotime($row->tgl_pengadaan)) : '-';
+            })
+            ->addColumn('harga', function ($row) {
+                if (!function_exists('formatRupiah')) {
+                    $formatPath = app_path('Helpers/FormatHelper.php');
+                    if (file_exists($formatPath)) {
+                        require_once $formatPath;
+                    }
                 }
-                return '-';
+                $harga = $row->harga ?? 0;
+                return function_exists('formatRupiah') ? formatRupiah($harga, true) : 'Rp ' . number_format($harga, 2, ',', '.');
+            })
+            ->addColumn('status_barang', function ($row) {
+                $status = $row->status_barang ?? '-';
+                $badgeClass = 'bg-secondary';
+                switch(strtolower($status)) {
+                    case 'ada':
+                        $badgeClass = 'bg-success';
+                        break;
+                    case 'rusak':
+                        $badgeClass = 'bg-danger';
+                        break;
+                    case 'hilang':
+                        $badgeClass = 'bg-warning';
+                        break;
+                    case 'perbaikan':
+                        $badgeClass = 'bg-info';
+                        break;
+                    case 'dipinjam':
+                        $badgeClass = 'bg-primary';
+                        break;
+                }
+                return '<span class="badge ' . $badgeClass . '">' . $status . '</span>';
+            })
+            ->addColumn('photo', function ($row) {
+                // Handle hasMany relationship - get first image
+                $gambar = $row->gambar->first();
+                if ($gambar && !empty($gambar->photo)) {
+                    if (function_exists('getInventarisImageBase64')) {
+                        $base64Image = getInventarisImageBase64($gambar->photo);
+                        if ($base64Image) {
+                            return '<img src="' . $base64Image . '" class="img-thumbnail" alt="Gambar Inventaris" style="max-width: 80px; max-height: 80px; object-fit: cover; cursor: pointer;" onclick="window.open(this.src, \'_blank\')">';
+                        }
+                    }
+                }
+                return '<span class="text-muted">-</span>';
             })
             ->addColumn('action', function ($row) {
-                $btn = '<a href="'.route('inventaris.show', $row->no_inventaris).'" class="btn btn-info btn-sm">View</a>';
-                $btn .= ' <a href="'.route('inventaris.edit', $row->no_inventaris).'" class="btn btn-warning btn-sm">Edit</a>';
-                $btn .= '<form action="'.route('inventaris.destroy', $row->no_inventaris).'" method="POST" style="display:inline;">
+                $btn = '<div class="btn-group" role="group">';
+                $btn .= '<a href="'.route('inventaris.show', $row->no_inventaris).'" class="btn btn-info btn-sm" title="View"><i class="fa fa-eye"></i></a>';
+                $btn .= '<a href="'.route('inventaris.edit', $row->no_inventaris).'" class="btn btn-warning btn-sm" title="Edit"><i class="fa fa-edit"></i></a>';
+                $btn .= '<form action="'.route('inventaris.destroy', $row->no_inventaris).'" method="POST" style="display:inline;" onsubmit="return confirm(\'Yakin ingin menghapus?\');">
                             '.csrf_field().'
                             '.method_field("DELETE").'
-                            <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+                            <button type="submit" class="btn btn-danger btn-sm" title="Hapus"><i class="fa fa-trash"></i></button>
                          </form>';
+                $btn .= '</div>';
                 return $btn;
             })
-            ->rawColumns(['photo', 'action','no_inventaris']) // Agar kolom photo dan action dapat mengandung HTML
+            ->rawColumns(['no_inventaris', 'status_barang', 'photo', 'action']) // Agar kolom dapat mengandung HTML
             ->make(true);
     }
 
@@ -218,7 +267,7 @@ public function index(Request $request)
         $inventaris = Inventaris::with(['barang.produsen', 'barang.merk', 'ruang', 'gambar'])
             ->findOrFail($no_inventaris);
 
-        return view('inventaris.detail_inventaris', compact('inventaris'));
+        return view('inventaris.show_inventaris', compact('inventaris'));
     }
     public function generateBarcode($no_inventaris)
 {

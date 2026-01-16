@@ -97,28 +97,71 @@
 document.getElementById('departemen').addEventListener('change', function() {
     var depId = this.value;
     var pegawaiSelect = $('#pegawai');
+    var departemenSelect = $('#departemen');
 
     // Kosongkan dropdown pegawai
-    pegawaiSelect.empty().append('<option value="">Pilih Pegawai</option>');
+    pegawaiSelect.empty().append('<option value="">Memuat...</option>');
+    pegawaiSelect.prop('disabled', true);
 
     if (depId) {
-        // Kirim request AJAX
-        fetch(`/get-pegawai-by-departemen/${depId}`)
-            .then(response => response.json())
-            .then(data => {
+        // Show loading state
+        var originalHtml = pegawaiSelect.html();
+        
+        // Kirim request AJAX dengan error handling
+        fetch(`/get-pegawai-by-departemen/${depId}`, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+            },
+            timeout: 10000 // 10 seconds
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Clear loading option
+            pegawaiSelect.empty().append('<option value="">Pilih Pegawai</option>');
+            
+            if (data && Array.isArray(data) && data.length > 0) {
                 data.forEach(function(pegawai) {
-                    var option = new Option(pegawai.nama, pegawai.nik, false, false);
-                    pegawaiSelect.append(option).trigger('change');
+                    if (pegawai && pegawai.nik && pegawai.nama) {
+                        var option = new Option(pegawai.nama, pegawai.nik, false, false);
+                        pegawaiSelect.append(option);
+                    }
                 });
-            });
+                pegawaiSelect.trigger('change');
+            } else {
+                pegawaiSelect.append('<option value="">Tidak ada pegawai</option>');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading pegawai:', error);
+            pegawaiSelect.empty().append('<option value="">Error memuat data</option>');
+            
+            // Show user-friendly error message
+            alert('Gagal memuat daftar pegawai. Silakan coba lagi atau hubungi administrator.');
+        })
+        .finally(() => {
+            pegawaiSelect.prop('disabled', false);
+        });
+    } else {
+        pegawaiSelect.empty().append('<option value="">Pilih Pegawai</option>');
+        pegawaiSelect.prop('disabled', false);
     }
 });
 
 // Inisialisasi Select2 pada Pegawai
-$('.js-example-basic-single').select2({
-        width: '100%' // Pastikan lebar sesuai
+$(document).ready(function() {
+    $('.js-example-basic-single').select2({
+        width: '100%', // Pastikan lebar sesuai
+        placeholder: 'Pilih...',
+        allowClear: true
     });
-
+});
 </script>
 
 @endsection

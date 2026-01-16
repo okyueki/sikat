@@ -28,6 +28,15 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot()
     {
+        // Load helper functions
+        if (file_exists(app_path('Helpers/InventarisHelper.php'))) {
+            require_once app_path('Helpers/InventarisHelper.php');
+        }
+        
+        if (file_exists(app_path('Helpers/FormatHelper.php'))) {
+            require_once app_path('Helpers/FormatHelper.php');
+        }
+        
         Carbon::setLocale('id');
 
         // 👉 Daftarin semua observer di sini

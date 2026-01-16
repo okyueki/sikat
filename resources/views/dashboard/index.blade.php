@@ -287,69 +287,107 @@
    
 
 <script>
-// Data for Treemap Chart for Departemen
-var optionsTreemapDepartemen = {
-    series: [{
-        data: {!! json_encode($departemen) !!}
-    }],
-    chart: {
-        type: 'treemap',
-        height: 350
-    },
-    title: {
-        text: 'Jumlah Pegawai per Departemen'
-    },
-    dataLabels: {
-        enabled: true,
-        formatter: function(val, opts) {
-            var departmentName = opts.w.config.series[0].data[opts.dataPointIndex].x;
-            var label = opts.w.config.series[0].data[opts.dataPointIndex].label;
-            // Gunakan '\n' untuk memecah baris
-            return departmentName + "\n" + label.replace("(", "\n(");
+document.addEventListener('DOMContentLoaded', function() {
+    // Pastikan ApexCharts sudah dimuat
+    if (typeof ApexCharts === 'undefined') {
+        console.warn('ApexCharts library not loaded');
+        return;
+    }
+
+    // Data for Treemap Chart for Departemen
+    var optionsTreemapDepartemen = {
+        series: [{
+            data: {!! json_encode($departemen) !!}
+        }],
+        chart: {
+            type: 'treemap',
+            height: 350
         },
-        style: {
-            fontSize: '12px',
-            colors: ['#000'],
-            fontWeight: 'bold'
+        title: {
+            text: 'Jumlah Pegawai per Departemen'
+        },
+        dataLabels: {
+            enabled: true,
+            formatter: function(val, opts) {
+                try {
+                    if (opts && opts.w && opts.w.config && opts.w.config.series && opts.w.config.series[0] && opts.w.config.series[0].data && opts.dataPointIndex !== undefined) {
+                        var departmentName = opts.w.config.series[0].data[opts.dataPointIndex].x;
+                        var label = opts.w.config.series[0].data[opts.dataPointIndex].label;
+                        // Gunakan '\n' untuk memecah baris
+                        return departmentName + "\n" + (label ? label.replace("(", "\n(") : '');
+                    }
+                    return '';
+                } catch (e) {
+                    console.warn('Error in formatter:', e);
+                    return '';
+                }
+            },
+            style: {
+                fontSize: '12px',
+                colors: ['#000'],
+                fontWeight: 'bold'
+            }
+        }
+    };
+
+    // Render Chart for Departemen
+    var chartDepartemenEl = document.querySelector("#chart-departemen");
+    if (chartDepartemenEl) {
+        try {
+            var chartTreemapDepartemen = new ApexCharts(chartDepartemenEl, optionsTreemapDepartemen);
+            chartTreemapDepartemen.render();
+        } catch (e) {
+            console.error('Error rendering departemen chart:', e);
         }
     }
-};
 
-// Render Chart for Departemen
-var chartTreemapDepartemen = new ApexCharts(document.querySelector("#chart-departemen"), optionsTreemapDepartemen);
-chartTreemapDepartemen.render();
-
-// Data for Treemap Chart for Bidang
-var optionsTreemapBidang = {
-    series: [{
-        data: {!! json_encode($bidang) !!}
-    }],
-    chart: {
-        type: 'treemap',
-        height: 350
-    },
-    title: {
-        text: 'Distribusi Pegawai per Bidang'
-    },
-    dataLabels: {
-        enabled: true,
-        formatter: function(val, opts) {
-            var bidangName = opts.w.config.series[0].data[opts.dataPointIndex].x;
-            var label = opts.w.config.series[0].data[opts.dataPointIndex].label;
-            // Gunakan '\n' untuk memecah baris
-            return bidangName + "\n" + label.replace("(", "\n(");
+    // Data for Treemap Chart for Bidang
+    var optionsTreemapBidang = {
+        series: [{
+            data: {!! json_encode($bidang) !!}
+        }],
+        chart: {
+            type: 'treemap',
+            height: 350
         },
-        style: {
-            fontSize: '12px',
-            colors: ['#000'],
-            fontWeight: 'bold'
+        title: {
+            text: 'Distribusi Pegawai per Bidang'
+        },
+        dataLabels: {
+            enabled: true,
+            formatter: function(val, opts) {
+                try {
+                    if (opts && opts.w && opts.w.config && opts.w.config.series && opts.w.config.series[0] && opts.w.config.series[0].data && opts.dataPointIndex !== undefined) {
+                        var bidangName = opts.w.config.series[0].data[opts.dataPointIndex].x;
+                        var label = opts.w.config.series[0].data[opts.dataPointIndex].label;
+                        // Gunakan '\n' untuk memecah baris
+                        return bidangName + "\n" + (label ? label.replace("(", "\n(") : '');
+                    }
+                    return '';
+                } catch (e) {
+                    console.warn('Error in formatter:', e);
+                    return '';
+                }
+            },
+            style: {
+                fontSize: '12px',
+                colors: ['#000'],
+                fontWeight: 'bold'
+            }
+        }
+    };
+
+    // Render Chart for Bidang
+    var chartBidangEl = document.querySelector("#chart-bidang");
+    if (chartBidangEl) {
+        try {
+            var chartTreemapBidang = new ApexCharts(chartBidangEl, optionsTreemapBidang);
+            chartTreemapBidang.render();
+        } catch (e) {
+            console.error('Error rendering bidang chart:', e);
         }
     }
-};
-
-// Render Chart for Bidang
-var chartTreemapBidang = new ApexCharts(document.querySelector("#chart-bidang"), optionsTreemapBidang);
-chartTreemapBidang.render();
+});
 </script>
 
 

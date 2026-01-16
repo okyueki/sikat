@@ -8,6 +8,7 @@ use App\Models\Pegawai;
 use App\Models\JamMasuk;
 use App\Models\Departemen;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class JadwalController extends Controller
 {
@@ -19,12 +20,27 @@ class JadwalController extends Controller
     $tahun = $request->query('y', date('Y'));  // Tahun, default tahun saat ini
     $departemen = $request->query('d', '');  // Filter departemen
 
+    // Ambil NIK dari user yang sedang login
+    $nik = Auth::user()->username;
+    
+    // Cari pegawai berdasarkan NIK
+    $pegawai = Pegawai::where('nik', $nik)->first();
+    
+    // Jika pegawai tidak ditemukan, kembalikan error atau redirect
+    if (!$pegawai) {
+        return redirect()->route('dashboard')
+            ->with('error', 'Data pegawai tidak ditemukan. Silakan hubungi administrator.');
+    }
+
     // Query dasar untuk mengambil jadwal pegawai dengan filter tahun dan bulan
+    // HANYA untuk pegawai yang sedang login
     $query = JadwalPegawai::with('pegawai')
+        ->where('id', $pegawai->id)  // Filter berdasarkan ID pegawai yang login
         ->where('tahun', $tahun)
         ->where('bulan', $bulan);
 
     // Jika ada kata kunci pencarian, tambahkan filter pencarian berdasarkan nama pegawai
+    // (Meskipun sudah difilter berdasarkan ID, tetap bisa digunakan untuk konsistensi)
     if (!empty($phrase)) {
         $query->whereHas('pegawai', function ($q) use ($phrase) {
             $q->where('nama', 'like', '%' . $phrase . '%');
@@ -32,6 +48,7 @@ class JadwalController extends Controller
     }
 
     // Jika ada filter departemen, tambahkan filter berdasarkan departemen
+    // (Meskipun sudah difilter berdasarkan ID, tetap bisa digunakan untuk konsistensi)
     if (!empty($departemen)) {
         $query->whereHas('pegawai', function ($q) use ($departemen) {
             $q->where('departemen', $departemen);
@@ -44,17 +61,38 @@ class JadwalController extends Controller
     // Ambil daftar departemen untuk dropdown
     $departemenList = Departemen::pluck('nama', 'dep_id');
 
+    // Ambil semua shift dari tabel jam_masuk untuk dropdown
+    $shifts = JamMasuk::all();
+
     // Mengirimkan data ke view
-    return view('presensi.jadwal_pegawai', compact('jadwalPegawai', 'bulan', 'tahun', 'phrase', 'departemen', 'departemenList'));
+    return view('presensi.jadwal_pegawai', compact('jadwalPegawai', 'bulan', 'tahun', 'phrase', 'departemen', 'departemenList', 'shifts'));
 }
 
     public function edit($id, $bulan, $tahun)
 {
+    // Ambil NIK dari user yang sedang login
+    $nik = Auth::user()->username;
+    
+    // Cari pegawai berdasarkan NIK
+    $pegawai = Pegawai::where('nik', $nik)->first();
+    
+    // Jika pegawai tidak ditemukan, kembalikan error
+    if (!$pegawai) {
+        return redirect()->route('jadwal.index')
+            ->with('error', 'Data pegawai tidak ditemukan. Silakan hubungi administrator.');
+    }
+
     // Ambil jadwal pegawai berdasarkan id, bulan, dan tahun
     $jadwalPegawai = JadwalPegawai::where('id', $id)
         ->where('bulan', $bulan)
         ->where('tahun', $tahun)
         ->firstOrFail(); // Jika tidak ditemukan, munculkan 404
+
+    // Validasi: Pastikan jadwal yang akan diedit adalah milik user yang login
+    if ($jadwalPegawai->id != $pegawai->id) {
+        return redirect()->route('jadwal.index')
+            ->with('error', 'Anda tidak memiliki izin untuk mengedit jadwal ini.');
+    }
 
     // Ambil semua shift dari tabel jam_masuk
     $shifts = JamMasuk::all(); 
@@ -65,6 +103,18 @@ class JadwalController extends Controller
     
     public function update(Request $request, $id, $bulan, $tahun)
     {
+        // Ambil NIK dari user yang sedang login
+        $nik = Auth::user()->username;
+        
+        // Cari pegawai berdasarkan NIK
+        $pegawai = Pegawai::where('nik', $nik)->first();
+        
+        // Jika pegawai tidak ditemukan, kembalikan error
+        if (!$pegawai) {
+            return redirect()->route('jadwal.index')
+                ->with('error', 'Data pegawai tidak ditemukan. Silakan hubungi administrator.');
+        }
+
         // Validasi input
         $validated = $request->validate([
             'h1' => 'nullable|string',
@@ -106,6 +156,12 @@ class JadwalController extends Controller
             ->where('bulan', $bulan)
             ->where('tahun', $tahun)
             ->firstOrFail();
+
+        // Validasi: Pastikan jadwal yang akan diupdate adalah milik user yang login
+        if ($jadwalPegawai->id != $pegawai->id) {
+            return redirect()->route('jadwal.index')
+                ->with('error', 'Anda tidak memiliki izin untuk mengupdate jadwal ini.');
+        }
     
         // Loop untuk memastikan tidak ada null di kolom h1 sampai h31
         for ($i = 1; $i <= 31; $i++) {
@@ -117,8 +173,60 @@ class JadwalController extends Controller
         // Simpan perubahan ke database
         $jadwalPegawai->save();
     
+        // Jika request adalah AJAX, return JSON
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Jadwal berhasil diperbarui'
+            ]);
+        }
+    
         return redirect()->route('jadwal.index', ['b' => $bulan, 'y' => $tahun])
             ->with('success', 'Jadwal berhasil diperbarui');
+    }
+
+    // Method untuk load data jadwal via AJAX
+    public function getJadwalData($id, $bulan, $tahun)
+    {
+        // Ambil NIK dari user yang sedang login
+        $nik = Auth::user()->username;
+        
+        // Cari pegawai berdasarkan NIK
+        $pegawai = Pegawai::where('nik', $nik)->first();
+        
+        // Jika pegawai tidak ditemukan, kembalikan error
+        if (!$pegawai) {
+            return response()->json(['error' => 'Data pegawai tidak ditemukan'], 404);
+        }
+
+        // Ambil jadwal pegawai berdasarkan id, bulan, dan tahun
+        $jadwalPegawai = JadwalPegawai::where('id', $id)
+            ->where('bulan', $bulan)
+            ->where('tahun', $tahun)
+            ->with('pegawai')
+            ->first();
+
+        // Validasi: Pastikan jadwal adalah milik user yang login
+        if (!$jadwalPegawai || $jadwalPegawai->id != $pegawai->id) {
+            return response()->json(['error' => 'Jadwal tidak ditemukan atau tidak memiliki akses'], 403);
+        }
+
+        // Ambil semua shift dari tabel jam_masuk
+        $shifts = JamMasuk::all();
+
+        // Siapkan data jadwal per hari
+        $jadwalHari = [];
+        for ($i = 1; $i <= 31; $i++) {
+            $field = 'h' . $i;
+            $jadwalHari[$i] = $jadwalPegawai->$field ?? '';
+        }
+
+        return response()->json([
+            'jadwal' => $jadwalPegawai,
+            'jadwalHari' => $jadwalHari,
+            'shifts' => $shifts,
+            'pegawai' => $jadwalPegawai->pegawai
+        ]);
     }
 
 }

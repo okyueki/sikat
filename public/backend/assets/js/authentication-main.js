@@ -1,10 +1,20 @@
 (function () {
     'use strict';
-    if (localStorage.getItem("valexdarktheme")) {
-        document.querySelector("html").setAttribute("data-theme-mode", "dark")
-        document.querySelector("html").setAttribute("data-menu-styles", "dark")
-        document.querySelector("html").setAttribute("data-header-styles", "dark")
-    }
+    // Memastikan tema default selalu light mode
+    // Hapus setting dark theme dari localStorage jika ada
+    localStorage.removeItem("valexdarktheme");
+    
+    // Set tema ke light mode secara default
+    document.querySelector("html").setAttribute("data-theme-mode", "light");
+    document.querySelector("html").setAttribute("data-menu-styles", "light");
+    document.querySelector("html").setAttribute("data-header-styles", "light");
+    
+    // Comment bagian ini untuk memastikan tema selalu light
+    // if (localStorage.getItem("valexdarktheme")) {
+    //     document.querySelector("html").setAttribute("data-theme-mode", "dark")
+    //     document.querySelector("html").setAttribute("data-menu-styles", "dark")
+    //     document.querySelector("html").setAttribute("data-header-styles", "dark")
+    // }
     if (localStorage.valexrtl) {
         let html = document.querySelector('html');
         html.setAttribute("dir", "rtl");
@@ -24,24 +34,35 @@
             }
             document.querySelector('html').style.setProperty('--primary-rgb', localStorage.primaryRGB);
         }
-        if (localStorage.bodyBgRGB && localStorage.bodylightRGB) {
-            if (document.querySelector('.theme-container-background')) {
-                document.querySelector('.theme-container-background').value = localStorage.bodyBgRGB;
-            }
-            document.querySelector('html').style.setProperty('--body-bg-rgb', localStorage.bodyBgRGB);
-            document.querySelector('html').style.setProperty('--light-rgb', localStorage.bodylightRGB);
-            document.querySelector('html').style.setProperty('--form-control-bg', `rgb(${localStorage.bodylightRGB})`);
-            document.querySelector('html').style.setProperty('--input-border', "rgba(255,255,255,0.1)");
-            let html = document.querySelector('html');
-            html.setAttribute('data-theme-mode', 'dark');
-            html.setAttribute('data-menu-styles', 'dark');
-            html.setAttribute('data-header-styles', 'dark');
-
-
+        // Comment bagian ini untuk mencegah auto dark mode dari background color
+        // if (localStorage.bodyBgRGB && localStorage.bodylightRGB) {
+        //     if (document.querySelector('.theme-container-background')) {
+        //         document.querySelector('.theme-container-background').value = localStorage.bodyBgRGB;
+        //     }
+        //     document.querySelector('html').style.setProperty('--body-bg-rgb', localStorage.bodyBgRGB);
+        //     document.querySelector('html').style.setProperty('--light-rgb', localStorage.bodylightRGB);
+        //     document.querySelector('html').style.setProperty('--form-control-bg', `rgb(${localStorage.bodylightRGB})`);
+        //     document.querySelector('html').style.setProperty('--input-border', "rgba(255,255,255,0.1)");
+        //     let html = document.querySelector('html');
+        //     html.setAttribute('data-theme-mode', 'dark');
+        //     html.setAttribute('data-menu-styles', 'dark');
+        //     html.setAttribute('data-header-styles', 'dark');
+        // }
+        
+        // Memastikan tema tetap light meskipun ada setting dark theme di localStorage
+        // if (localStorage.valexdarktheme) {
+        //     let html = document.querySelector('html');
+        //     html.setAttribute('data-theme-mode', 'dark');
+        // }
+        
+        // Paksa tema light sebagai default
+        let html = document.querySelector('html');
+        html.setAttribute('data-theme-mode', 'light');
+        if (!html.getAttribute('data-menu-styles') || html.getAttribute('data-menu-styles') === 'dark') {
+            html.setAttribute('data-menu-styles', 'light');
         }
-        if (localStorage.valexdarktheme) {
-            let html = document.querySelector('html');
-            html.setAttribute('data-theme-mode', 'dark');
+        if (!html.getAttribute('data-header-styles') || html.getAttribute('data-header-styles') === 'dark') {
+            html.setAttribute('data-header-styles', 'light');
         }
         if (localStorage.valexrtl) {
             let html = document.querySelector('html');

@@ -373,15 +373,76 @@
   /* back to top */
 
   /* header dropdowns scroll */
+  // DISABLED: SimpleBar untuk header-cart-items-scroll karena konten di-update via AJAX
+  // Elemen ini sering diubah oleh AJAX sehingga menyebabkan error WeakMap
+  // Gunakan CSS overflow-y: auto sebagai gantinya
+  function initSimpleBars() {
+    // NONAKTIFKAN SimpleBar untuk header-cart-items-scroll karena konten di-update via AJAX
+    // Elemen yang kontennya di-update via AJAX tidak cocok untuk SimpleBar
+    // karena elemen bisa berubah dan menyebabkan error "Invalid value used as weak map key"
     
+    // Jika masih ingin menggunakan SimpleBar, uncomment kode di bawah dan pastikan
+    // elemen tidak diubah oleh AJAX sebelum SimpleBar selesai initialize
+    
+    return; // DISABLED untuk mencegah error
+    
+    /* KODE LAMA - DISABLED
+    // Pastikan SimpleBar library tersedia
+    if (typeof SimpleBar === 'undefined' || typeof window.SimpleBar === 'undefined') {
+      return; // Skip jika library tidak tersedia
+    }
+    
+    // Hanya inisialisasi untuk elemen yang benar-benar ada
+    var myHeaderCart = document.getElementById("header-cart-items-scroll");
+    
+    // Validasi ketat: elemen harus ada, valid HTMLElement, dan ada di DOM
+    if (!myHeaderCart) {
+      return; // Skip jika elemen tidak ada
+    }
+    
+    // ... rest of the code ...
+    */
+  }
 
-  var myHeadernotification = document.getElementById(
-    "header-notification-scroll"
-  );
-  new SimpleBar(myHeadernotification, { autoHide: true });
-
-  var myHeaderCart = document.getElementById("header-cart-items-scroll");
-  new SimpleBar(myHeaderCart, { autoHide: true });
+  // Coba inisialisasi setelah DOM ready dengan delay lebih lama
+  function initSimpleBarsDelayed() {
+    // Tunggu sampai semua library dan DOM benar-benar siap
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        // Delay lebih lama untuk memastikan Select2 dan library lain sudah selesai
+        setTimeout(function() {
+          try {
+            initSimpleBars();
+          } catch (e) {
+            // Silent fail - jangan log error untuk menghindari spam console
+            // console.warn('SimpleBar initialization error:', e.message);
+          }
+        }, 800); // Delay lebih lama
+      });
+    } else {
+      // DOM sudah siap, beri delay untuk memastikan elemen sudah di-render
+      setTimeout(function() {
+        try {
+          initSimpleBars();
+        } catch (e) {
+          // Silent fail
+          // console.warn('SimpleBar initialization error:', e.message);
+        }
+      }, 800); // Delay lebih lama
+    }
+  }
+  
+  // Hanya initialize jika SimpleBar library tersedia dan tidak ada error sebelumnya
+  if (typeof SimpleBar !== 'undefined' && typeof window.SimpleBar !== 'undefined') {
+    // Tunggu sampai jQuery dan Select2 selesai load
+    if (typeof $ !== 'undefined') {
+      $(document).ready(function() {
+        initSimpleBarsDelayed();
+      });
+    } else {
+      initSimpleBarsDelayed();
+    }
+  }
   /* header dropdowns scroll */
 })();
 
@@ -391,23 +452,31 @@ function openFullscreen() {
   let open = document.querySelector(".full-screen-open");
   let close = document.querySelector(".full-screen-close");
 
+  if (!elem) {
+    elem = document.documentElement;
+  }
+
   if (
     !document.fullscreenElement &&
     !document.webkitFullscreenElement &&
     !document.msFullscreenElement
   ) {
-    if (elem.requestFullscreen) {
+    if (elem && elem.requestFullscreen) {
       elem.requestFullscreen();
-    } else if (elem.webkitRequestFullscreen) {
+    } else if (elem && elem.webkitRequestFullscreen) {
       /* Safari */
       elem.webkitRequestFullscreen();
-    } else if (elem.msRequestFullscreen) {
+    } else if (elem && elem.msRequestFullscreen) {
       /* IE11 */
       elem.msRequestFullscreen();
     }
-    close.classList.add("d-block");
-    close.classList.remove("d-none");
-    open.classList.add("d-none");
+    if (close) {
+      close.classList.add("d-block");
+      close.classList.remove("d-none");
+    }
+    if (open) {
+      open.classList.add("d-none");
+    }
   } else {
     if (document.exitFullscreen) {
       document.exitFullscreen();
@@ -419,10 +488,14 @@ function openFullscreen() {
       /* IE11 */
       document.msExitFullscreen();
     }
-    close.classList.remove("d-block");
-    open.classList.remove("d-none");
-    close.classList.add("d-none");
-    open.classList.add("d-block");
+    if (close) {
+      close.classList.remove("d-block");
+      close.classList.add("d-none");
+    }
+    if (open) {
+      open.classList.remove("d-none");
+      open.classList.add("d-block");
+    }
   }
 }
 /* full screen */

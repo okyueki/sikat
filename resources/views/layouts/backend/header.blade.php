@@ -25,6 +25,15 @@
                         <a aria-label="Hide Sidebar" class="sidemenu-toggle header-link animated-arrow hor-toggle horizontal-navtoggle" data-bs-toggle="sidebar" href="javascript:void(0);">
                             <i class="header-icon fe fe-align-left"></i>
                         </a>
+                        <!-- Modern Menu Modal Button -->
+                        <a href="javascript:void(0);" class="header-link ms-2" id="openMenuModal" data-bs-toggle="modal" data-bs-target="#menuModal">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="header-link-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="14" width="7" height="7"></rect>
+                                <rect x="3" y="14" width="7" height="7"></rect>
+                            </svg>
+                        </a>
                         <div class="main-header-center d-none d-lg-block">
                             <input class="form-control" placeholder="Search for anything..." type="search"> <button class="btn"><i class="fa fa-search d-none d-md-block"></i></button>
                         </div>
@@ -55,58 +64,6 @@
                             </li>
                         </ul>
                     </div>
-
-                    <!-- Start::header-element -->
-                    <div class="header-element country-selector">
-                        <!-- Start::header-link|dropdown-toggle -->
-                        <a href="javascript:void(0);" class="header-link dropdown-toggle" data-bs-auto-close="outside" data-bs-toggle="dropdown">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="flag-icon1"> <circle cx="256" cy="256" r="256" fill="#f0f0f0"></circle> <g fill="#0052b4"> <path d="M52.92 100.142c-20.109 26.163-35.272 56.318-44.101 89.077h133.178L52.92 100.142zM503.181 189.219c-8.829-32.758-23.993-62.913-44.101-89.076l-89.075 89.076h133.176zM8.819 322.784c8.83 32.758 23.993 62.913 44.101 89.075l89.074-89.075H8.819zM411.858 52.921c-26.163-20.109-56.317-35.272-89.076-44.102v133.177l89.076-89.075zM100.142 459.079c26.163 20.109 56.318 35.272 89.076 44.102V370.005l-89.076 89.074zM189.217 8.819c-32.758 8.83-62.913 23.993-89.075 44.101l89.075 89.075V8.819zM322.783 503.181c32.758-8.83 62.913-23.993 89.075-44.101l-89.075-89.075v133.176zM370.005 322.784l89.075 89.076c20.108-26.162 35.272-56.318 44.101-89.076H370.005z"></path> </g> <g fill="#d80027"> <path d="M509.833 222.609H289.392V2.167A258.556 258.556 0 00256 0c-11.319 0-22.461.744-33.391 2.167v220.441H2.167A258.556 258.556 0 000 256c0 11.319.744 22.461 2.167 33.391h220.441v220.442a258.35 258.35 0 0066.783 0V289.392h220.442A258.533 258.533 0 00512 256c0-11.317-.744-22.461-2.167-33.391z"></path> <path d="M322.783 322.784L437.019 437.02a256.636 256.636 0 0015.048-16.435l-97.802-97.802h-31.482v.001zM189.217 322.784h-.002L74.98 437.019a256.636 256.636 0 0016.435 15.048l97.802-97.804v-31.479zM189.217 189.219v-.002L74.981 74.98a256.636 256.636 0 00-15.048 16.435l97.803 97.803h31.481zM322.783 189.219L437.02 74.981a256.328 256.328 0 00-16.435-15.047l-97.802 97.803v31.482z"></path> </g> </svg>
-                        </a>
-                        <!-- End::header-link|dropdown-toggle -->
-                        <ul class="main-header-dropdown dropdown-menu dropdown-menu-end country-dropdown" data-popper-placement="none">
-                            <li>
-                                <a class="dropdown-item d-flex align-items-center" href="javascript:void(0);">
-                                    <span>
-                                        <img src="./backend/assets/images/flags/french_flag.jpg" alt="img" class="avatar avatar-xs lh-1 me-2">
-                                    </span>
-                                    French
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item d-flex align-items-center" href="javascript:void(0);">
-                                    <span>
-                                        <img src="./backend/assets/images/flags/germany_flag.jpg" alt="img" class="avatar avatar-xs lh-1 me-2">
-                                    </span>
-                                    German
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item d-flex align-items-center" href="javascript:void(0);">
-                                    <span>
-                                        <img src="./backend/assets/images/flags/italy_flag.jpg" alt="img" class="avatar avatar-xs lh-1 me-2">
-                                    </span>
-                                    Italian
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item d-flex align-items-center" href="javascript:void(0);">
-                                    <span>
-                                        <img src="./backend/assets/images/flags/russia_flag.jpg" alt="img" class="avatar avatar-xs lh-1 me-2">
-                                    </span>
-                                    Russian
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item d-flex align-items-center" href="javascript:void(0);">
-                                    <span>
-                                        <img src="./backend/assets/images/flags/spain_flag.jpg" alt="img" class="avatar avatar-xs lh-1 me-2">
-                                    </span>
-                                    Spanish
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-                    <!-- End::header-element -->
 
                     <!-- Start::header-element -->
                     <div class="header-element header-theme-mode">
@@ -159,117 +116,6 @@
                         <!-- End::main-header-dropdown -->
                     </div>
                     <!-- End::header-element -->
-
-                    <!-- Start::header-element -->
-                    <div class="header-element notifications-dropdown main-header-notification">
-                        <!-- Start::header-link|dropdown-toggle -->
-                        <a href="javascript:void(0);" class="header-link dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" id="messageDropdown" aria-expanded="false">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="header-link-icon"  height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
-                            <span class="pulse-success"></span>
-                        </a>
-                        <!-- End::header-link|dropdown-toggle -->
-                        <!-- Start::main-header-dropdown -->
-                        <div class="main-header-dropdown dropdown-menu dropdown-menu-end main-header-message" data-popper-placement="none">
-                            <div class="menu-header-content bg-primary text-fixed-white">
-                                <div class="d-flex align-items-center justify-content-between">
-                                    <h6 class="mb-0 fs-15 fw-semibold text-fixed-white">Notifications</h6>
-                                    <span class="badge rounded-pill bg-warning pt-1 text-fixed-black">Mark All Read</span>
-                                </div>
-                                <p class="dropdown-title-text subtext mb-0 text-fixed-white op-6 pb-0 fs-12 ">You have 4 unread Notifications</p>
-                            </div>
-                            <div><hr class="dropdown-divider"></div>
-                            <ul class="list-unstyled mb-0" id="header-notification-scroll">
-                                <li class="dropdown-item px-3">
-                                    <div class="d-flex">
-                                        <span class="avatar avatar-md me-2 avatar-rounded flex-shrink-0 bg-pink">
-                                            <i class="la la-file-alt fs-20"></i>
-                                        </span>
-                                        <div class="ms-3">
-                                            <a href="mail.html"><h5 class="notification-label text-dark mb-1">New files available</h5></a>
-                                            <div class="notification-subtext">10 hour ago</div>
-                                        </div>
-                                        <div class="ms-auto" >
-                                            <a href="mail.html"><i class="las la-angle-right text-end text-muted icon"></i></a>
-                                        </div>
-                                    </div>
-                                </li>
-                                <li class="dropdown-item px-3">
-                                    <div class="d-flex">
-                                        <span class="avatar avatar-md me-2 avatar-rounded flex-shrink-0 bg-purple">
-                                            <i class="la la-gem fs-20"></i>
-                                        </span>
-                                        <div class="ms-3">
-                                            <a href="mail.html"><h5 class="notification-label text-dark mb-1">Updates Available</h5></a>
-                                            <div class="notification-subtext">2 days ago</div>
-                                        </div>
-                                        <div class="ms-auto" >
-                                            <a href="mail.html"><i class="las la-angle-right text-end text-muted icon"></i></a>
-                                        </div>
-                                    </div>
-                                </li>
-                                <li class="dropdown-item px-3">
-                                    <div class="d-flex">
-                                        <span class="avatar avatar-md me-2 avatar-rounded flex-shrink-0 bg-success">
-                                            <i class="la la-shopping-basket fs-20"></i>
-                                        </span>
-                                        <div class="ms-3">
-                                            <a href="mail.html"><h5 class="notification-label text-dark mb-1">New Order Received</h5></a>
-                                            <div class="notification-subtext">1 hour ago</div>
-                                        </div>
-                                        <div class="ms-auto" >
-                                            <a href="mail.html"><i class="las la-angle-right text-end text-muted icon"></i></a>
-                                        </div>
-                                    </div>
-                                </li>
-                                <li class="dropdown-item px-3">
-                                    <div class="d-flex">
-                                        <span class="avatar avatar-md me-2 avatar-rounded flex-shrink-0 bg-warning">
-                                            <i class="la la-envelope-open fs-20 text-fixed-white"></i>
-                                        </span>
-                                        <div class="ms-3">
-                                            <a href="mail.html"><h5 class="notification-label text-dark mb-1">New review received</h5></a>
-                                            <div class="notification-subtext">1 day ago</div>
-                                        </div>
-                                        <div class="ms-auto" >
-                                            <a href="mail.html"><i class="las la-angle-right text-end text-muted icon"></i></a>
-                                        </div>
-                                    </div>
-                                </li>
-                                <li class="dropdown-item px-3">
-                                    <div class="d-flex">
-                                        <span class="avatar avatar-md me-2 avatar-rounded flex-shrink-0 bg-danger">
-                                            <i class="la la-user-check fs-20"></i>
-                                        </span>
-                                        <div class="ms-3">
-                                            <a href="mail.html"><h5 class="notification-label text-dark mb-1">22 verified registrations</h5></a>
-                                            <div class="notification-subtext">2 hour ago</div>
-                                        </div>
-                                        <div class="ms-auto" >
-                                            <a href="mail.html"><i class="las la-angle-right text-end text-muted icon"></i></a>
-                                        </div>
-                                    </div>
-                                </li>
-                                <li class="dropdown-item px-3">
-                                    <div class="d-flex">
-                                        <span class="avatar avatar-md me-2 avatar-rounded flex-shrink-0 bg-primary">
-                                            <i class="la la-check-circle fs-20"></i>
-                                        </span>
-                                        <div class="ms-3">
-                                            <a href="mail.html"><h5 class="notification-label text-dark mb-1">Project has been approved</h5></a>
-                                            <div class="notification-subtext">4 hour ago</div>
-                                        </div>
-                                        <div class="ms-auto" >
-                                            <a href="mail.html"><i class="las la-angle-right text-end text-muted icon"></i></a>
-                                        </div>
-                                    </div>
-                                </li>
-                            </ul>
-                            <div class="text-center dropdown-footer">
-                                <a href="checkout.html" class="text-primary fs-13">VIEW ALL</a>
-                            </div>
-                        </div>
-                        <!-- End::main-header-dropdown -->
-                    </div>
                     <!-- End::header-element -->
 
                     <!-- Start::header-element -->

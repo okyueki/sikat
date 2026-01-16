@@ -22,7 +22,7 @@
 <div class="container-xl">
     <div class="row row-cards">
         @foreach($permintaans as $permintaan)
-        <div class="col-sm-6 col-lg-4"> <!-- Menampilkan 3 card per row pada layar besar -->
+        <div class="col-12 col-sm-6 col-lg-4 mb-3"> <!-- Responsive: 1 col mobile, 2 col tablet, 3 col desktop -->
             <div class="card">
                 <div class="card-header">
                     <h3 class="card-title">No Permintaan: {{ $permintaan->no_permintaan }}</h3>
