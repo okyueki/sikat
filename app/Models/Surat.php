@@ -47,4 +47,10 @@ class Surat extends Model
     {
         return $this->belongsTo(Pegawai::class, 'nik_pengirim', 'nik');
     }
+
+    // Relasi ke Agenda (jika surat ini direalisasikan sebagai agenda)
+    public function agenda()
+    {
+        return $this->hasOne(Agenda::class, 'id_surat_keluar', 'id_surat');
+    }
 }

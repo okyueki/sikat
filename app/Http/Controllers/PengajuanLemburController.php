@@ -26,21 +26,25 @@ class PengajuanLemburController extends Controller
                     // Mengakses nama pegawai dari relasi
                     return $row->pegawai ? $row->pegawai->nama : '-';
                 })
+                ->addColumn('tanggal_lembur', function($row) {
+                    // Menggabungkan tanggal awal dan tanggal akhir
+                    return $row->tanggal_awal.' - '.$row->tanggal_akhir;
+                })
                 ->addColumn('jam_lembur', function($row) {
                     // Mengakses nama pegawai dari relasi
                     return $row->jam_awal.' - '.$row->jam_akhir;
                 })
                 ->addColumn('action', function($row) {
+                    $btn = '<a href="'.route('pengajuan_lembur.show', encrypt($row->kode_pengajuan_lembur)).'" class="btn btn-primary waves-effect waves-light"><i class="fas fa-eye"></i> View</a>';
+                    
                     if ($row->status == 'Dikirim') {
-                    $btn = '
-                        <a href="'.route('pengajuan_lembur.edit', $row->id_pengajuan_lembur).'" class="btn btn-info waves-effect waves-light"><i class="far fa-edit"></i></a>
-                        <form action="'.route('pengajuan_lembur.destroy', $row->id_pengajuan_lembur).'" method="POST" style="display:inline;">
-                            '.csrf_field().'
-                            '.method_field("DELETE").'
-                            <button type="submit" class="btn btn-danger waves-effect waves-light delete-confirm"><i class="far fa-trash-alt"></i></button>
-                        </form>';
-                    } else {
-                        $btn = '<a href="'.route('pengajuan_lembur.show', encrypt($row->kode_pengajuan_lembur)).'" class="btn btn-primary waves-effect waves-light"><i class="fas fa-eye"></i> Show</a>';
+                        $btn .= '
+                            <a href="'.route('pengajuan_lembur.edit', $row->id_pengajuan_lembur).'" class="btn btn-info waves-effect waves-light"><i class="far fa-edit"></i> Edit</a>
+                            <form action="'.route('pengajuan_lembur.destroy', $row->id_pengajuan_lembur).'" method="POST" style="display:inline;">
+                                '.csrf_field().'
+                                '.method_field("DELETE").'
+                                <button type="submit" class="btn btn-danger waves-effect waves-light delete-confirm"><i class="far fa-trash-alt"></i> Delete</button>
+                            </form>';
                     }
                     return $btn;
                 })

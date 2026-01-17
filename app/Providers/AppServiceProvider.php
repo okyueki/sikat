@@ -12,10 +12,12 @@ use App\Models\Surat;
 use App\Models\DisposisiSurat;
 use App\Models\VerifikasiSurat;
 use App\Models\PengajuanLibur;
+use App\Models\Agenda;
 use App\Observers\CutiObserver;
 use App\Observers\SuratObserver;
 use App\Observers\DisposisiObserver;
 use App\Observers\VerifikasiSuratObserver;
+use App\Observers\AgendaObserver;
 use App\Models\Pegawai;
 
 
@@ -44,6 +46,7 @@ class AppServiceProvider extends ServiceProvider
         DisposisiSurat::observe(DisposisiObserver::class);
         VerifikasiSurat::observe(VerifikasiSuratObserver::class);
         PengajuanLibur::observe(CutiObserver::class);
+        Agenda::observe(AgendaObserver::class);
 
         // View composer buat semua halaman
         View::composer('*', function ($view) {

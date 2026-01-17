@@ -32,6 +32,12 @@ class VerifikasiSuratObserver
             return;
         }
 
+        // Validasi chat_id
+        if (!$telegramUser->chat_id) {
+            Log::warning("TelegramUser untuk NIK {$nik} tidak punya chat_id.");
+            return;
+        }
+
         $surat = $verifikasi->surat; // pastikan ada relasi di model VerifikasiSurat -> surat()
         if (!$surat) {
             Log::warning("Verifikasi {$verifikasi->id_verifikasi} tidak punya surat.");

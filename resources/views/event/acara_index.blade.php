@@ -53,7 +53,7 @@
             // Event click listener
             eventClick: function(info) {
                 // Redirect to the event detail page
-                window.location.href = '/agenda/show/' + info.event.id; // Use event's ID to redirect
+                window.location.href = '{{ route("acara_show", ":id") }}'.replace(':id', info.event.id);
             }
         });
 

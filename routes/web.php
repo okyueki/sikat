@@ -247,6 +247,10 @@ Route::middleware('auth')->group(function () {
     Route::put('/agenda/{id}', [AgendaController::class, 'update'])->name('acara_update');
     Route::delete('/agenda/{id}', [AgendaController::class, 'destroy'])->name('acara_destroy');
     Route::get('/agenda/show/{id}', [AgendaController::class, 'show'])->name('acara_show'); 
+    Route::get('/agenda/pdf/{id}', [AgendaController::class, 'generateAgendaPDF'])->name('agenda.pdf');
+    Route::post('/agenda/{id}/upload-materi', [AgendaController::class, 'uploadMateri'])->name('agenda.upload-materi');
+    Route::post('/agenda/{id}/upload-dokumentasi', [AgendaController::class, 'uploadDokumentasi'])->name('agenda.upload-dokumentasi');
+    Route::post('/agenda/{id}/kesimpulan', [AgendaController::class, 'simpanKesimpulan'])->name('agenda.kesimpulan');
     Route::get('/backend-acara', [AgendaController::class, 'backendAcara'])->name('backend_acara');
     Route::get('/agenda/{id}/generate-qr', [AgendaController::class, 'generateQrCode'])->name('generate-qr');
     Route::get('/agenda/{agendaId}/qr-code', [AgendaController::class, 'showQRCodePage'])->name('agenda.qr_code');
@@ -257,7 +261,7 @@ Route::middleware('auth')->group(function () {
     // Route untuk mengirim pesan melalui WAHA
     Route::get('/agenda/{agendaId}/send-message', [AgendaController::class, 'sendMessage'])->name('agenda.send_message');
     
-    Route::get('/scan-barcode', [AbsensiAgendaController::class, 'scanBarcode'])->name('absensi.scan');
+    Route::get('/scan-barcode/{agendaId?}', [AbsensiAgendaController::class, 'scanBarcode'])->name('absensi.scan');
     Route::post('/proses-scan', [AbsensiAgendaController::class, 'scanAttendance'])->name('absensi.proses_scan'); 
     Route::get('/check-token-status', [AgendaController::class, 'checkTokenStatus'])->name('check.token.status');
 
@@ -301,7 +305,7 @@ Route::resource('budayakerja', BudayaKerjaController::class);
 Route::get('/absensi_agenda', [AbsensiAgendaController::class, 'index'])->name('absensi_agenda.index');
 
 Route::get('/scan-qr', [AbsensiAgendaController::class, 'showScanQRCodePage'])->name('absensi_agenda.scan_qr_page');
-Route::post('/scan-attendance', [AbsensiAgendaController::class, 'scanAttendance'])->name('absensi_agenda.scan');
+// Route scan attendance sudah ada di middleware auth (baris 265) - tidak perlu duplikat
 Route::get('/rekap-absensi', [AbsensiAgendaController::class, 'rekapAbsensi'])->name('rekap-absensi');
 
 Route::resource('jadwalbudayakerja', JadwalBudayaKerjaController::class)->except('show')->middleware('auth');

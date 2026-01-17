@@ -39,6 +39,69 @@
         <!-- End Page Header -->
     </div>
 
+    <!-- Agenda Terundang Shortcut -->
+    @if(isset($agendaTerundang) && $agendaTerundang->count() > 0)
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card custom-card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Agenda Saya ({{ $agendaTerundang->count() }})</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        @foreach($agendaTerundang as $agenda)
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card border h-100 {{ $agenda->status_class == 'success' ? 'border-success' : ($agenda->status_class == 'info' ? 'border-info' : 'border-secondary') }}">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="card-title mb-0 text-truncate" style="max-width: 70%;" title="{{ $agenda->judul }}">
+                                            {{ $agenda->judul }}
+                                        </h6>
+                                        <span class="badge bg-{{ $agenda->status_class }} ms-2">{{ $agenda->status_label }}</span>
+                                    </div>
+                                    <p class="card-text mb-2">
+                                        <small class="text-muted">
+                                            <i class="fas fa-clock me-1"></i>{{ $agenda->waktu_info }}<br>
+                                            @if($agenda->tempat)
+                                                <i class="fas fa-map-marker-alt me-1"></i>{{ $agenda->tempat }}<br>
+                                            @endif
+                                            @if($agenda->pimpinan)
+                                                <i class="fas fa-user-tie me-1"></i>{{ $agenda->pimpinan->nama }}
+                                            @endif
+                                        </small>
+                                    </p>
+                                    <div class="d-flex gap-2 mt-2">
+                                        <a href="{{ route('acara_show', $agenda->id) }}" class="btn btn-sm btn-info flex-fill">
+                                            <i class="fas fa-eye me-1"></i> Detail
+                                        </a>
+                                        @if(!$agenda->sudah_absen && ($agenda->status_class == 'info' || $agenda->status_class == 'success'))
+                                            <a href="{{ route('absensi.scan', $agenda->id) }}" class="btn btn-sm btn-success flex-fill">
+                                                <i class="fas fa-qrcode me-1"></i> Scan
+                                            </a>
+                                        @elseif($agenda->sudah_absen)
+                                            <button class="btn btn-sm btn-secondary flex-fill" disabled>
+                                                <i class="fas fa-check me-1"></i> Sudah Absen
+                                            </button>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                    @if($agendaTerundang->count() >= 5)
+                    <div class="text-center mt-3">
+                        <a href="{{ route('absensi_agenda.index') }}" class="btn btn-primary">
+                            <i class="fas fa-list me-1"></i> Lihat Semua Agenda
+                        </a>
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <!-- Presensi Table -->
     <div class="row">
         <div class="col-lg-8">

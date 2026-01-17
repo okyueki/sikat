@@ -65,17 +65,51 @@
 
                     <div class="form-group">
                         <label>Foto</label>
-                        <input type="file" name="foto[]" class="form-control" multiple>
+                        <input type="file" name="foto" id="foto" class="form-control" accept="image/*">
+                        <small class="text-muted">Maksimal 2MB. Format: JPG, JPEG, PNG</small>
+                        <div id="foto-preview" class="mt-2" style="display: none;">
+                            <p>Preview:</p>
+                            <img id="foto-preview-img" src="" alt="Preview Foto" class="img-thumbnail" style="max-width: 300px; max-height: 300px;">
+                            <button type="button" class="btn btn-sm btn-danger mt-2" onclick="removeFotoPreview()">Hapus Preview</button>
+                        </div>
+                        <div id="foto-error" class="text-danger mt-1" style="display: none;"></div>
                     </div>
 
                     <div class="form-group">
-                        <label>Materi</label>
-                        <input type="file" name="materi[]" class="form-control" multiple>
+                        <label>Materi Acara <span class="text-muted">(Opsional - bisa ditambahkan lagi setelah acara dibuat)</span></label>
+                        <input type="file" name="materi[]" id="materi" class="form-control" accept=".pdf,.doc,.docx" multiple>
+                        <small class="text-muted">Maksimal 2MB per file. Format: PDF, DOC, DOCX. Bisa pilih beberapa file sekaligus.</small>
+                        <div id="materi-list" class="mt-2"></div>
+                        <div id="materi-error" class="text-danger mt-1" style="display: none;"></div>
                     </div>
 
                     <div class="form-group">
                         <label>Keterangan</label>
                         <textarea name="keterangan" class="form-control"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="is_realisasi_surat" 
+                                   name="is_realisasi_surat" value="1">
+                            <label class="form-check-label" for="is_realisasi_surat">
+                                <strong>Ini realisasi dari Surat Keluar</strong>
+                            </label>
+                        </div>
+                        
+                        <div id="surat_keluar_select" style="display: none;">
+                            <label for="id_surat_keluar">Pilih Surat Keluar</label>
+                            <select name="id_surat_keluar" id="id_surat_keluar" class="form-control">
+                                <option value="">-- Pilih Surat Keluar --</option>
+                                @foreach($suratKeluar ?? [] as $sk)
+                                    <option value="{{ $sk->id_surat }}">
+                                        {{ $sk->nomor_surat }} | {{ $sk->perihal }} 
+                                        ({{ \Carbon\Carbon::parse($sk->tanggal_surat)->format('d M Y') }})
+                                    </option>
+                                @endforeach
+                            </select>
+                            <small class="text-muted">Hanya menampilkan surat keluar yang sudah disetujui dan belum ada realisasi</small>
+                        </div>
                     </div>
 
                     <button type="submit" class="btn btn-primary">Simpan</button>
@@ -142,6 +176,125 @@
                 akhirInput.value = ''; // Reset input akhir jika invalid
             }
         });
+
+        // Validasi dan preview foto
+        const fotoInput = document.getElementById('foto');
+        const fotoPreview = document.getElementById('foto-preview');
+        const fotoPreviewImg = document.getElementById('foto-preview-img');
+        const fotoError = document.getElementById('foto-error');
+        const maxFotoSize = 2 * 1024 * 1024; // 2MB
+
+        fotoInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            fotoError.style.display = 'none';
+            fotoError.textContent = '';
+
+            if (file) {
+                // Validasi ukuran file
+                if (file.size > maxFotoSize) {
+                    fotoError.textContent = 'Ukuran file terlalu besar! Maksimal 2MB.';
+                    fotoError.style.display = 'block';
+                    fotoInput.value = '';
+                    fotoPreview.style.display = 'none';
+                    return;
+                }
+
+                // Validasi tipe file
+                if (!file.type.match('image.*')) {
+                    fotoError.textContent = 'File harus berupa gambar!';
+                    fotoError.style.display = 'block';
+                    fotoInput.value = '';
+                    fotoPreview.style.display = 'none';
+                    return;
+                }
+
+                // Preview gambar
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    fotoPreviewImg.src = e.target.result;
+                    fotoPreview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                fotoPreview.style.display = 'none';
+            }
+        });
+
+        // Validasi materi
+        const materiInput = document.getElementById('materi');
+        const materiError = document.getElementById('materi-error');
+        const maxMateriSize = 2 * 1024 * 1024; // 2MB
+
+        materiInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            materiError.style.display = 'none';
+            materiError.textContent = '';
+
+            if (file) {
+                // Validasi ukuran file
+                if (file.size > maxMateriSize) {
+                    materiError.textContent = 'Ukuran file terlalu besar! Maksimal 2MB.';
+                    materiError.style.display = 'block';
+                    materiInput.value = '';
+                    return;
+                }
+
+                // Validasi tipe file
+                const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+                if (!allowedTypes.includes(file.type)) {
+                    materiError.textContent = 'File harus berupa PDF, DOC, atau DOCX!';
+                    materiError.style.display = 'block';
+                    materiInput.value = '';
+                    return;
+                }
+            }
+        });
+
+        // Validasi form sebelum submit
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const foto = fotoInput.files[0];
+            const materiFiles = Array.from(materiInput.files);
+
+            if (foto && foto.size > maxFotoSize) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Ukuran foto terlalu besar! Maksimal 2MB.'
+                });
+                return false;
+            }
+
+            // Validasi semua file materi
+            for (let i = 0; i < materiFiles.length; i++) {
+                if (materiFiles[i].size > maxMateriSize) {
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: `File "${materiFiles[i].name}" terlalu besar! Maksimal 2MB per file.`
+                    });
+                    return false;
+                }
+            }
+        });
+    });
+
+    function removeFotoPreview() {
+        document.getElementById('foto').value = '';
+        document.getElementById('foto-preview').style.display = 'none';
+        document.getElementById('foto-preview-img').src = '';
+    }
+
+    // Toggle dropdown surat keluar
+    document.getElementById('is_realisasi_surat')?.addEventListener('change', function() {
+        const suratKeluarSelect = document.getElementById('surat_keluar_select');
+        if (suratKeluarSelect) {
+            suratKeluarSelect.style.display = this.checked ? 'block' : 'none';
+            if (!this.checked) {
+                document.getElementById('id_surat_keluar').value = '';
+            }
+        }
     });
 </script>
 

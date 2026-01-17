@@ -26,6 +26,12 @@ class Agenda extends Model
         'foto',
         'materi',
         'keterangan',
+        'status_acara',
+        'kesimpulan_notulen',
+        'tanggal_selesai_notulen',
+        'created_by',
+        'id_surat_keluar',
+        'status_realisasi',
     ];
 
     // Relasi ke model Pegawai untuk pimpinan rapat
@@ -52,8 +58,32 @@ class Agenda extends Model
     {
         return $this->hasMany(Pegawai::class, 'nik', 'yang_terundang');
     }
-        public function absensi()
+    public function absensi()
     {
         return $this->hasMany(AbsensiAgenda::class, 'agenda_id', 'id');
+    }
+
+    // Relasi ke Surat Keluar
+    public function suratKeluar()
+    {
+        return $this->belongsTo(Surat::class, 'id_surat_keluar', 'id_surat');
+    }
+
+    // Relasi ke AgendaMateri (materi)
+    public function materiFiles()
+    {
+        return $this->hasMany(AgendaMateri::class, 'agenda_id')->where('jenis', 'materi');
+    }
+
+    // Relasi ke AgendaMateri (dokumentasi)
+    public function dokumentasiFiles()
+    {
+        return $this->hasMany(AgendaMateri::class, 'agenda_id')->where('jenis', 'dokumentasi');
+    }
+
+    // Relasi ke semua AgendaMateri
+    public function semuaMateri()
+    {
+        return $this->hasMany(AgendaMateri::class, 'agenda_id');
     }
 }

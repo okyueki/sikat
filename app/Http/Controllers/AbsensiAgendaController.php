@@ -34,9 +34,7 @@ class AbsensiAgendaController extends Controller
                 
         return DataTables::of($agendas)
             ->addColumn('action', function ($agenda) {
-                // return '<a href="' . route('absensi_agenda.scan_qr_page', ['agendaId' => $agenda->id]) . '" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i></a>
-                //         <a href="' .route('absensi.scan', ['agendaId' => $agenda->id]). '" class="btn btn-success"><i class="fa-solid fa-magnifying-glass"></i></a>';
-                return '<a href="' .route('absensi.scan', ['agendaId' => $agenda->id]). '" class="btn btn-success"><i class="fa-solid fa-magnifying-glass"></i></a>';
+                return '<a href="' .route('absensi.scan', ['agendaId' => $agenda->id]). '" class="btn btn-success" title="Scan QR Code untuk Absensi"><i class="fa-solid fa-qrcode me-1"></i> Scan</a>';
             })
             ->editColumn('mulai', function ($agenda) {
                 return Carbon::parse($agenda->mulai)->format('d M Y H:i');
@@ -51,9 +49,57 @@ class AbsensiAgendaController extends Controller
     return view('absensi_agenda.index');
 }
 // --- View Scanner ---
-    public function scanBarcode()
+    public function scanBarcode($agendaId = null)
     {
-        return view('absensi_agenda.scan');
+        $agenda = null;
+        
+        if ($agendaId) {
+            $agenda = Agenda::with(['pimpinan', 'notulenPegawai'])->find($agendaId);
+            
+            if (!$agenda) {
+                return redirect()->route('absensi_agenda.index')
+                    ->with('error', 'Agenda tidak ditemukan.');
+            }
+            
+            // Validasi user terundang
+            $userNik = Auth::user()->username;
+            $terundang = is_array($agenda->yang_terundang) 
+                ? $agenda->yang_terundang 
+                : (json_decode($agenda->yang_terundang, true) ?? []);
+            
+            // Cek apakah semua pegawai aktif terundang
+            $semuaNikAktif = Pegawai::where('stts_aktif', 'AKTIF')->pluck('nik')->toArray();
+            $isAll = false;
+            
+            if (is_array($terundang)) {
+                $intersect = array_intersect($semuaNikAktif, $terundang);
+                $isAll = count($intersect) === count($semuaNikAktif) && count($terundang) === count($semuaNikAktif);
+            }
+            
+            if (!in_array('all', $terundang) && !$isAll && !in_array($userNik, $terundang)) {
+                return redirect()->route('absensi_agenda.index')
+                    ->with('error', 'Anda tidak diundang dalam agenda ini.');
+            }
+            
+            // Validasi waktu agenda
+            $now = Carbon::now();
+            $mulai = Carbon::parse($agenda->mulai);
+            $akhir = $agenda->akhir ? Carbon::parse($agenda->akhir) : null;
+            
+            // Cek apakah agenda sudah dimulai (boleh scan 15 menit sebelum mulai)
+            if ($now->lt($mulai->subMinutes(15))) {
+                return redirect()->route('absensi_agenda.index')
+                    ->with('error', 'Agenda belum dimulai. Waktu mulai: ' . Carbon::parse($agenda->mulai)->format('d M Y H:i'));
+            }
+            
+            // Cek apakah agenda sudah berakhir (boleh scan sampai 1 jam setelah akhir)
+            if ($akhir && $now->gt($akhir->addHour())) {
+                return redirect()->route('absensi_agenda.index')
+                    ->with('error', 'Agenda sudah berakhir. Waktu akhir: ' . Carbon::parse($agenda->akhir)->format('d M Y H:i'));
+            }
+        }
+        
+        return view('absensi_agenda.scan', compact('agenda'));
     }
 
     
@@ -102,14 +148,44 @@ class AbsensiAgendaController extends Controller
         // 🔒 Cek apakah user diundang
         $agenda = Agenda::findOrFail($agendaId);
         $terundang = is_array($agenda->yang_terundang)
-    ? $agenda->yang_terundang
-    : (json_decode($agenda->yang_terundang, true) ?? []);
-    
-        if (!in_array('all', $terundang) && !in_array($nik, $terundang)) {
+            ? $agenda->yang_terundang
+            : (json_decode($agenda->yang_terundang, true) ?? []);
+        
+        // Cek apakah semua pegawai aktif terundang
+        $semuaNikAktif = Pegawai::where('stts_aktif', 'AKTIF')->pluck('nik')->toArray();
+        $isAll = false;
+        
+        if (is_array($terundang)) {
+            $intersect = array_intersect($semuaNikAktif, $terundang);
+            $isAll = count($intersect) === count($semuaNikAktif) && count($terundang) === count($semuaNikAktif);
+        }
+        
+        if (!in_array('all', $terundang) && !$isAll && !in_array($nik, $terundang)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Anda tidak diundang dalam agenda ini.'
             ], 403);
+        }
+        
+        // 🔒 Validasi waktu agenda
+        $now = Carbon::now();
+        $mulai = Carbon::parse($agenda->mulai);
+        $akhir = $agenda->akhir ? Carbon::parse($agenda->akhir) : null;
+        
+        // Cek apakah agenda sudah dimulai (boleh scan 15 menit sebelum mulai)
+        if ($now->lt($mulai->copy()->subMinutes(15))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Agenda belum dimulai. Waktu mulai: ' . $mulai->format('d M Y H:i')
+            ], 400);
+        }
+        
+        // Cek apakah agenda sudah berakhir (boleh scan sampai 1 jam setelah akhir)
+        if ($akhir && $now->gt($akhir->copy()->addHour())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Agenda sudah berakhir. Waktu akhir: ' . Carbon::parse($agenda->akhir)->format('d M Y H:i')
+            ], 400);
         }
     
         // 🔒 Cek absen ganda
@@ -146,7 +222,71 @@ public function rekapAbsensi(Request $request)
             $q->where('agenda_id', $agendaId);
         });
 
-    // Jika request dari DataTables (AJAX)
+    // Jika request dari DataTables (AJAX) - untuk daftar lengkap yang terundang
+    if ($request->ajax() && $request->get('type') === 'terundang') {
+        if ($agendaId) {
+            $agenda = Agenda::find($agendaId);
+            
+            if ($agenda) {
+                $terundang = $agenda->yang_terundang ?? [];
+                
+                // Handle jika yang_terundang adalah string JSON
+                if (is_string($terundang)) {
+                    $terundang = json_decode($terundang, true) ?? [];
+                }
+                
+                // Cek apakah semua pegawai aktif terundang
+                $semuaNikAktif = Pegawai::where('stts_aktif', 'AKTIF')->pluck('nik')->toArray();
+                $isAll = false;
+                
+                if (is_array($terundang)) {
+                    // Cek apakah semua NIK aktif ada di yang terundang dan jumlahnya sama
+                    $intersect = array_intersect($semuaNikAktif, $terundang);
+                    $isAll = count($intersect) === count($semuaNikAktif) && count($terundang) === count($semuaNikAktif);
+                }
+                
+                // 🔹 Kalau "all" atau semua pegawai aktif terundang, ambil semua pegawai aktif
+                if ($isAll || (is_array($terundang) && in_array("all", $terundang))) {
+                    $pegawaiIds = $semuaNikAktif;
+                } else {
+                    $pegawaiIds = is_array($terundang) ? $terundang : [];
+                }
+                
+                // Ambil semua pegawai yang terundang
+                $pegawaiList = Pegawai::whereIn('nik', $pegawaiIds)->get();
+                
+                // Ambil yang sudah absen
+                $sudahAbsen = AbsensiAgenda::where('agenda_id', $agendaId)
+                    ->whereIn('nik', $pegawaiIds)
+                    ->with('pegawai')
+                    ->get()
+                    ->keyBy('nik');
+                
+                // Format data untuk DataTables
+                $data = $pegawaiList->map(function($pegawai) use ($sudahAbsen) {
+                    $absensi = $sudahAbsen->get($pegawai->nik);
+                    return [
+                        'nik' => $pegawai->nik,
+                        'nama' => $pegawai->nama,
+                        'jabatan' => $pegawai->jbtn ?? '-',
+                        'departemen' => $pegawai->departemen ?? '-',
+                        'status' => $absensi ? 'hadir' : 'tidak_hadir',
+                        'waktu_kehadiran' => $absensi ? Carbon::parse($absensi->waktu_kehadiran)->format('d M Y H:i') : '-',
+                    ];
+                });
+                
+                return response()->json([
+                    'data' => $data->values(),
+                    'recordsTotal' => $data->count(),
+                    'recordsFiltered' => $data->count(),
+                ]);
+            }
+        }
+        
+        return response()->json(['data' => [], 'recordsTotal' => 0, 'recordsFiltered' => 0]);
+    }
+    
+    // Jika request dari DataTables (AJAX) - untuk yang sudah absen saja (backward compatibility)
     if ($request->ajax()) {
         $rekap = null;
 
@@ -160,7 +300,7 @@ public function rekapAbsensi(Request $request)
                 if (is_array($terundang) && in_array("all", $terundang)) {
                     $pegawaiIds = Pegawai::where('stts_aktif', 'AKTIF')->pluck('nik')->toArray();
                 } else {
-                    $pegawaiIds = $terundang;
+                    $pegawaiIds = is_array($terundang) ? $terundang : [];
                 }
 
                 $jumlahUndangan = count($pegawaiIds);
@@ -210,7 +350,7 @@ public function rekapAbsensi(Request $request)
             ->make(true);
     }
 
-    $agendas = Agenda::all(['id', 'judul']);
+    $agendas = Agenda::with(['pimpinan'])->get(['id', 'judul', 'mulai', 'akhir', 'pimpinan_rapat']);
     return view('absensi_agenda.rekap', compact('agendas'));
 }
 

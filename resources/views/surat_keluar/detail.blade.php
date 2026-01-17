@@ -32,6 +32,30 @@
                 <div class="tab-content p-3">
                     <!-- Tab 1: Detail Surat -->
                     <div class="tab-pane active" id="home" role="tabpanel">
+                        {{-- Info Realisasi Agenda --}}
+                        @if($surat->agenda)
+                            <div class="alert alert-success mb-4">
+                                <h5><i class="fas fa-calendar-check me-2"></i>Realisasi: Agenda Acara</h5>
+                                <p class="mb-1"><strong>Judul Agenda:</strong> 
+                                    <a href="{{ route('acara_show', $surat->agenda->id) }}" target="_blank">
+                                        {{ $surat->agenda->judul }}
+                                        <i class="fas fa-external-link-alt ms-1"></i>
+                                    </a>
+                                </p>
+                                <p class="mb-1"><strong>Tanggal Acara:</strong> {{ \Carbon\Carbon::parse($surat->agenda->mulai)->format('d M Y H:i') }}</p>
+                                <p class="mb-0">
+                                    <strong>Status Realisasi:</strong> 
+                                    <span class="badge 
+                                        @if($surat->agenda->status_realisasi == 'belum') bg-secondary
+                                        @elseif($surat->agenda->status_realisasi == 'sedang') bg-warning
+                                        @elseif($surat->agenda->status_realisasi == 'selesai') bg-success
+                                        @endif">
+                                        {{ ucfirst($surat->agenda->status_realisasi) }}
+                                    </span>
+                                </p>
+                            </div>
+                        @endif
+
                         <div class="row">
                             <div class="col-12 col-md-6">
                                 <ol class="list-group list-group-numbered">

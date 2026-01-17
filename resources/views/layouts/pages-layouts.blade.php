@@ -270,184 +270,439 @@
         const menuGrid = document.getElementById('menuGrid');
         const menuSearch = document.getElementById('menuSearch');
         
-        // Menu items configuration - Sesuai dengan navbar.blade.php
+        // Menu items configuration - Dikelompokkan berdasarkan parent-child sesuai navbar.blade.php
         const menuItems = [
+            // ========== MENU UTAMA ==========
             {
                 title: 'Dashboard',
+                category: 'Menu Utama',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>',
                 url: '{{ route("dashboard") }}'
             },
+            
+            // ========== SURAT MENYURAT ==========
             {
                 title: 'Surat Masuk',
+                category: 'Surat Menyurat',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>',
                 url: '{{ route("surat_masuk.index") }}'
             },
             {
                 title: 'Surat Keluar',
+                category: 'Surat Menyurat',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>',
                 url: '{{ route("surat_keluar.index") }}'
             },
             {
                 title: 'Pengajuan Cuti / Libur',
+                category: 'Surat Menyurat',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
                 url: '{{ route("cuti.index") }}'
             },
             {
                 title: 'Verifikasi Pengajuan Libur',
+                category: 'Surat Menyurat',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
                 url: '{{ route("verifikasi_pengajuan_libur.index") }}'
             },
             {
                 title: 'Pengajuan Ijin',
+                category: 'Surat Menyurat',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>',
                 url: '{{ route("ijin.index") }}'
             },
             {
                 title: 'Pengajuan Lembur',
+                category: 'Surat Menyurat',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
                 url: '{{ route("pengajuan_lembur.index") }}'
             },
             {
+                title: 'Verifikasi Lembur',
+                category: 'Surat Menyurat',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
+                url: '{{ route("verifikasi_pengajuan_lembur.index") }}'
+            },
+            {
+                title: 'Sifat Surat',
+                category: 'Surat Menyurat',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>',
+                url: '{{ route("sifat_surat.index") }}'
+            },
+            {
+                title: 'Klasifikasi Surat',
+                category: 'Surat Menyurat',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>',
+                url: '{{ route("klasifikasi_surat.index") }}'
+            },
+            
+            // ========== EVENT & AGENDA ==========
+            {
                 title: 'Kalender Event',
+                category: 'Event & Agenda',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path></svg>',
                 url: '{{ route("acara_index") }}'
             },
             {
+                title: 'Agenda',
+                category: 'Event & Agenda',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
+                url: '{{ route("backend_acara") }}'
+            },
+            {
                 title: 'Absensi Agenda',
+                category: 'Event & Agenda',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>',
                 url: '{{ route("absensi_agenda.index") }}'
             },
             {
-                title: 'Daftar Pegawai',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
-                url: '{{ route("pegawai.index") }}'
+                title: 'Rekap Absensi Agenda',
+                category: 'Event & Agenda',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
+                url: '{{ route("rekap-absensi") }}'
+            },
+            {
+                title: 'Absensi Event',
+                category: 'Event & Agenda',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>',
+                url: '{{ route("absensi_event.create") }}'
+            },
+            
+            // ========== KEPEGAWAIAN ==========
+            {
+                title: 'Temporary Presensi',
+                category: 'Kepegawaian',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
+                url: '{{ route("presensi.index") }}'
             },
             {
                 title: 'Absensi',
+                category: 'Kepegawaian',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
                 url: '{{ route("absensi.show") }}'
             },
             {
                 title: 'Jadwal',
+                category: 'Kepegawaian',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
                 url: '{{ route("jadwal.index") }}'
             },
             {
+                title: 'Daftar Pegawai',
+                category: 'Kepegawaian',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
+                url: '{{ route("pegawai.index") }}'
+            },
+            {
                 title: 'Berkas Pegawai',
+                category: 'Kepegawaian',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>',
                 url: '{{ route("berkas_pegawai.index") }}'
             },
             {
+                title: 'Penilaian Budaya Kerja',
+                category: 'Kepegawaian',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>',
+                url: '{{ route("budayakerja.index") }}'
+            },
+            {
+                title: 'Jadwal Budaya Kerja',
+                category: 'Kepegawaian',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
+                url: '{{ route("jadwalbudayakerja.index") }}'
+            },
+            {
+                title: 'Kalender Budaya Kerja',
+                category: 'Kepegawaian',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
+                url: '{{ route("jadwalbudayakerja.kalender") }}'
+            },
+            {
+                title: 'Kalender Milad',
+                category: 'Kepegawaian',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
+                url: '{{ route("pegawai.birthday") }}'
+            },
+            {
                 title: 'Penilaian Bulanan',
+                category: 'Kepegawaian',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>',
                 url: '{{ route("penilaian_individu.index") }}'
             },
             {
+                title: 'Rekap Presensi',
+                category: 'Kepegawaian',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
+                url: '{{ route("kepegawaian.rekap_presensi.index") }}'
+            },
+            
+            // ========== INVENTARIS ==========
+            {
                 title: 'Master Barang',
+                category: 'Inventaris',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
                 url: '{{ route("inventaris-barang.index") }}'
             },
             {
+                title: 'Jenis Inventaris',
+                category: 'Inventaris',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
+                url: '{{ route("jenis-inventaris.index") }}'
+            },
+            {
+                title: 'Kategori Inventaris',
+                category: 'Inventaris',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
+                url: '{{ route("kategori-inventaris.index") }}'
+            },
+            {
+                title: 'Merk Inventaris',
+                category: 'Inventaris',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
+                url: '{{ route("merk-inventaris.index") }}'
+            },
+            {
+                title: 'Produsen Inventaris',
+                category: 'Inventaris',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
+                url: '{{ route("produsen-inventaris.index") }}'
+            },
+            {
                 title: 'Inventaris',
+                category: 'Inventaris',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
                 url: '{{ route("inventaris.index") }}'
             },
             {
-                title: 'Helpdesk',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
-                url: '{{ route("helpdesk.dashboard") }}'
+                title: 'Visualisasi Data',
+                category: 'Inventaris',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>',
+                url: '{{ route("inventaris.visualisasi") }}'
             },
+            
+            // ========== PUSAT BANTUAN ==========
             {
                 title: 'Permintaan Perbaikan',
+                category: 'Pusat Bantuan',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>',
                 url: '{{ route("tickets.index") }}'
             },
             {
+                title: 'Helpdesk',
+                category: 'Pusat Bantuan',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+                url: '{{ route("helpdesk.dashboard") }}'
+            },
+            
+            // ========== LAPORAN ==========
+            {
                 title: 'Rekap Libur',
+                category: 'Laporan',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
                 url: '{{ route("pengajuan_libur.rekap-libur") }}'
             },
             {
                 title: 'Rekap Lembur',
+                category: 'Laporan',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
                 url: '{{ route("rekap.lembur") }}'
             },
-            {
-                title: 'Rekap Presensi',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
-                url: '{{ route("kepegawaian.rekap_presensi.index") }}'
-            },
-            {
-                title: 'Pemakaian Kamar',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
-                url: '{{ route("pemakaiankamar.index") }}'
-            },
-            {
-                title: 'Pasien Rawat Inap',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
-                url: '{{ route("pasienrawatinap.index") }}'
-            },
-            {
-                title: 'Pasien Rawat Jalan',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
-                url: '{{ route("pasienrawatjalan.index") }}'
-            },
-            {
-                title: 'Ubah Password',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>',
-                url: '{{ route("ubahpassword.index") }}'
-            },
+            
+            // ========== MANAJEMEN KESEHATAN ==========
             {
                 title: 'Kamar Inap',
+                category: 'Manajemen Kesehatan',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
                 url: '{{ route("kamar_inap.index") }}'
             },
             {
                 title: 'Data Discharge Note',
+                category: 'Manajemen Kesehatan',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
                 url: '{{ route("datadischargenote.index") }}'
             },
             {
+                title: 'Ranap Dokter',
+                category: 'Manajemen Kesehatan',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
+                url: '{{ route("ranap_dokter.index") }}'
+            },
+            {
+                title: 'Pemakaian Kamar',
+                category: 'Manajemen Kesehatan',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
+                url: '{{ route("pemakaiankamar.index") }}'
+            },
+            {
+                title: 'Pasien Rawat Inap',
+                category: 'Manajemen Kesehatan',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
+                url: '{{ route("pasienrawatinap.index") }}'
+            },
+            {
+                title: 'Pasien Rawat Jalan',
+                category: 'Manajemen Kesehatan',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
+                url: '{{ route("pasienrawatjalan.index") }}'
+            },
+            {
+                title: 'Grafik Ralan',
+                category: 'Manajemen Kesehatan',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>',
+                url: '{{ route("grafikralan.index") }}'
+            },
+            
+            // ========== PENGATURAN ==========
+            {
                 title: 'Users',
+                category: 'Pengaturan',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
                 url: '{{ route("users.index") }}'
             },
             {
                 title: 'Struktur Organisasi',
+                category: 'Pengaturan',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
                 url: '{{ route("struktur_organisasi.index") }}'
             },
             {
                 title: 'Template Surat',
+                category: 'Pengaturan',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
                 url: '{{ route("template_surat.index") }}'
             },
             {
                 title: 'Jenis Berkas',
+                category: 'Pengaturan',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
                 url: '{{ route("jenis_berkas.index") }}'
+            },
+            {
+                title: 'Ubah Password',
+                category: 'Pengaturan',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>',
+                url: '{{ route("ubahpassword.index") }}'
+            },
+            {
+                title: 'Profil',
+                category: 'Pengaturan',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
+                url: '{{ route("profil.show") }}'
+            },
+            {
+                title: 'Tata Naskah',
+                category: 'Pengaturan',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>',
+                url: '{{ route("tata_naskah.index") }}'
+            },
+            
+            // ========== LAINNYA ==========
+            {
+                title: 'AI Integration',
+                category: 'Lainnya',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>',
+                url: '{{ route("ai.index") }}'
+            },
+            {
+                title: 'Telegram Users',
+                category: 'Lainnya',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>',
+                url: '{{ route("telegram-users.index") }}'
             }
         ];
         
-        // Render menu items
+        // Render menu items dengan pengelompokan kategori
         function renderMenuItems(items) {
             menuGrid.innerHTML = '';
+            
+            // Kelompokkan menu berdasarkan kategori
+            const groupedItems = {};
             items.forEach(item => {
-                const col = document.createElement('div');
-                col.className = 'col-xl-2 col-lg-3 col-md-4 col-sm-6';
-                col.innerHTML = `
-                    <a href="${item.url}" class="menu-card-link text-decoration-none">
-                        <div class="card menu-card h-100 border transition-all">
-                            <div class="card-body text-center p-3">
-                                <div class="menu-icon mb-2">
-                                    ${item.icon}
+                const category = item.category || 'Lainnya';
+                if (!groupedItems[category]) {
+                    groupedItems[category] = [];
+                }
+                groupedItems[category].push(item);
+            });
+            
+            // Urutan kategori yang diinginkan
+            const categoryOrder = [
+                'Menu Utama',
+                'Surat Menyurat',
+                'Event & Agenda',
+                'Kepegawaian',
+                'Inventaris',
+                'Pusat Bantuan',
+                'Laporan',
+                'Manajemen Kesehatan',
+                'Pengaturan',
+                'Lainnya'
+            ];
+            
+            // Render menu berdasarkan kategori
+            categoryOrder.forEach(category => {
+                if (groupedItems[category] && groupedItems[category].length > 0) {
+                    // Tambahkan header kategori
+                    const categoryRow = document.createElement('div');
+                    categoryRow.className = 'col-12 mb-3 mt-4';
+                    categoryRow.innerHTML = `
+                        <h6 class="text-muted fw-semibold mb-3" style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <span style="border-bottom: 2px solid #dee2e6; padding-bottom: 5px; display: inline-block;">${category}</span>
+                        </h6>
+                    `;
+                    menuGrid.appendChild(categoryRow);
+                    
+                    // Render menu items dalam kategori
+                    groupedItems[category].forEach(item => {
+                        const col = document.createElement('div');
+                        col.className = 'col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3';
+                        col.innerHTML = `
+                            <a href="${item.url}" class="menu-card-link text-decoration-none">
+                                <div class="card menu-card h-100 border transition-all">
+                                    <div class="card-body text-center p-3">
+                                        <div class="menu-icon mb-2">
+                                            ${item.icon}
+                                        </div>
+                                        <h6 class="mb-0 fw-semibold" style="font-size: 0.85rem;">${item.title}</h6>
+                                    </div>
                                 </div>
-                                <h6 class="mb-0 fw-semibold" style="font-size: 0.85rem;">${item.title}</h6>
-                            </div>
-                        </div>
-                    </a>
-                `;
-                menuGrid.appendChild(col);
+                            </a>
+                        `;
+                        menuGrid.appendChild(col);
+                    });
+                }
+            });
+            
+            // Render kategori lain yang tidak ada di categoryOrder
+            Object.keys(groupedItems).forEach(category => {
+                if (!categoryOrder.includes(category)) {
+                    const categoryRow = document.createElement('div');
+                    categoryRow.className = 'col-12 mb-3 mt-4';
+                    categoryRow.innerHTML = `
+                        <h6 class="text-muted fw-semibold mb-3" style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <span style="border-bottom: 2px solid #dee2e6; padding-bottom: 5px; display: inline-block;">${category}</span>
+                        </h6>
+                    `;
+                    menuGrid.appendChild(categoryRow);
+                    
+                    groupedItems[category].forEach(item => {
+                        const col = document.createElement('div');
+                        col.className = 'col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3';
+                        col.innerHTML = `
+                            <a href="${item.url}" class="menu-card-link text-decoration-none">
+                                <div class="card menu-card h-100 border transition-all">
+                                    <div class="card-body text-center p-3">
+                                        <div class="menu-icon mb-2">
+                                            ${item.icon}
+                                        </div>
+                                        <h6 class="mb-0 fw-semibold" style="font-size: 0.85rem;">${item.title}</h6>
+                                    </div>
+                                </div>
+                            </a>
+                        `;
+                        menuGrid.appendChild(col);
+                    });
+                }
             });
         }
         

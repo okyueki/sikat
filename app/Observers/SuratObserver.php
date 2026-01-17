@@ -27,18 +27,25 @@ class SuratObserver
         if ($penerimaNik) {
             $telegramUser = TelegramUser::where('nik', $penerimaNik)->first();
     
-            if ($telegramUser) {
-                \Log::info("Chat ID ditemukan untuk nik {$penerimaNik}: {$telegramUser->chat_id}");
-    
-                $message = "📩 Surat baru dari "
-                    . ($surat->pegawai->nama ?? $surat->pengirim_external)
-                    . "\nPerihal: {$surat->perihal}";
-    
-                SendTelegramNotification::dispatch($telegramUser->chat_id, $message);
-                \Log::info("Job notifikasi dikirim ke queue untuk chat_id {$telegramUser->chat_id}");
-            } else {
+            if (!$telegramUser) {
                 \Log::warning("Tidak ada TelegramUser untuk nik {$penerimaNik}");
+                return;
             }
+
+            // Validasi chat_id
+            if (!$telegramUser->chat_id) {
+                \Log::warning("TelegramUser untuk NIK {$penerimaNik} tidak punya chat_id.");
+                return;
+            }
+    
+            \Log::info("Chat ID ditemukan untuk nik {$penerimaNik}: {$telegramUser->chat_id}");
+    
+            $message = "📩 Surat baru dari "
+                . ($surat->pegawai->nama ?? $surat->pengirim_external)
+                . "\nPerihal: {$surat->perihal}";
+    
+            SendTelegramNotification::dispatch($telegramUser->chat_id, $message);
+            \Log::info("Job notifikasi dikirim ke queue untuk chat_id {$telegramUser->chat_id}");
         }
     }
 

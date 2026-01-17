@@ -6,84 +6,162 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Pegawai;
 use App\Models\TelegramUser;
+use Illuminate\Support\Facades\Log;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\GuzzleException;
+use Exception;
 
 class TelegramController extends Controller
 {
+    /**
+     * Handle incoming webhook dari Telegram
+     */
     public function handleWebhook(Request $request)
     {
-        $update = $request->all();
-        \Log::info('Telegram Update:', $update);
-
-        if (!isset($update['message'])) {
-            return response()->json(['status' => 'no_message']);
-        }
-
-        $message   = $update['message'];
-        $chatId    = $message['chat']['id'];
-        $text      = trim($message['text'] ?? '');
-        $username  = $message['from']['username'] ?? null;
-
-        // 1. Kalau user ketik /start
-        if ($text === '/start') {
-            $this->sendMessage($chatId, "Halo 👋\nSilakan ketik NIK Anda untuk registrasi.");
-            return response()->json(['status' => 'ok']);
-        }
-
-        // 2. Kalau input cukup panjang → dianggap NIK
-        if (strlen($text) >= 8) {
-            $nik = $text;
-
-            $pegawai = Pegawai::where('nik', $nik)->first();
-
-            if ($pegawai) {
-                // Cek apakah chat_id ini sudah terhubung dengan NIK lain
-                $existingByChatId = TelegramUser::where('chat_id', $chatId)->first();
-                if ($existingByChatId && $existingByChatId->nik !== $nik) {
-                    $this->sendMessage($chatId, "⚠️ Akun Telegram ini sudah terhubung dengan NIK {$existingByChatId->nik}. Hubungi admin jika ingin reset.");
-                    return response()->json(['status' => 'chat_id_already_used']);
-                }
-
-                // Cek apakah NIK ini sudah terhubung dengan chat_id lain
-                $existingByNik = TelegramUser::where('nik', $nik)->first();
-                if ($existingByNik && $existingByNik->chat_id !== $chatId) {
-                    $this->sendMessage($chatId, "⚠️ NIK {$nik} sudah terhubung dengan akun Telegram lain. Hubungi admin jika ingin reset.");
-                    return response()->json(['status' => 'nik_already_used']);
-                }
-
-                // Kalau aman → simpan/update
-                TelegramUser::updateOrCreate(
-                    ['nik' => $pegawai->nik],
-                    [
-                        'nama_pegawai' => $pegawai->nama,
-                        'username'     => $username,
-                        'chat_id'      => $chatId,
-                    ]
-                );
-
-                $this->sendMessage($chatId, "✅ Registrasi berhasil!\nHalo {$pegawai->nama}, notifikasi akan dikirim lewat bot ini.");
-            } else {
-                $this->sendMessage($chatId, "❌ NIK tidak ditemukan. Coba lagi atau hubungi admin.");
+        try {
+            $update = $request->all();
+            
+            // Basic validation: cek apakah request punya struktur yang benar
+            if (!isset($update['message'])) {
+                Log::info('Telegram webhook: no message in update');
+                return response()->json(['status' => 'no_message'], 200);
             }
 
-            return response()->json(['status' => 'ok']);
-        }
+            $message = $update['message'];
+            
+            // Validasi struktur message
+            if (!isset($message['chat']['id']) || !isset($message['from'])) {
+                Log::warning('Telegram webhook: invalid message structure', $update);
+                return response()->json(['status' => 'invalid_message'], 400);
+            }
 
-        // 3. Default (input tidak dikenali)
-        $this->sendMessage($chatId, "⚠️ Perintah tidak dikenali. Ketik /start untuk memulai.");
-        return response()->json(['status' => 'ok']);
+            $chatId = $message['chat']['id'];
+            $text = trim($message['text'] ?? '');
+            $username = $message['from']['username'] ?? null;
+
+            Log::info('Telegram Update:', [
+                'chat_id' => $chatId,
+                'username' => $username,
+                'text' => $text,
+            ]);
+
+            // 1. Kalau user ketik /start
+            if ($text === '/start') {
+                $this->sendMessage($chatId, "Halo 👋\nSilakan ketik NIK Anda untuk registrasi.");
+                return response()->json(['status' => 'ok']);
+            }
+
+            // 2. Kalau input cukup panjang → dianggap NIK
+            if (strlen($text) >= 8) {
+                $nik = $text;
+
+                $pegawai = Pegawai::where('nik', $nik)->first();
+
+                if ($pegawai) {
+                    // Cek apakah chat_id ini sudah terhubung dengan NIK lain
+                    $existingByChatId = TelegramUser::where('chat_id', $chatId)->first();
+                    if ($existingByChatId && $existingByChatId->nik !== $nik) {
+                        $this->sendMessage($chatId, "⚠️ Akun Telegram ini sudah terhubung dengan NIK {$existingByChatId->nik}. Hubungi admin jika ingin reset.");
+                        return response()->json(['status' => 'chat_id_already_used']);
+                    }
+
+                    // Cek apakah NIK ini sudah terhubung dengan chat_id lain
+                    $existingByNik = TelegramUser::where('nik', $nik)->first();
+                    if ($existingByNik && $existingByNik->chat_id !== $chatId) {
+                        $this->sendMessage($chatId, "⚠️ NIK {$nik} sudah terhubung dengan akun Telegram lain. Hubungi admin jika ingin reset.");
+                        return response()->json(['status' => 'nik_already_used']);
+                    }
+
+                    // Kalau aman → simpan/update
+                    TelegramUser::updateOrCreate(
+                        ['nik' => $pegawai->nik],
+                        [
+                            'nama_pegawai' => $pegawai->nama,
+                            'username'     => $username,
+                            'chat_id'      => $chatId,
+                        ]
+                    );
+
+                    $this->sendMessage($chatId, "✅ Registrasi berhasil!\nHalo {$pegawai->nama}, notifikasi akan dikirim lewat bot ini.");
+                } else {
+                    $this->sendMessage($chatId, "❌ NIK tidak ditemukan. Coba lagi atau hubungi admin.");
+                }
+
+                return response()->json(['status' => 'ok']);
+            }
+
+            // 3. Default (input tidak dikenali)
+            $this->sendMessage($chatId, "⚠️ Perintah tidak dikenali. Ketik /start untuk memulai.");
+            return response()->json(['status' => 'ok']);
+
+        } catch (Exception $e) {
+            Log::error('Telegram webhook error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return response()->json(['status' => 'error', 'message' => 'Internal server error'], 500);
+        }
     }
 
+    /**
+     * Kirim pesan ke Telegram dengan error handling
+     */
     private function sendMessage($chatId, $text)
     {
-        $token = env('TELEGRAM_BOT_TOKEN');
+        $token = config('telegram.bot_token');
+
+        if (!$token) {
+            Log::error("Telegram bot token tidak ditemukan di config");
+            return false;
+        }
+
+        if (!$chatId) {
+            Log::error("Chat ID kosong saat mengirim pesan");
+            return false;
+        }
+
         $url = "https://api.telegram.org/bot{$token}/sendMessage";
 
-        $client = new \GuzzleHttp\Client();
-        $client->post($url, [
-            'form_params' => [
+        try {
+            $client = new Client(['timeout' => 10]);
+            $response = $client->post($url, [
+                'form_params' => [
+                    'chat_id' => $chatId,
+                    'text'    => $text,
+                ],
+                'http_errors' => false, // Jangan throw exception untuk HTTP error
+            ]);
+
+            $statusCode = $response->getStatusCode();
+            $body = json_decode($response->getBody()->getContents(), true);
+
+            if ($statusCode === 200 && isset($body['ok']) && $body['ok'] === true) {
+                Log::info("Telegram message sent", [
+                    'chat_id' => $chatId,
+                    'status' => 'success',
+                ]);
+                return true;
+            } else {
+                Log::warning("Telegram message failed", [
+                    'chat_id' => $chatId,
+                    'status_code' => $statusCode,
+                    'response' => $body,
+                ]);
+                return false;
+            }
+        } catch (GuzzleException $e) {
+            Log::error("Telegram sendMessage exception", [
                 'chat_id' => $chatId,
-                'text'    => $text,
-            ]
-        ]);
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        } catch (Exception $e) {
+            Log::error("Telegram sendMessage unexpected error", [
+                'chat_id' => $chatId,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
     }
 }

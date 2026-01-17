@@ -5,9 +5,58 @@
 @section('content')
 <div class="row">
     <div class="col-xl-12">
+        @if($agenda)
+        <div class="card custom-card mb-3">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Informasi Agenda</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Judul:</strong> {{ $agenda->judul }}</p>
+                        <p><strong>Deskripsi:</strong> {{ $agenda->deskripsi ?? '-' }}</p>
+                        <p><strong>Tempat:</strong> {{ $agenda->tempat ?? '-' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Mulai:</strong> {{ \Carbon\Carbon::parse($agenda->mulai)->format('d M Y H:i') }}</p>
+                        <p><strong>Akhir:</strong> {{ $agenda->akhir ? \Carbon\Carbon::parse($agenda->akhir)->format('d M Y H:i') : '-' }}</p>
+                        <p><strong>Pimpinan:</strong> {{ $agenda->pimpinan->nama ?? '-' }}</p>
+                    </div>
+                </div>
+                @php
+                    $now = \Carbon\Carbon::now();
+                    $mulai = \Carbon\Carbon::parse($agenda->mulai);
+                    $akhir = $agenda->akhir ? \Carbon\Carbon::parse($agenda->akhir) : null;
+                    $status = '';
+                    $badgeClass = '';
+                    
+                    if ($now->lt($mulai)) {
+                        $status = 'Akan Datang';
+                        $badgeClass = 'bg-info';
+                    } elseif ($akhir && $now->gt($akhir)) {
+                        $status = 'Selesai';
+                        $badgeClass = 'bg-secondary';
+                    } else {
+                        $status = 'Sedang Berlangsung';
+                        $badgeClass = 'bg-success';
+                    }
+                @endphp
+                <p class="mb-0">
+                    <strong>Status:</strong> 
+                    <span class="badge {{ $badgeClass }}">{{ $status }}</span>
+                </p>
+            </div>
+        </div>
+        @endif
+        
         <div class="card custom-card">
             <div class="card-body text-center">
-                <h3>Scan QR Code</h3>
+                <h3><i class="fas fa-qrcode me-2"></i>Scan QR Code</h3>
+                @if($agenda)
+                    <p class="text-muted">Silakan scan QR code untuk absensi agenda: <strong>{{ $agenda->judul }}</strong></p>
+                @else
+                    <p class="text-muted">Silakan scan QR code untuk absensi</p>
+                @endif
                 <div id="qr-reader" style="width: 100%; max-width: 600px; margin: auto;"></div>
                 <div id="qr-reader-results" class="mt-3">
                     <p id="result" style="font-weight: bold;"></p>
@@ -77,11 +126,12 @@
         // Kirim ke backend menggunakan await agar mudah di-handle
         try {
             const response = await $.ajax({
-                url: "/scan-attendance",
+                url: "{{ route('absensi.proses_scan') }}",
                 method: "POST",
                 data: {
                     agenda_id: data.agenda_id,
-                    token: data.token
+                    token: data.token,
+                    _token: $('meta[name="csrf-token"]').attr('content')
                 },
                 dataType: 'json',
                 timeout: 15000 // 15 detik
@@ -148,6 +198,33 @@
                     timer: 2500,
                     showConfirmButton: false
                 }).then(() => setTimeout(restartScanner, 1000));
+            } else if (xhr && xhr.status === 400) {
+                // Bad Request - biasanya validasi waktu atau token
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Tidak dapat melakukan absensi',
+                    text: serverMsg || 'Agenda belum dimulai atau sudah berakhir.',
+                    timer: 3000,
+                    showConfirmButton: false
+                }).then(() => {
+                    // Jika ada agendaId, redirect ke index, jika tidak restart scanner
+                    @if($agenda)
+                        window.location.href = "{{ route('absensi_agenda.index') }}";
+                    @else
+                        setTimeout(restartScanner, 700);
+                    @endif
+                });
+            } else if (xhr && xhr.status === 403) {
+                // Forbidden - tidak terundang
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Akses ditolak',
+                    text: serverMsg || 'Anda tidak diundang dalam agenda ini.',
+                    timer: 2500,
+                    showConfirmButton: false
+                }).then(() => {
+                    window.location.href = "{{ route('absensi_agenda.index') }}";
+                });
             } else {
                 Swal.fire({
                     icon: 'error',

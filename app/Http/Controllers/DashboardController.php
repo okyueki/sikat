@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use App\Models\PengajuanLibur;
+use App\Models\Agenda;
 
 class DashboardController extends Controller
 {
@@ -155,12 +156,84 @@ class DashboardController extends Controller
             ->whereYear('tanggal_dibuat', $tahunini)
             ->sum('jumlah_hari');
 
+    // Ambil agenda yang mengundang user (hari ini dan 7 hari ke depan)
+    $agendaTerundang = Agenda::with(['pimpinan', 'notulenPegawai'])
+        ->where(function ($query) use ($nik) {
+            // Cek apakah user diundang (termasuk "all")
+            $query->where(function ($q) use ($nik) {
+                // Cek jika yang_terundang berisi "all" atau NIK user
+                $q->whereRaw("JSON_CONTAINS(yang_terundang, ?)", [json_encode('all')])
+                  ->orWhereRaw("JSON_CONTAINS(yang_terundang, ?)", [json_encode($nik)]);
+            });
+        })
+        ->where(function ($query) {
+            // Agenda yang akan datang (hari ini sampai 7 hari ke depan)
+            $query->whereBetween('mulai', [Carbon::now()->startOfDay(), Carbon::now()->addDays(7)->endOfDay()])
+                  // Atau agenda yang sedang berlangsung
+                  ->orWhere(function ($q) {
+                      $q->where('mulai', '<=', Carbon::now())
+                        ->where(function ($q2) {
+                            $q2->whereNull('akhir')
+                               ->orWhere('akhir', '>=', Carbon::now());
+                        });
+                  });
+        })
+        ->orderBy('mulai', 'asc')
+        ->limit(5) // Limit 5 agenda terdekat
+        ->get()
+        ->filter(function ($agenda) use ($nik) {
+            // Double check: pastikan user benar-benar terundang
+            $terundang = is_array($agenda->yang_terundang) 
+                ? $agenda->yang_terundang 
+                : (json_decode($agenda->yang_terundang, true) ?? []);
+            
+            // Cek apakah semua pegawai aktif terundang
+            $semuaNikAktif = Pegawai::where('stts_aktif', 'AKTIF')->pluck('nik')->toArray();
+            $isAll = false;
+            
+            if (is_array($terundang)) {
+                $intersect = array_intersect($semuaNikAktif, $terundang);
+                $isAll = count($intersect) === count($semuaNikAktif) && count($terundang) === count($semuaNikAktif);
+            }
+            
+            return in_array('all', $terundang) || $isAll || in_array($nik, $terundang);
+        })
+        ->map(function ($agenda) use ($nik) {
+            // Cek apakah user sudah absen
+            $agenda->sudah_absen = \App\Models\AbsensiAgenda::where('agenda_id', $agenda->id)
+                ->where('nik', $nik)
+                ->exists();
+            
+            // Format waktu
+            $mulai = Carbon::parse($agenda->mulai);
+            $akhir = $agenda->akhir ? Carbon::parse($agenda->akhir) : null;
+            $now = Carbon::now();
+            
+            // Tentukan status
+            if ($now->lt($mulai)) {
+                $agenda->status_label = 'Akan Datang';
+                $agenda->status_class = 'info';
+                $agenda->waktu_info = $mulai->format('d M Y H:i');
+            } elseif ($akhir && $now->gt($akhir)) {
+                $agenda->status_label = 'Selesai';
+                $agenda->status_class = 'secondary';
+                $agenda->waktu_info = $akhir->format('d M Y H:i');
+            } else {
+                $agenda->status_label = 'Sedang Berlangsung';
+                $agenda->status_class = 'success';
+                $agenda->waktu_info = 'Sekarang';
+            }
+            
+            return $agenda;
+        });
+
     // Jangan lupa untuk menambahkan 'pertumbuhanPasien' ke compact()
     return view('dashboard.index', compact(
         'departemen', 'jumlahPegawai', 'pegawaiUlangTahun', 'bidang', 
         'jumlahPerBidang', 'jumlahPasienHariIni', 'pertumbuhanPasien',
         'jumlahPasienRawatInap', 'jumlahPasienIGD', 'topTerlambat', 
-        'topPegawaiRajin', 'presensiUser', 'presensiMessage', 'totalHari'
+        'topPegawaiRajin', 'presensiUser', 'presensiMessage', 'totalHari',
+        'agendaTerundang'
     ));
 }
     public function getPegawaiBelumPresensi()
