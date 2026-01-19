@@ -16,22 +16,16 @@
                 </div>
                 <div class="main-dashboard-header-right d-flex gap-3">
                     <div>
-                        <label class="fs-13 text-muted">Customer Ratings</label>
-                        <div class="main-star">
-                            <i class="bi bi-star-fill fs-13 text-warning"></i> 
-                            <i class="bi bi-star-fill fs-13 text-warning"></i> 
-                            <i class="bi bi-star-fill fs-13 text-warning"></i> 
-                            <i class="bi bi-star-fill fs-13 text-warning"></i> 
-                            <i class="bi bi-star-fill fs-13 text-muted op-8"></i> <span>(14,873)</span>
-                        </div>
-                    </div>
-                    <div>
                         <label class="fs-13 text-muted">TOTAL PEGAWAI RS</label>
                         <h5 class="mb-0 fw-semibold">{{ $jumlahPegawai->sum() }} orang</h5>
                     </div>
                     <div>
-                        <label class="fs-13 text-muted">Jumlah Dokter</label>
-                        <h5 class="mb-0 fw-semibold">15</h5>
+                        <label class="fs-13 text-muted">JUMLAH DOKTER</label>
+                        <h5 class="mb-0 fw-semibold">{{ $jumlahDokter }} orang</h5>
+                    </div>
+                    <div>
+                        <label class="fs-13 text-muted">PASIEN HARI INI</label>
+                        <h5 class="mb-0 fw-semibold">{{ $jumlahPasienHariIni }} orang</h5>
                     </div>
                 </div>
             </div>
@@ -89,7 +83,7 @@
                         </div>
                         @endforeach
                     </div>
-                    @if($agendaTerundang->count() >= 5)
+                    @if($agendaTerundang->count() > 5)
                     <div class="text-center mt-3">
                         <a href="{{ route('absensi_agenda.index') }}" class="btn btn-primary">
                             <i class="fas fa-list me-1"></i> Lihat Semua Agenda
@@ -117,14 +111,18 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($presensiUser as $presensi)
+                            @forelse($presensiUser as $presensi)
                             <tr>
-                                <td>{{ $presensi->shift }}</td>
-                                <td>{{ \Carbon\Carbon::parse($presensi->jam_datang)->format('H:i') }}</td>
-                                <td>{{ $presensi->status }}</td>
-                                <td>{{ $presensi->keterlambatan }}</td>
+                                <td>{{ $presensi->shift ?? '-' }}</td>
+                                <td>{{ $presensi->jam_datang ? \Carbon\Carbon::parse($presensi->jam_datang)->format('H:i') : '-' }}</td>
+                                <td>{{ $presensi->status ?? '-' }}</td>
+                                <td>{{ $presensi->keterlambatan ?? '-' }}</td>
                             </tr>
-                            @endforeach
+                            @empty
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">Belum ada data presensi</td>
+                            </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
@@ -167,8 +165,16 @@
                             <p class="mb-0 fs-12 text-fixed-white op-7">Pasien Diperiksa</p>
                         </div>
                         <span class="ms-auto">
-                            <i class="fas fa-arrow-circle-up text-fixed-white"></i>
-                            <span class="text-fixed-white op-7"> +{{ $pertumbuhanPasien }} dari kemarin</span>
+                            @if($pertumbuhanPasien > 0)
+                                <i class="fas fa-arrow-circle-up text-fixed-white"></i>
+                                <span class="text-fixed-white op-7"> +{{ $pertumbuhanPasien }} dari kemarin</span>
+                            @elseif($pertumbuhanPasien < 0)
+                                <i class="fas fa-arrow-circle-down text-fixed-white"></i>
+                                <span class="text-fixed-white op-7"> {{ $pertumbuhanPasien }} dari kemarin</span>
+                            @else
+                                <i class="fas fa-minus-circle text-fixed-white"></i>
+                                <span class="text-fixed-white op-7"> Sama dengan kemarin</span>
+                            @endif
                         </span>
                     </div>
                         </div>
@@ -241,6 +247,155 @@
         </div>
     </div>
 
+    <!-- Ranking Tim Paling Rajin & Paling Sering Terlambat -->
+    <div class="row g-3 mb-3">
+        <!-- Tim Paling Rajin -->
+        <div class="col-xl-6 col-md-12">
+            <div class="card custom-card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-trophy me-2"></i>Top 10 Tim Paling Rajin (Bulan Ini)
+                    </h5>
+                    <small class="text-white-50">Ranking berdasarkan: (Persentase Kehadiran × Durasi Kerja) - Keterlambatan | Tidak pernah terlambat</small>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th width="50">Rank</th>
+                                    <th>Nama Pegawai</th>
+                                    <th>Departemen</th>
+                                    <th class="text-center">Wajib</th>
+                                    <th class="text-center">Hadir</th>
+                                    <th class="text-center">% Hadir</th>
+                                    <th class="text-center">Durasi Kerja</th>
+                                    <th class="text-center">Terlambat</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($timPalingRajin as $index => $tim)
+                                <tr>
+                                    <td>
+                                        @if($index == 0)
+                                            <span class="badge bg-warning text-dark">🥇</span>
+                                        @elseif($index == 1)
+                                            <span class="badge bg-secondary">🥈</span>
+                                        @elseif($index == 2)
+                                            <span class="badge bg-danger">🥉</span>
+                                        @else
+                                            <span class="badge bg-light text-dark">#{{ $index + 1 }}</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <strong>{{ $tim['nama'] }}</strong>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ $tim['departemen'] ?? '-' }}</small>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-info">{{ $tim['wajib_masuk'] }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-success">{{ $tim['kehadiran'] }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-{{ $tim['persen_kehadiran'] >= 100 ? 'success' : ($tim['persen_kehadiran'] >= 80 ? 'warning' : 'danger') }}">
+                                            {{ $tim['persen_kehadiran'] }}%
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <small class="text-primary">
+                                            <i class="fas fa-clock me-1"></i>{{ $tim['total_durasi_formatted'] }}
+                                        </small>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>0
+                                        </span>
+                                    </td>
+                                </tr>
+                                @empty
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4">
+                                        <i class="fas fa-info-circle me-2"></i>Belum ada data ranking
+                                    </td>
+                                </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tim Paling Sering Terlambat -->
+        <div class="col-xl-6 col-md-12">
+            <div class="card custom-card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Top 10 Tim Paling Sering Terlambat (Bulan Ini)
+                    </h5>
+                    <small class="text-white-50">Ranking berdasarkan: Total Durasi Keterlambatan Tertinggi</small>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th width="50">Rank</th>
+                                    <th>Nama Pegawai</th>
+                                    <th>Departemen</th>
+                                    <th class="text-center">Wajib</th>
+                                    <th class="text-center">Hadir</th>
+                                    <th class="text-center">Terlambat</th>
+                                    <th class="text-center">Total Telat</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($timPalingSeringTerlambat as $index => $tim)
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-danger">#{{ $index + 1 }}</span>
+                                    </td>
+                                    <td>
+                                        <strong>{{ $tim['nama'] }}</strong>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ $tim['departemen'] ?? '-' }}</small>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-info">{{ $tim['wajib_masuk'] }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-{{ $tim['kehadiran'] < $tim['wajib_masuk'] ? 'warning' : 'success' }}">
+                                            {{ $tim['kehadiran'] }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger">{{ $tim['jumlah_terlambat'] }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <small class="text-danger fw-bold">
+                                            <i class="fas fa-clock me-1"></i>{{ $tim['total_keterlambatan_formatted'] }}
+                                        </small>
+                                    </td>
+                                </tr>
+                                @empty
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        <i class="fas fa-info-circle me-2"></i>Belum ada data ranking
+                                    </td>
+                                </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Statistik Pegawai -->
     <div class="row g-3">
           <div class="col-xl-4 col-md-12 col-lg-6">
@@ -268,11 +423,11 @@
         </div>
     </div>
     
-    <div class="col-xl-4 col-md-12 col-lg-6">
+            <div class="col-xl-4 col-md-12 col-lg-6">
         <div class="card">
             <div class="card-header pb-1">
                 <h3 class="card-title mb-2">Top 10 Pegawai Rajin (30 Hari Terakhir)</h3>
-                <p class="fs-12 mb-0 text-muted">Berikut adalah pegawai yang paling sering mengisi pemeriksaan rawat jalan</p>
+                <p class="fs-12 mb-0 text-muted">Pegawai yang paling sering mengisi pemeriksaan rawat jalan</p>
             </div>
             <div class="product-timeline card-body pt-2 mt-1">
                 <ul class="timeline-1 mb-0">
@@ -452,6 +607,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-
 
 @endsection
