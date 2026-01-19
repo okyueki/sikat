@@ -133,9 +133,8 @@ Route::put('/presensi/{id}/datang', [PresensiController::class, 'updateJamDatang
 Route::put('/presensi/{id}/pulang', [PresensiController::class, 'updateJamPulang'])->name('presensi.updateJamPulang')->middleware('auth');
 Route::get('/presensi/verifikasi/{id}', [PresensiController::class, 'verifikasiPresensi'])->name('presensi.verifikasi')->middleware('auth');
 
-Route::get('/absensi', [AbsensiController::class, 'showPresensiForm'])->name('absensi.show');
-Route::post('/absensi', [AbsensiController::class, 'handlePresensi'])->name('absensi.handle');
-Route::post('/presensi', [App\Http\Controllers\Kepegawaian\AbsensiController::class, 'handlePresensi'])->name('presensi.handle');
+Route::get('/absensi', [AbsensiController::class, 'showPresensiForm'])->name('absensi.show')->middleware('auth');
+Route::post('/absensi', [AbsensiController::class, 'handlePresensi'])->name('absensi.handle')->middleware('auth');
 Route::get('/pegawai', [PegawaiController::class, 'index'])->middleware(['auth'])->name('pegawai.index');
 
 Route::get('/kepegawaian/rekap-presensi', [RekapPresensiController::class, 'index'])->name('kepegawaian.rekap_presensi.index')->middleware('auth');

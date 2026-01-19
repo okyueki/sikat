@@ -58,3 +58,9 @@ Route::get('/pegawai/{nik}', function ($nik) {
 
 Route::get('/booking-operasi', [BookingOperasiController::class, 'index']);
 Route::post('/telegram/webhook', [TelegramController::class, 'handleWebhook']);
+
+// GPS Validation API untuk Android WebView
+// Support both session auth (web) dan sanctum (mobile app)
+Route::middleware(['auth:sanctum,web'])->group(function () {
+    Route::post('/gps/validate', [App\Http\Controllers\Api\GpsValidationController::class, 'validateGps']);
+});
