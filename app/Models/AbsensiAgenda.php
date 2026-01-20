@@ -16,7 +16,14 @@ class AbsensiAgenda extends Model
         'agenda_id',
         'waktu_kehadiran',
         'token',
+        'status_kehadiran',
+        'alasan',
     ];
+
+    protected $casts = [
+        'waktu_kehadiran' => 'datetime',
+    ];
+
     // Relasi ke model Pegawai
     public function pegawai()
     {

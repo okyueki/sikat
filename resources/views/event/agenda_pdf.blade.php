@@ -7,12 +7,12 @@
     <style>
         @page {
             size: A4;
-            margin: 0 1.5cm;
+            margin: 0 1.2cm;
         }
         body {
             font-family: 'Times New Roman', serif;
             font-size: 12pt;
-            line-height: 1.6;
+            line-height: 0.9;
         }
         .container-fluid {
             width: 100%;
@@ -73,6 +73,8 @@
             color: #212529;
             border-collapse: collapse;
         }
+
+        /* Spasi antar kolom */
         .table-borderless th, .table-borderless td {
             border: 0px solid #dee2e6 !important;
             padding: 0.25rem;
@@ -108,22 +110,20 @@
             text-indent: 2.5cm;
         }
         .signature-section {
-            margin-top: 2rem;
+            margin-top: 1.5rem;
         }
     </style>
 </head>
 <body>
     <div class="a4">
         <div class="container-fluid">
-            <div class="row">
-                <div class="col-12 text-center">
-                    <br>
-                    <img width="225" src="{{ $kop_surat }}" alt="Logo">
-                    <br><br>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <img width="200" src="{{ $kop_surat }}" alt="Logo" style="display: block;">
                 </div>
             </div>
             
-            <div class="row">
+            <div class="row mt-3">
                 <div class="col-12">
                     <table class="table-borderless">
                         <tr>
@@ -140,13 +140,13 @@
                 </div>
             </div>
             
-            <div class="row mt-4">
+            <div class="row">
                 <div class="col-12 text-right">
                     <p>Sidoarjo, {{ $tanggal_dibuat }}</p>
                 </div>
             </div>
             
-            <div class="row mt-3">
+            <div class="row">
                 <div class="col-12">
                     <p>Kepada Yth.</p>
                     <p class="indent">Yang tersebut dalam lampiran surat ini</p>
@@ -154,33 +154,29 @@
                 </div>
             </div>
             
-            <div class="row mt-4">
+            <div class="row mt-1">
                 <div class="col-12">
                     <p>Dengan hormat,</p>
                 </div>
             </div>
             
-            <div class="row mt-3">
+            <div class="row mt-1">
                 <div class="col-12">
-                    <p class="indent">Sehubungan dengan kegiatan yang akan dilaksanakan, dengan ini kami mengundang Bapak/Ibu untuk hadir dalam acara:</p>
+                    <p class="indent">
+                        Sehubungan dengan kegiatan yang akan dilaksanakan
+                        @if($agenda->deskripsi), {{ $agenda->deskripsi }}@endif, dengan ini kami mengundang Bapak/Ibu untuk hadir dalam acara:
+                    </p>
                 </div>
             </div>
             
-            <div class="row mt-3">
+            <div class="row mt-1">
                 <div class="col-12">
                     <table class="table-borderless">
                         <tr>
-                            <td style="width: 150px;">Judul Agenda</td>
+                            <td style="width: 150px;">Acara / Event</td>
                             <td style="width: 20px;">:</td>
                             <td><strong>{{ $agenda->judul }}</strong></td>
                         </tr>
-                        @if($agenda->deskripsi)
-                        <tr>
-                            <td>Deskripsi</td>
-                            <td>:</td>
-                            <td>{{ $agenda->deskripsi }}</td>
-                        </tr>
-                        @endif
                         <tr>
                             <td>Hari/Tanggal</td>
                             <td>:</td>
@@ -204,39 +200,18 @@
                             <td>{{ $agenda->tempat }}</td>
                         </tr>
                         @endif
-                        @if($agenda->pimpinan)
-                        <tr>
-                            <td>Pimpinan Rapat</td>
-                            <td>:</td>
-                            <td>{{ $agenda->pimpinan->nama }}</td>
-                        </tr>
-                        @endif
-                        @if($agenda->notulenPegawai)
-                        <tr>
-                            <td>Notulen</td>
-                            <td>:</td>
-                            <td>{{ $agenda->notulenPegawai->nama }}</td>
-                        </tr>
-                        @endif
+                        
                     </table>
                 </div>
             </div>
             
-            @if($agenda->keterangan)
-            <div class="row mt-3">
-                <div class="col-12">
-                    <p class="indent">{{ $agenda->keterangan }}</p>
-                </div>
-            </div>
-            @endif
-            
-            <div class="row mt-4">
+            <div class="row mt-1">
                 <div class="col-12">
                     <p class="indent">Demikian surat undangan ini kami sampaikan, atas perhatian dan kehadiran Bapak/Ibu, kami ucapkan terima kasih.</p>
                 </div>
             </div>
             
-            <div class="row mt-4">
+            <div class="row mt-1">
                 <div class="col-12">
                     <p>Wassalamu 'alaikum Warahmatullahi Wabarakaatuh</p>
                 </div>
@@ -250,7 +225,14 @@
                             <td style="width: 50%; text-align: center;">
                                 <p>Sidoarjo, {{ $tanggal_dibuat }}</p>
                                 <p>Pimpinan Rapat</p>
-                                <br><br><br>
+                                <br>
+                                @if(!empty($barcode_pimpinan))
+                                    <div style="margin-bottom: 4px; text-align: center;">
+                                        <img src="{{ $barcode_pimpinan }}" alt="Tanda Tangan Digital" style="width: 100px; height: 100px; display: block; margin: 0 auto 2px auto;">
+                                    </div>
+                                @else
+                                    <br>
+                                @endif
                                 <p><strong>{{ $agenda->pimpinan->nama ?? '-' }}</strong></p>
                             </td>
                         </tr>
@@ -259,8 +241,8 @@
             </div>
             
             <!-- Lampiran: Daftar Yang Terundang -->
-            <div style="page-break-before: always;">
-                <div class="row">
+            <div style="page-break-before: always; margin-top: 2cm;">
+                <div class="row mt-3">
                     <div class="col-12">
                         <h4 class="text-center text-decoration-underline">LAMPIRAN</h4>
                         <p class="text-center"><strong>Daftar Yang Terundang</strong></p>
@@ -280,88 +262,80 @@
                 @if(count($list_terundang) > 0)
                 <div class="row">
                     <div class="col-12">
-                        <table class="table-bordered">
-                            <thead>
+                        @php
+                            $itemsPerColumn = ceil(count($list_terundang) / 2);
+                            $column1 = array_slice($list_terundang, 0, $itemsPerColumn);
+                            $column2 = array_slice($list_terundang, $itemsPerColumn);
+                        @endphp
+                        
+                        @if($is_all || count($list_terundang) > 15)
+                            {{-- Tampilkan 2 kolom untuk semua pegawai atau jika lebih dari 15 --}}
+                            <table style="width: 100%; border: none; border-collapse: separate; border-spacing: 0 0;">
                                 <tr>
-                                    <th style="width: 5%;">No</th>
-                                    <th style="width: 15%;">NIK</th>
-                                    <th style="width: 30%;">Nama</th>
-                                    <th style="width: 25%;">Jabatan</th>
-                                    <th style="width: 25%;">Unit Kerja</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @php
-                                    $itemsPerColumn = ceil(count($list_terundang) / 2);
-                                    $column1 = array_slice($list_terundang, 0, $itemsPerColumn);
-                                    $column2 = array_slice($list_terundang, $itemsPerColumn);
-                                @endphp
-                                
-                                @if(count($list_terundang) > 20)
-                                    {{-- Tampilkan 2 kolom jika lebih dari 20 --}}
-                                    <tr>
-                                        <td colspan="5" style="padding: 0; border: none;">
-                                            <table style="width: 100%; border-collapse: collapse;">
+                                    <td style="width: 49%; padding: 0; vertical-align: top; border: none;">
+                                        <table class="table-bordered" style="width: 100%; border-collapse: collapse; margin: 0;">
+                                            <thead>
                                                 <tr>
-                                                    <td style="width: 48%; padding: 0; vertical-align: top;">
-                                                        <table class="table-bordered" style="width: 100%; margin: 0;">
-                                                            <thead>
-                                                                <tr>
-                                                                    <th style="width: 10%;">No</th>
-                                                                    <th style="width: 20%;">NIK</th>
-                                                                    <th style="width: 70%;">Nama</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                @foreach($column1 as $index => $item)
-                                                                <tr>
-                                                                    <td style="text-align: center;">{{ $index + 1 }}</td>
-                                                                    <td>{{ $item['nik'] }}</td>
-                                                                    <td>{{ $item['nama'] }}</td>
-                                                                </tr>
-                                                                @endforeach
-                                                            </tbody>
-                                                        </table>
-                                                    </td>
-                                                    <td style="width: 4%;"></td>
-                                                    <td style="width: 48%; padding: 0; vertical-align: top;">
-                                                        <table class="table-bordered" style="width: 100%; margin: 0;">
-                                                            <thead>
-                                                                <tr>
-                                                                    <th style="width: 10%;">No</th>
-                                                                    <th style="width: 20%;">NIK</th>
-                                                                    <th style="width: 70%;">Nama</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                @foreach($column2 as $index => $item)
-                                                                <tr>
-                                                                    <td style="text-align: center;">{{ $index + $itemsPerColumn + 1 }}</td>
-                                                                    <td>{{ $item['nik'] }}</td>
-                                                                    <td>{{ $item['nama'] }}</td>
-                                                                </tr>
-                                                                @endforeach
-                                                            </tbody>
-                                                        </table>
-                                                    </td>
+                                                    <th style="width: 12%; text-align: center; padding: 0.4rem;">No</th>
+                                                    <th style="width: 50%; padding: 0.4rem;">Nama</th>
+                                                    <th style="width: 38%; padding: 0.4rem;">Unit Kerja</th>
                                                 </tr>
-                                            </table>
-                                        </td>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($column1 as $index => $item)
+                                                <tr>
+                                                    <td style="text-align: center; padding: 0.3rem;">{{ $index + 1 }}</td>
+                                                    <td style="padding: 0.3rem;">{{ $item['nama'] }}</td>
+                                                    <td style="padding: 0.3rem;">{{ $item['unit'] }}</td>
+                                                </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </td>
+                                    <td style="width: 2%; border: none;"></td>
+                                    <td style="width: 49%; padding: 0; vertical-align: top; border: none;">
+                                        <table class="table-bordered" style="width: 100%; border-collapse: collapse; margin: 0;">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 12%; text-align: center; padding: 0.4rem;">No</th>
+                                                    <th style="width: 50%; padding: 0.4rem;">Nama</th>
+                                                    <th style="width: 38%; padding: 0.4rem;">Unit Kerja</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($column2 as $index => $item)
+                                                <tr>
+                                                    <td style="text-align: center; padding: 0.3rem;">{{ $index + $itemsPerColumn + 1 }}</td>
+                                                    <td style="padding: 0.3rem;">{{ $item['nama'] }}</td>
+                                                    <td style="padding: 0.3rem;">{{ $item['unit'] }}</td>
+                                                </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        @else
+                            {{-- Tampilkan 1 kolom lengkap jika kurang dari 15 --}}
+                            <table class="table-bordered" style="width: 100%;">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 8%; text-align: center;">No</th>
+                                        <th style="width: 50%;">Nama</th>
+                                        <th style="width: 42%;">Unit Kerja</th>
                                     </tr>
-                                @else
-                                    {{-- Tampilkan 1 kolom jika kurang dari 20 --}}
+                                </thead>
+                                <tbody>
                                     @foreach($list_terundang as $index => $item)
                                     <tr>
                                         <td style="text-align: center;">{{ $index + 1 }}</td>
-                                        <td>{{ $item['nik'] }}</td>
                                         <td>{{ $item['nama'] }}</td>
-                                        <td>{{ $item['jabatan'] }}</td>
                                         <td>{{ $item['unit'] }}</td>
                                     </tr>
                                     @endforeach
-                                @endif
-                            </tbody>
-                        </table>
+                                </tbody>
+                            </table>
+                        @endif
                     </div>
                 </div>
                 @endif

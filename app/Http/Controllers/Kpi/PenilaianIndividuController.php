@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Pegawai;
 use App\Models\RekapPresensi;
 use App\Models\PenilaianIndividu;
+use App\Services\PenilaianAgendaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -197,5 +198,65 @@ class PenilaianIndividuController extends Controller
             'nilai' => $nilai,
             'persentase' => ($nilai / 5) * 25, // Perbaiki rumus
         ]);
+    }
+
+    /**
+     * Ambil nilai otomatis untuk kajian, kegiatan_rs, dan iht berdasarkan absensi agenda
+     */
+    public function getNilaiAgenda(Request $request)
+    {
+        try {
+            $request->validate([
+                'nik_bawahan' => 'required|string',
+                'bulan' => 'required|date_format:Y-m',
+            ]);
+
+            $pegawai = Pegawai::where('nik', $request->nik_bawahan)->first();
+            if (!$pegawai) {
+                return response()->json([
+                    'error' => 'Pegawai tidak ditemukan',
+                    'message' => 'NIK pegawai tidak valid'
+                ], 404);
+            }
+
+            $service = new PenilaianAgendaService();
+            $nilaiOtomatis = $service->getNilaiOtomatis($request->nik_bawahan, $request->bulan);
+
+            return response()->json([
+                'success' => true,
+                'kajian' => [
+                    'nilai' => $nilaiOtomatis['kajian']['nilai'],
+                    'persentase' => round($nilaiOtomatis['kajian']['persentase'], 2),
+                    'detail' => $nilaiOtomatis['kajian']['detail']
+                ],
+                'kegiatan_rs' => [
+                    'nilai' => $nilaiOtomatis['kegiatan_rs']['nilai'],
+                    'persentase' => round($nilaiOtomatis['kegiatan_rs']['persentase'], 2),
+                    'detail' => $nilaiOtomatis['kegiatan_rs']['detail']
+                ],
+                'iht' => [
+                    'nilai' => $nilaiOtomatis['iht']['nilai'],
+                    'persentase' => round($nilaiOtomatis['iht']['persentase'], 2),
+                    'detail' => $nilaiOtomatis['iht']['detail']
+                ],
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'error' => 'Validasi gagal',
+                'message' => $e->getMessage(),
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Error di getNilaiAgenda: ' . $e->getMessage(), [
+                'nik' => $request->nik_bawahan,
+                'bulan' => $request->bulan,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => 'Terjadi kesalahan saat mengambil data',
+                'message' => 'Silakan coba lagi atau hubungi administrator'
+            ], 500);
+        }
     }
 }

@@ -306,6 +306,7 @@ Route::put('/kpi/penilaian/{id}', [PenilaianIndividuController::class, 'update']
 Route::delete('/kpi/penilaian/{id}', [PenilaianIndividuController::class, 'destroy'])->name('kpi.penilaian.destroy');
 Route::get('/presensi/show', [PenilaianIndividuController::class, 'showPresensi'])->name('presensi.show');
 Route::post('/penilaian/kepatuhan', [PenilaianIndividuController::class, 'getKepatuhan']);
+Route::post('/penilaian/nilai-agenda', [PenilaianIndividuController::class, 'getNilaiAgenda']);
 
 Route::get('/budayakerja/create', [BudayaKerjaController::class, 'create'])->name('budayakerja.create');
 Route::post('/budayakerja/store', [BudayaKerjaController::class, 'store'])->name('budayakerja.store');
@@ -322,6 +323,15 @@ Route::get('/scan-qr', [AbsensiAgendaController::class, 'showScanQRCodePage'])->
 Route::get('/rekap-absensi', [AbsensiAgendaController::class, 'rekapAbsensi'])
     ->name('rekap-absensi')
     ->middleware(['auth', 'checkAccess:rekap.view']);
+Route::post('/absensi-agenda/update-status', [AbsensiAgendaController::class, 'updateStatusKehadiran'])
+    ->name('absensi-agenda.update-status')
+    ->middleware('auth');
+Route::post('/absensi-agenda/create-update', [AbsensiAgendaController::class, 'createOrUpdateAbsensi'])
+    ->name('absensi-agenda.create-update')
+    ->middleware('auth');
+Route::get('/absensi-agenda/export-pdf', [AbsensiAgendaController::class, 'exportPDF'])
+    ->name('absensi-agenda.export-pdf')
+    ->middleware('auth');
 
 Route::resource('jadwalbudayakerja', JadwalBudayaKerjaController::class)->except('show')->middleware('auth');
 Route::get('jadwalbudayakerja/kirimotomatis', [JadwalBudayaKerjaController::class,'kirimOtomatis'])->name('jadwalbudayakerja.kirimotomatis');

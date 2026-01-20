@@ -21,6 +21,8 @@
     <!-- Icons Css -->
     <link href="{{ asset('backend/assets/css/icons.css'); }}" rel="stylesheet" >
     <link href="{{ asset('backend/assets/libs/choices.js/public/assets/styles/choices.min.css') }}" rel="stylesheet" type="text/css" />
+    <!-- Select2 CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
     <!-- Node Waves Css -->
     <link href="{{ asset('backend/assets/libs/node-waves/waves.min.css') }}" rel="stylesheet">
     <!-- Simplebar Css -->

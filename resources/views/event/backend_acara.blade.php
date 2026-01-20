@@ -83,6 +83,7 @@
                         <thead>
                             <tr>
                                 <th>No</th>
+                                <th>Nomor Agenda</th>
                                 <th>Judul</th>
                                 <th>Mulai</th>
                                 <th>Akhir</th>
@@ -116,6 +117,16 @@
                 },
                 columns: [
                     { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false },
+                    { 
+                        data: 'nomor_agenda', 
+                        name: 'nomor_agenda',
+                        render: function(data, type, row) {
+                            if (data) {
+                                return '<code style="font-size: 12px; background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">' + data + '</code>';
+                            }
+                            return '-';
+                        }
+                    },
                     { data: 'judul', name: 'judul' },
                     { data: 'mulai', name: 'mulai' },
                     { data: 'akhir', name: 'akhir' },

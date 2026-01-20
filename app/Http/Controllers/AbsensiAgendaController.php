@@ -8,11 +8,13 @@ use App\Models\Agenda;
 use App\Models\AgendaToken;
 use App\Models\AbsensiAgenda;
 use App\Models\Pegawai;
+use App\Services\AbsensiAgendaService;
 use Carbon\Carbon;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class AbsensiAgendaController extends Controller
 {
@@ -201,6 +203,7 @@ class AbsensiAgendaController extends Controller
             'nik' => $nik,
             'agenda_id' => $agendaId,
             'waktu_kehadiran' => now(),
+            'status_kehadiran' => 'hadir', // Default untuk scan QR
             'token' => $token, // simpan token asli
         ]);
     
@@ -252,26 +255,41 @@ public function rekapAbsensi(Request $request)
                     $pegawaiIds = is_array($terundang) ? $terundang : [];
                 }
                 
+                // Auto-detect status dari pengajuan libur untuk peserta yang belum absen
+                AbsensiAgendaService::syncAbsensiFromPengajuanLibur($agendaId);
+                
                 // Ambil semua pegawai yang terundang
                 $pegawaiList = Pegawai::whereIn('nik', $pegawaiIds)->get();
                 
-                // Ambil yang sudah absen
+                // Ambil semua absensi (termasuk yang auto-detect)
                 $sudahAbsen = AbsensiAgenda::where('agenda_id', $agendaId)
                     ->whereIn('nik', $pegawaiIds)
                     ->with('pegawai')
                     ->get()
                     ->keyBy('nik');
                 
+                // Cek apakah user adalah pimpinan rapat atau notulen
+                $userNik = Auth::user()->username;
+                $canEdit = ($userNik === $agenda->pimpinan_rapat || $userNik === $agenda->notulen);
+                
                 // Format data untuk DataTables
-                $data = $pegawaiList->map(function($pegawai) use ($sudahAbsen) {
+                $data = $pegawaiList->map(function($pegawai) use ($sudahAbsen, $canEdit) {
                     $absensi = $sudahAbsen->get($pegawai->nik);
+                    $status = $absensi ? ($absensi->status_kehadiran ?? 'hadir') : 'tidak_hadir';
+                    
                     return [
                         'nik' => $pegawai->nik,
                         'nama' => $pegawai->nama,
                         'jabatan' => $pegawai->jbtn ?? '-',
                         'departemen' => $pegawai->departemen ?? '-',
-                        'status' => $absensi ? 'hadir' : 'tidak_hadir',
-                        'waktu_kehadiran' => $absensi ? Carbon::parse($absensi->waktu_kehadiran)->format('d M Y H:i') : '-',
+                        'status' => $status,
+                        'status_kehadiran' => $status, // untuk kompatibilitas
+                        'alasan' => $absensi ? $absensi->alasan : null,
+                        'waktu_kehadiran' => $absensi && $absensi->waktu_kehadiran 
+                            ? Carbon::parse($absensi->waktu_kehadiran)->format('d M Y H:i') 
+                            : '-',
+                        'id_absensi' => $absensi ? $absensi->id_absensi_agenda : null,
+                        'can_edit' => $canEdit,
                     ];
                 });
                 
@@ -305,18 +323,45 @@ public function rekapAbsensi(Request $request)
 
                 $jumlahUndangan = count($pegawaiIds);
 
-                // Hitung hadir
+                // Hitung berdasarkan status
                 $jumlahHadir = AbsensiAgenda::where('agenda_id', $agendaId)
                     ->whereIn('nik', $pegawaiIds)
-                    ->whereNotNull('waktu_kehadiran')
+                    ->where('status_kehadiran', 'hadir')
+                    ->count();
+                
+                $jumlahIjin = AbsensiAgenda::where('agenda_id', $agendaId)
+                    ->whereIn('nik', $pegawaiIds)
+                    ->where('status_kehadiran', 'ijin')
+                    ->count();
+                
+                $jumlahCuti = AbsensiAgenda::where('agenda_id', $agendaId)
+                    ->whereIn('nik', $pegawaiIds)
+                    ->where('status_kehadiran', 'cuti')
+                    ->count();
+                
+                $jumlahSakit = AbsensiAgenda::where('agenda_id', $agendaId)
+                    ->whereIn('nik', $pegawaiIds)
+                    ->where('status_kehadiran', 'sakit')
+                    ->count();
+                
+                $jumlahBerhalangan = AbsensiAgenda::where('agenda_id', $agendaId)
+                    ->whereIn('nik', $pegawaiIds)
+                    ->where('status_kehadiran', 'berhalangan')
                     ->count();
 
-                $jumlahTidakHadir = $jumlahUndangan - $jumlahHadir;
+                $jumlahTidakHadir = AbsensiAgenda::where('agenda_id', $agendaId)
+                    ->whereIn('nik', $pegawaiIds)
+                    ->where('status_kehadiran', 'tidak_hadir')
+                    ->count();
 
                 $rekap = [
                     'judul'              => $agenda->judul,
                     'jumlah_undangan'    => $jumlahUndangan,
                     'jumlah_hadir'       => $jumlahHadir,
+                    'jumlah_ijin'        => $jumlahIjin,
+                    'jumlah_cuti'       => $jumlahCuti,
+                    'jumlah_sakit'       => $jumlahSakit,
+                    'jumlah_berhalangan' => $jumlahBerhalangan,
                     'jumlah_tidak_hadir' => $jumlahTidakHadir,
                 ];
             }
@@ -354,5 +399,231 @@ public function rekapAbsensi(Request $request)
     return view('absensi_agenda.rekap', compact('agendas'));
 }
 
+    /**
+     * Update status kehadiran absensi agenda
+     * Hanya bisa diakses oleh pimpinan rapat atau notulen
+     */
+    public function updateStatusKehadiran(Request $request)
+    {
+        $validated = $request->validate([
+            'id_absensi' => 'required|integer|exists:absensi_agenda,id_absensi_agenda',
+            'status_kehadiran' => 'required|in:hadir,ijin,cuti,sakit,berhalangan,tidak_hadir',
+            'alasan' => 'nullable|string|max:500',
+        ]);
+
+        $absensi = AbsensiAgenda::with('agenda')->findOrFail($validated['id_absensi']);
+        $agenda = $absensi->agenda;
+
+        // Validasi: hanya pimpinan rapat atau notulen yang bisa edit
+        $userNik = Auth::user()->username;
+        if ($userNik !== $agenda->pimpinan_rapat && $userNik !== $agenda->notulen) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki izin untuk mengubah status absensi. Hanya pimpinan rapat atau notulen yang dapat mengubah status.'
+            ], 403);
+        }
+
+        // Update status
+        $absensi->status_kehadiran = $validated['status_kehadiran'];
+        $absensi->alasan = $validated['alasan'] ?? null;
+        
+        // Jika status diubah menjadi 'hadir' dan belum ada waktu_kehadiran, set waktu sekarang
+        if ($validated['status_kehadiran'] === 'hadir' && !$absensi->waktu_kehadiran) {
+            $absensi->waktu_kehadiran = now();
+        }
+        // Jika status bukan 'hadir', set waktu_kehadiran menjadi null
+        elseif ($validated['status_kehadiran'] !== 'hadir') {
+            $absensi->waktu_kehadiran = null;
+        }
+        
+        $absensi->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Status kehadiran berhasil diupdate.',
+            'data' => [
+                'status' => $absensi->status_kehadiran,
+                'alasan' => $absensi->alasan,
+            ]
+        ]);
+    }
+
+    /**
+     * Create atau update absensi untuk peserta yang belum ada
+     * Digunakan untuk input manual status ketidakhadiran
+     */
+    public function createOrUpdateAbsensi(Request $request)
+    {
+        $validated = $request->validate([
+            'agenda_id' => 'required|integer|exists:agendas,id',
+            'nik' => 'required|string',
+            'status_kehadiran' => 'required|in:ijin,cuti,sakit,berhalangan,tidak_hadir',
+            'alasan' => 'nullable|string|max:500',
+        ]);
+
+        $agenda = Agenda::findOrFail($validated['agenda_id']);
+
+        // Validasi: hanya pimpinan rapat atau notulen yang bisa edit
+        $userNik = Auth::user()->username;
+        if ($userNik !== $agenda->pimpinan_rapat && $userNik !== $agenda->notulen) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki izin untuk mengubah status absensi.'
+            ], 403);
+        }
+
+        // Cek apakah sudah ada absensi
+        $absensi = AbsensiAgenda::where('agenda_id', $validated['agenda_id'])
+            ->where('nik', $validated['nik'])
+            ->first();
+
+        if ($absensi) {
+            // Update existing
+            $absensi->status_kehadiran = $validated['status_kehadiran'];
+            $absensi->alasan = $validated['alasan'] ?? null;
+            $absensi->waktu_kehadiran = null; // Bukan hadir, jadi waktu null
+            $absensi->save();
+        } else {
+            // Create new
+            AbsensiAgenda::create([
+                'nik' => $validated['nik'],
+                'agenda_id' => $validated['agenda_id'],
+                'status_kehadiran' => $validated['status_kehadiran'],
+                'alasan' => $validated['alasan'] ?? null,
+                'waktu_kehadiran' => null,
+                'token' => 'MANUAL-' . $validated['agenda_id'] . '-' . $validated['nik'] . '-' . time(),
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Status kehadiran berhasil disimpan.',
+        ]);
+    }
+
+    /**
+     * Export rekap absensi ke PDF
+     */
+    public function exportPDF(Request $request)
+    {
+        $agendaId = $request->get('agenda_id');
+        
+        if (!$agendaId) {
+            return redirect()->route('rekap-absensi')
+                ->with('error', 'Agenda tidak ditemukan.');
+        }
+
+        $agenda = Agenda::with(['pimpinan', 'notulenPegawai'])->findOrFail($agendaId);
+        
+        // Auto-detect status dari pengajuan libur
+        AbsensiAgendaService::syncAbsensiFromPengajuanLibur($agendaId);
+        
+        // Ambil data peserta yang terundang
+        $terundang = is_array($agenda->yang_terundang) 
+            ? $agenda->yang_terundang 
+            : (json_decode($agenda->yang_terundang, true) ?? []);
+        
+        // Cek apakah semua pegawai aktif terundang
+        $semuaNikAktif = Pegawai::where('stts_aktif', 'AKTIF')->pluck('nik')->toArray();
+        $isAll = false;
+        
+        if (is_array($terundang)) {
+            $intersect = array_intersect($semuaNikAktif, $terundang);
+            $isAll = count($intersect) === count($semuaNikAktif) && count($terundang) === count($semuaNikAktif);
+        }
+        
+        // Tentukan daftar NIK yang terundang
+        if ($isAll || (is_array($terundang) && in_array("all", $terundang))) {
+            $pegawaiIds = $semuaNikAktif;
+        } else {
+            $pegawaiIds = is_array($terundang) ? $terundang : [];
+        }
+        
+        // Ambil semua pegawai yang terundang
+        $pegawaiList = Pegawai::whereIn('nik', $pegawaiIds)->orderBy('nama')->get();
+        
+        // Ambil semua absensi
+        $absensiData = AbsensiAgenda::where('agenda_id', $agendaId)
+            ->whereIn('nik', $pegawaiIds)
+            ->with('pegawai')
+            ->get()
+            ->keyBy('nik');
+        
+        // Format data untuk PDF
+        $dataPresensi = $pegawaiList->map(function($pegawai) use ($absensiData) {
+            $absensi = $absensiData->get($pegawai->nik);
+            $status = $absensi ? ($absensi->status_kehadiran ?? 'tidak_hadir') : 'tidak_hadir';
+            
+            // Format status untuk display
+            $statusLabel = [
+                'hadir' => 'Hadir',
+                'ijin' => 'Ijin',
+                'cuti' => 'Cuti',
+                'sakit' => 'Sakit',
+                'berhalangan' => 'Berhalangan',
+                'tidak_hadir' => 'Tidak Hadir'
+            ];
+            
+            return [
+                'nik' => $pegawai->nik,
+                'nama' => $pegawai->nama,
+                'jabatan' => $pegawai->jbtn ?? '-',
+                'departemen' => $pegawai->departemen ?? '-',
+                'status' => $statusLabel[$status] ?? 'Tidak Hadir',
+                'status_key' => $status,
+                'waktu_kehadiran' => $absensi && $absensi->waktu_kehadiran 
+                    ? Carbon::parse($absensi->waktu_kehadiran)->format('d M Y H:i') 
+                    : '-',
+                'alasan' => $absensi ? $absensi->alasan : null,
+            ];
+        });
+        
+        // Hitung statistik
+        $statistik = [
+            'total' => $dataPresensi->count(),
+            'hadir' => $dataPresensi->where('status_key', 'hadir')->count(),
+            'ijin' => $dataPresensi->where('status_key', 'ijin')->count(),
+            'cuti' => $dataPresensi->where('status_key', 'cuti')->count(),
+            'sakit' => $dataPresensi->where('status_key', 'sakit')->count(),
+            'berhalangan' => $dataPresensi->where('status_key', 'berhalangan')->count(),
+            'tidak_hadir' => $dataPresensi->where('status_key', 'tidak_hadir')->count(),
+        ];
+        
+        // Encode logo ke base64
+        $path = public_path('assets/images/logo_hitam.png');
+        $base64 = null;
+        if (file_exists($path)) {
+            $type = pathinfo($path, PATHINFO_EXTENSION);
+            $data = file_get_contents($path);
+            $base64 = 'data:image/' . $type . ';base64,' . base64_encode($data);
+        }
+        
+        // Format tanggal
+        Carbon::setLocale('id');
+        $tanggalAgenda = Carbon::parse($agenda->mulai)->translatedFormat('d F Y');
+        $waktuAgenda = Carbon::parse($agenda->mulai)->translatedFormat('H:i');
+        
+        $data = [
+            'agenda' => $agenda,
+            'dataPresensi' => $dataPresensi,
+            'statistik' => $statistik,
+            'logo' => $base64,
+            'tanggalAgenda' => $tanggalAgenda,
+            'waktuAgenda' => $waktuAgenda,
+        ];
+        
+        $pdf = Pdf::loadView('absensi_agenda.export_pdf', $data)
+            ->setPaper('a4', 'portrait')
+            ->setOption('enable-javascript', true)
+            ->setOption('encoding', 'utf-8')
+            ->setOption('margin-top', 10)
+            ->setOption('margin-bottom', 10)
+            ->setOption('margin-left', 10)
+            ->setOption('margin-right', 10);
+        
+        $filename = 'Daftar_Presensi_' . str_replace(' ', '_', $agenda->judul) . '_' . Carbon::parse($agenda->mulai)->format('Y-m-d') . '.pdf';
+        
+        return $pdf->download($filename);
+    }
 
 }

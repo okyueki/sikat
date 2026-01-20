@@ -13,20 +13,22 @@ class CreateDisposisiSuratTable extends Migration
      */
     public function up()
     {
-        Schema::create('disposisi_surat', function (Blueprint $table) {
-            $table->id('id_disposisi_surat');
-            $table->unsignedBigInteger('id_surat');
-            $table->string('nik_disposisi', 20); // NIK pegawai yang mendisposisi
-            $table->string('nik_penerima', 20)->nullable(); // NIK pegawai yang menerima disposisi
-            $table->enum('status_disposisi', ['Dikirim', 'Dibaca', 'Ditindaklanjuti', 'Selesai'])->default('Dikirim');
-            $table->dateTime('tanggal_disposisi')->nullable();
-            $table->text('catatan_disposisi')->nullable();
-            $table->timestamps();
+        // Cek dulu apakah tabel sudah ada
+        if (!Schema::hasTable('disposisi_surat')) {
+            Schema::create('disposisi_surat', function (Blueprint $table) {
+                $table->id('id_disposisi_surat');
+                $table->unsignedBigInteger('id_surat');
+                $table->string('nik_disposisi', 20); // NIK pegawai yang mendisposisi
+                $table->string('nik_penerima', 20)->nullable(); // NIK pegawai yang menerima disposisi
+                $table->enum('status_disposisi', ['Dikirim', 'Dibaca', 'Ditindaklanjuti', 'Selesai'])->default('Dikirim');
+                $table->dateTime('tanggal_disposisi')->nullable();
+                $table->text('catatan_disposisi')->nullable();
+                $table->timestamps();
 
-            // Foreign keys
-            $table->foreign('id_surat')->references('id_surat')->on('surat')->onDelete('cascade');
-        });
-
+                // Foreign keys
+                $table->foreign('id_surat')->references('id_surat')->on('surat')->onDelete('cascade');
+            });
+        }
     }
 
     /**

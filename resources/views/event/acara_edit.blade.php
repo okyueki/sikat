@@ -16,6 +16,17 @@
                         <input type="text" name="judul" class="form-control" value="{{ $agenda->judul }}" required>
                     </div>
                     <div class="form-group">
+                        <label>Jenis Agenda</label>
+                        <select name="jenis_agenda" class="form-control">
+                            <option value="umum" {{ ($agenda->jenis_agenda ?? 'umum') == 'umum' ? 'selected' : '' }}>Umum</option>
+                            <option value="kajian" {{ ($agenda->jenis_agenda ?? 'umum') == 'kajian' ? 'selected' : '' }}>Kajian (untuk penilaian kehadiran di Kegiatan Kajian)</option>
+                            <option value="kegiatan_rs" {{ ($agenda->jenis_agenda ?? 'umum') == 'kegiatan_rs' ? 'selected' : '' }}>Kegiatan RS (untuk penilaian kehadiran di Rapat/Kegiatan RS)</option>
+                            <option value="iht" {{ ($agenda->jenis_agenda ?? 'umum') == 'iht' ? 'selected' : '' }}>IHT/EHT (untuk penilaian kehadiran di IHT/EHT)</option>
+                        </select>
+                        <small class="text-muted">Pilih jenis agenda untuk memungkinkan sistem menghitung nilai penilaian individu secara otomatis</small>
+                    </div>
+
+                    <div class="form-group">
                         <label>Deskripsi</label>
                         <textarea name="deskripsi" class="form-control">{{ $agenda->deskripsi }}</textarea>
                     </div>

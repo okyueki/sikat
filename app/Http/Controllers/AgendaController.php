@@ -7,6 +7,7 @@ use App\Models\Pegawai;
 use App\Models\Petugas;
 use App\Models\Surat;
 use App\Models\AgendaMateri;
+use App\Rules\ExistsInServer74;
 use Yajra\DataTables\DataTables;
 use Illuminate\Http\Request;
 use App\Models\AgendaToken;
@@ -100,26 +101,73 @@ class AgendaController extends Controller
     {
         $validatedData = $request->validate([
             'judul' => 'required|string|max:255',
+            'jenis_agenda' => 'nullable|in:umum,kajian,kegiatan_rs,iht',
             'deskripsi' => 'nullable|string',
             'mulai' => 'required|date',
             'akhir' => 'nullable|date|after_or_equal:mulai',
             'tempat' => 'nullable|string',
-            'pimpinan_rapat' => 'nullable|string',
-            'notulen' => 'nullable|string',
+            'pimpinan_rapat' => ['required', 'string', new ExistsInServer74('pegawai', 'nik', 'Pimpinan rapat yang dipilih tidak valid.')],
+            'notulen' => ['required', 'string', new ExistsInServer74('pegawai', 'nik', 'Notulen yang dipilih tidak valid.')],
             'yang_terundang' => 'nullable|array',
             'yang_terundang.*' => 'nullable|string',
             'foto' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
-            'materi' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
+            'materi' => 'nullable|array',
+            'materi.*' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
             'keterangan' => 'nullable|string',
             'is_realisasi_surat' => 'nullable|boolean',
             'id_surat_keluar' => 'nullable|exists:surat,id_surat',
         ]);
         
-        // Generate nomor_agenda otomatis
-        $year = Carbon::now()->year;
-        $latestAgenda = Agenda::whereYear('created_at', $year)->latest()->first();
-        $nextNumber = $latestAgenda ? (int)substr($latestAgenda->nomor_agenda, -3) + 1 : 1;
-        $nomorAgenda = 'AGD-' . $year . '-' . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+        // Generate nomor_agenda otomatis dengan format: RSASF/Nomor_surat/III.6.AU/Jenis/bulan/tahun
+        // Default jenis_agenda adalah 'umum' jika tidak dipilih
+        $jenisAgenda = $validatedData['jenis_agenda'] ?? 'umum';
+        if (empty($jenisAgenda)) {
+            $jenisAgenda = 'umum';
+        }
+        
+        // Ambil bulan dan tahun dari tanggal mulai agenda
+        $tanggalMulai = Carbon::parse($validatedData['mulai']);
+        $bulan = $tanggalMulai->format('m'); // Format: 01, 02, dst
+        $tahun = $tanggalMulai->format('Y'); // Format: 2026
+        
+        // Cari nomor urut terakhir berdasarkan jenis, bulan, dan tahun
+        // Format nomor: RSASF/XXX/III.6.AU/jenis/bulan/tahun
+        $prefix = "RSASF/";
+        $suffix = "/III.6.AU/{$jenisAgenda}/{$bulan}/{$tahun}";
+        
+        // Ambil semua agenda dengan jenis, bulan, dan tahun yang sama
+        // Hanya ambil yang menggunakan format baru (RSASF/)
+        $agendas = Agenda::where('jenis_agenda', $jenisAgenda)
+            ->whereYear('mulai', $tahun)
+            ->whereMonth('mulai', (int)$bulan)
+            ->where('nomor_agenda', 'like', $prefix . '%' . $suffix)
+            ->orderBy('nomor_agenda', 'desc')
+            ->get();
+        
+        // Extract nomor urut dari semua agenda dan ambil yang terbesar
+        $nextNumber = 1;
+        $maxNumber = 0;
+        
+        foreach ($agendas as $agenda) {
+            if ($agenda->nomor_agenda) {
+                // Format: RSASF/XXX/III.6.AU/jenis/bulan/tahun
+                // Extract nomor di antara RSASF/ dan /III.6.AU
+                $parts = explode('/', $agenda->nomor_agenda);
+                if (count($parts) >= 2 && is_numeric($parts[1])) {
+                    $currentNumber = (int)$parts[1];
+                    if ($currentNumber > $maxNumber) {
+                        $maxNumber = $currentNumber;
+                    }
+                }
+            }
+        }
+        
+        if ($maxNumber > 0) {
+            $nextNumber = $maxNumber + 1;
+        }
+        
+        // Generate nomor agenda baru
+        $nomorAgenda = $prefix . str_pad($nextNumber, 3, '0', STR_PAD_LEFT) . $suffix;
         $validatedData['nomor_agenda'] = $nomorAgenda;
     
         // ✅ Handle "all" dengan BENAR — dan HANYA sekali
@@ -228,23 +276,25 @@ class AgendaController extends Controller
         // Validasi: lewati validasi exists jika ada "all"
         $rules = [
             'judul' => 'required|string|max:255',
+            'jenis_agenda' => 'nullable|in:umum,kajian,kegiatan_rs,iht',
             'deskripsi' => 'nullable|string',
             'mulai' => 'required|date',
             'akhir' => 'nullable|date|after_or_equal:mulai',
             'tempat' => 'nullable|string',
-            'pimpinan_rapat' => 'nullable|string|exists:pegawai,nik',
-            'notulen' => 'nullable|string|exists:pegawai,nik',
+            'pimpinan_rapat' => ['required', 'string', new ExistsInServer74('pegawai', 'nik', 'Pimpinan rapat yang dipilih tidak valid.')],
+            'notulen' => ['required', 'string', new ExistsInServer74('pegawai', 'nik', 'Notulen yang dipilih tidak valid.')],
             'yang_terundang' => 'nullable|array',
             'foto' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
-            'materi' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
+            'materi' => 'nullable|array',
+            'materi.*' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
             'keterangan' => 'nullable|string',
             'is_realisasi_surat' => 'nullable|boolean',
             'id_surat_keluar' => 'nullable|exists:surat,id_surat',
         ];
     
-        // Jika tidak ada "all", baru validasi exists
+        // Jika tidak ada "all", baru validasi exists dengan connection yang benar
         if (!in_array('all', (array) $request->yang_terundang)) {
-            $rules['yang_terundang.*'] = 'exists:pegawai,nik';
+            $rules['yang_terundang.*'] = new ExistsInServer74('pegawai', 'nik', 'Pegawai yang dipilih tidak valid.');
         }
     
         $validatedData = $request->validate($rules);
@@ -258,11 +308,17 @@ class AgendaController extends Controller
             $validatedData['foto'] = $request->file('foto')->store('agenda_fotos', 'public');
         }
         if ($request->hasFile('materi')) {
+            $materiFiles = $request->file('materi');
             // Hapus materi lama jika ada
             if ($agenda->materi && Storage::disk('public')->exists($agenda->materi)) {
                 Storage::disk('public')->delete($agenda->materi);
             }
-            $validatedData['materi'] = $request->file('materi')->store('agenda_materis', 'public');
+            // Simpan file pertama ke kolom 'materi' (backward compatibility)
+            if (is_array($materiFiles) && count($materiFiles) > 0) {
+                $validatedData['materi'] = $materiFiles[0]->store('agenda_materis', 'public');
+            } else {
+                $validatedData['materi'] = $materiFiles->store('agenda_materis', 'public');
+            }
         }
     
         // Handle "all" di update
@@ -298,6 +354,27 @@ class AgendaController extends Controller
         }
     
         $agenda->update($validatedData);
+        
+        // Upload multiple materi files ke tabel agenda_materi (jika ada lebih dari 1 file)
+        if ($request->hasFile('materi')) {
+            $materiFiles = $request->file('materi');
+            if (is_array($materiFiles) && count($materiFiles) > 1) {
+                // Skip file pertama karena sudah disimpan di kolom 'materi'
+                foreach (array_slice($materiFiles, 1) as $file) {
+                    AgendaMateri::create([
+                        'agenda_id' => $agenda->id,
+                        'nama_file' => $file->getClientOriginalName(),
+                        'path_file' => $file->store('agenda_materis', 'public'),
+                        'ukuran_file' => $file->getSize(),
+                        'tipe_file' => $file->getMimeType(),
+                        'diupload_oleh' => Auth::user()->username ?? null,
+                        'diupload_pada' => now(),
+                        'keterangan' => null,
+                        'jenis' => 'materi'
+                    ]);
+                }
+            }
+        }
     
         return redirect()->route('acara_index')->with('success', 'Agenda berhasil diperbarui');
     }
@@ -316,20 +393,24 @@ class AgendaController extends Controller
     {
         $agenda = Agenda::with(['pimpinan', 'notulenPegawai', 'suratKeluar', 'materiFiles', 'dokumentasiFiles'])->findOrFail($id);
     
-        // Hitung jumlah yang terundang — tangani kasus "all"
-        if ($agenda->yang_terundang === 'all') {
-            $jumlahTerundang = Pegawai::where('stts_aktif', 'AKTIF')->count();
-            $listTerundang = []; // atau null, tergantung kebutuhan tampilan
-            $isAll = true;
-        } else {
-            $decoded = is_array($agenda->yang_terundang) 
-                ? $agenda->yang_terundang 
-                : json_decode($agenda->yang_terundang, true);
-            
-            $listTerundang = is_array($decoded) ? $decoded : [];
-            $jumlahTerundang = count($listTerundang);
-            $isAll = false;
+        // Hitung jumlah yang terundang — deteksi apakah semua pegawai aktif terundang
+        $decoded = is_array($agenda->yang_terundang) 
+            ? $agenda->yang_terundang 
+            : json_decode($agenda->yang_terundang, true);
+        
+        $listTerundang = is_array($decoded) ? $decoded : [];
+        $semuaNikAktif = Pegawai::where('stts_aktif', 'AKTIF')->pluck('nik')->toArray();
+        
+        // Cek apakah semua pegawai aktif terundang
+        $isAll = false;
+        if (is_array($listTerundang) && count($listTerundang) > 0) {
+            $intersect = array_intersect($semuaNikAktif, $listTerundang);
+            $isAll = count($intersect) === count($semuaNikAktif) && count($listTerundang) === count($semuaNikAktif);
         }
+        
+        $jumlahTerundang = $isAll 
+            ? Pegawai::where('stts_aktif', 'AKTIF')->count()
+            : count($listTerundang);
         
         // Hitung statistik absensi
         $pegawaiIds = $isAll 
@@ -415,16 +496,28 @@ class AgendaController extends Controller
     
             return DataTables::of($agendas)
                 ->addIndexColumn()
+                ->addColumn('nomor_agenda', function ($row) {
+                    return $row->nomor_agenda ?? '-';
+                })
                 ->addColumn('jumlah_terundang', function ($row) {
-                    // Hitung jumlah yang terundang
-                    if ($row->yang_terundang === 'all') {
-                        return Pegawai::where('stts_aktif', 'AKTIF')->count();
-                    } else {
-                        $decoded = is_array($row->yang_terundang) 
-                            ? $row->yang_terundang 
-                            : json_decode($row->yang_terundang, true);
-                        return is_array($decoded) ? count($decoded) : 0;
+                    // Hitung jumlah yang terundang - deteksi apakah semua pegawai aktif terundang
+                    $decoded = is_array($row->yang_terundang) 
+                        ? $row->yang_terundang 
+                        : json_decode($row->yang_terundang, true);
+                    
+                    $listTerundang = is_array($decoded) ? $decoded : [];
+                    $semuaNikAktif = Pegawai::where('stts_aktif', 'AKTIF')->pluck('nik')->toArray();
+                    
+                    // Cek apakah semua pegawai aktif terundang
+                    if (is_array($listTerundang) && count($listTerundang) > 0) {
+                        $intersect = array_intersect($semuaNikAktif, $listTerundang);
+                        $isAll = count($intersect) === count($semuaNikAktif) && count($listTerundang) === count($semuaNikAktif);
+                        if ($isAll) {
+                            return Pegawai::where('stts_aktif', 'AKTIF')->count();
+                        }
                     }
+                    
+                    return count($listTerundang);
                 })
                 ->addColumn('pimpinan_nama', function ($row) {
                     return $row->pimpinan->nama ?? '-';
@@ -491,8 +584,6 @@ class AgendaController extends Controller
         }
         
         // Return view untuk non-AJAX request
-        return view('event.backend_acara');
-    
         return view('event.backend_acara');
     }
 
@@ -566,7 +657,7 @@ class AgendaController extends Controller
         // Parse waktu mulai agenda
         $mulai = Carbon::parse($agenda->mulai);
         $sekarang = Carbon::now();
-        $waktuBukaQR = $mulai->copy()->subMinutes(35); // 45 menit sebelum mulai
+        $waktuBukaQR = $mulai->copy()->subMinutes(35); // 35 menit sebelum mulai
     
         // Cek apakah QR Code boleh di-generate
         $bolehGenerate = $sekarang->greaterThanOrEqualTo($waktuBukaQR) && $sekarang->lessThanOrEqualTo(Carbon::parse($agenda->akhir));
@@ -721,6 +812,46 @@ class AgendaController extends Controller
             return strcmp($a['nama'], $b['nama']);
         });
         
+        // Ambil barcode pimpinan rapat untuk tanda tangan digital
+        $barcodeBase64 = null;
+        if ($agenda->pimpinan) {
+            try {
+                $barcodeText = null;
+                
+                // Coba ambil barcode dari tabel barcode berdasarkan ID pegawai
+                $barcodeData = \App\Models\Barcode::on('server_74')
+                    ->where('id', $agenda->pimpinan->id)
+                    ->first();
+                
+                if ($barcodeData && !empty($barcodeData->barcode)) {
+                    // Gunakan barcode dari database
+                    $barcodeText = $barcodeData->barcode;
+                } else {
+                    // Fallback: Generate barcode dari kombinasi data unik
+                    // Format: NIK + Nama + Nomor Agenda + Tanggal
+                    $barcodeText = ($agenda->pimpinan->nik ?? 'NIK') . '|' . 
+                                  str_replace(' ', '', $agenda->pimpinan->nama ?? 'Pimpinan') . '|' . 
+                                  ($agenda->nomor_agenda ?? 'AGD-' . $agenda->id) . '|' . 
+                                  Carbon::parse($agenda->created_at)->format('YmdHis');
+                }
+                
+                // Selalu generate QR Code jika ada pimpinan
+                if ($barcodeText) {
+                    // Generate QR Code dari barcode text
+                    $qrCode = QrCode::format('png')
+                        ->size(150)
+                        ->margin(1)
+                        ->generate($barcodeText);
+                    
+                    // Encode QR Code ke base64 untuk embed di PDF
+                    $barcodeBase64 = 'data:image/png;base64,' . base64_encode($qrCode);
+                }
+            } catch (\Exception $e) {
+                // Jika error, tetap lanjutkan tanpa barcode
+                \Log::error('Error generating barcode for PDF: ' . $e->getMessage());
+            }
+        }
+        
         $data = [
             'agenda' => $agenda,
             'kop_surat' => $base64,
@@ -731,7 +862,8 @@ class AgendaController extends Controller
             'waktu_akhir' => $waktuAkhir,
             'list_terundang' => $listTerundang,
             'is_all' => $isAll,
-            'jumlah_terundang' => count($listTerundang)
+            'jumlah_terundang' => count($listTerundang),
+            'barcode_pimpinan' => $barcodeBase64
         ];
         
         $pdf = Pdf::loadView('event.agenda_pdf', $data);

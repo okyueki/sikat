@@ -16,6 +16,7 @@ class Agenda extends Model
     protected $fillable = [
         'nomor_agenda',
         'judul',
+        'jenis_agenda',
         'deskripsi',
         'mulai',
         'akhir',
@@ -53,10 +54,25 @@ class Agenda extends Model
         return json_decode($value, true);
     }
 
-    // Method untuk mengambil data pegawai yang terundang
-    public function terundang()
+    // Method helper untuk mengecek apakah semua pegawai aktif terundang
+    public function isAllPegawaiTerundang()
     {
-        return $this->hasMany(Pegawai::class, 'nik', 'yang_terundang');
+        $yangTerundang = is_array($this->yang_terundang) 
+            ? $this->yang_terundang 
+            : json_decode($this->yang_terundang, true);
+        
+        if (!is_array($yangTerundang) || count($yangTerundang) === 0) {
+            return false;
+        }
+        
+        // Pastikan menggunakan connection yang benar (Pegawai sudah set connection di model)
+        $semuaNikAktif = Pegawai::on('server_74')
+            ->where('stts_aktif', 'AKTIF')
+            ->pluck('nik')
+            ->toArray();
+        $intersect = array_intersect($semuaNikAktif, $yangTerundang);
+        
+        return count($intersect) === count($semuaNikAktif) && count($yangTerundang) === count($semuaNikAktif);
     }
     public function absensi()
     {

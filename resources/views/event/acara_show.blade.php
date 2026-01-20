@@ -10,6 +10,12 @@
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <div>
                             <h2 class="mb-0">{{ $agenda->judul }}</h2>
+                            @if($agenda->nomor_agenda)
+                                <p class="mb-2">
+                                    <strong>Nomor Agenda:</strong> 
+                                    <code class="text-primary" style="font-size: 14px; background: #f8f9fa; padding: 4px 8px; border-radius: 4px;">{{ $agenda->nomor_agenda }}</code>
+                                </p>
+                            @endif
                             @if($agenda->status_acara)
                                 <span class="badge 
                                     @if($agenda->status_acara == 'draft') bg-secondary
@@ -254,6 +260,11 @@
                     <div class="tab-content p-3">
                         {{-- Tab Detail --}}
                         <div class="tab-pane active" id="detail" role="tabpanel">
+                            @if($agenda->nomor_agenda)
+                                <p><strong>Nomor Agenda:</strong> 
+                                    <code class="text-primary" style="font-size: 14px; background: #f8f9fa; padding: 4px 8px; border-radius: 4px;">{{ $agenda->nomor_agenda }}</code>
+                                </p>
+                            @endif
                             <p><strong>Deskripsi:</strong> {{ $agenda->deskripsi }}</p>
                             <p><strong>Mulai:</strong> {{ \Carbon\Carbon::parse($agenda->mulai)->format('d M Y H:i') }}</p>
                             <p><strong>Akhir:</strong> {{ $agenda->akhir ? \Carbon\Carbon::parse($agenda->akhir)->format('d M Y H:i') : '-' }}</p>
@@ -261,6 +272,23 @@
                             <p><strong>Pimpinan Rapat:</strong> {{ $agenda->pimpinan->nama ?? '-' }}</p>
                             <p><strong>Notulen:</strong> {{ $agenda->notulenPegawai->nama ?? '-' }}</p>
                             <p><strong>Keterangan:</strong> {{ $agenda->keterangan ?? '-' }}</p>
+                            
+                            {{-- Tampilkan jenis agenda --}}
+                            @if($agenda->jenis_agenda && $agenda->jenis_agenda != 'umum')
+                                <p><strong>Jenis Agenda:</strong> 
+                                    <span class="badge 
+                                        @if($agenda->jenis_agenda == 'kajian') bg-info
+                                        @elseif($agenda->jenis_agenda == 'kegiatan_rs') bg-warning
+                                        @elseif($agenda->jenis_agenda == 'iht') bg-success
+                                        @endif">
+                                        @if($agenda->jenis_agenda == 'kajian') Kajian
+                                        @elseif($agenda->jenis_agenda == 'kegiatan_rs') Kegiatan RS
+                                        @elseif($agenda->jenis_agenda == 'iht') IHT/EHT
+                                        @endif
+                                    </span>
+                                    <small class="text-muted">(Digunakan untuk perhitungan nilai penilaian individu otomatis)</small>
+                                </p>
+                            @endif
                             
                             {{-- Tampilkan jumlah terundang --}}
                             <p><strong>Yang Terundang:</strong> 

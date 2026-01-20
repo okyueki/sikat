@@ -324,6 +324,14 @@ document.addEventListener("DOMContentLoaded", function () {
     const persentaseKepatuhanInput = document.getElementById("persentase_kepatuhan");
     const kepatuhanSelect = document.getElementById("kepatuhan");
 
+    // Select untuk nilai agenda
+    const kajianSelect = document.getElementById("kajian");
+    const kegiatanRsSelect = document.getElementById("kegiatan_rs");
+    const ihtSelect = document.getElementById("iht");
+    const persentaseKajianInput = document.getElementById("persentase_kajian");
+    const persentaseKegiatanRsInput = document.getElementById("persentase_kegiatan_rs");
+    const persentaseIhtInput = document.getElementById("persentase_iht");
+
     function hitungKepatuhan() {
         const nik = nikBawahanDropdown.value;
         const bulan = bulanInput.value;
@@ -347,6 +355,10 @@ document.addEventListener("DOMContentLoaded", function () {
         .then(data => {
             kepatuhanSelect.value = data.nilai; // Isi nilai kepatuhan otomatis
             persentaseKepatuhanInput.value = `${data.persentase}%`; // Isi persentase otomatis
+            // Trigger hitung semua untuk update total
+            if (typeof hitungSemua === 'function') {
+                hitungSemua();
+            }
         })
         .catch(error => {
             console.error('Error:', error);
@@ -354,9 +366,78 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    function hitungNilaiAgenda() {
+        const nik = nikBawahanDropdown.value;
+        const bulan = bulanInput.value;
+
+        if (!nik || !bulan) return;
+
+        fetch('/penilaian/nilai-agenda', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ nik_bawahan: nik, bulan: bulan }),
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Gagal mengambil data nilai agenda');
+            }
+            return response.json();
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Isi nilai kajian
+            if (kajianSelect && data.kajian) {
+                kajianSelect.value = data.kajian.nilai;
+                if (persentaseKajianInput) {
+                    persentaseKajianInput.value = `${Math.round(data.kajian.persentase)}%`;
+                }
+            }
+
+            // Isi nilai kegiatan RS
+            if (kegiatanRsSelect && data.kegiatan_rs) {
+                kegiatanRsSelect.value = data.kegiatan_rs.nilai;
+                if (persentaseKegiatanRsInput) {
+                    persentaseKegiatanRsInput.value = `${Math.round(data.kegiatan_rs.persentase)}%`;
+                }
+            }
+
+            // Isi nilai IHT
+            if (ihtSelect && data.iht) {
+                ihtSelect.value = data.iht.nilai;
+                if (persentaseIhtInput) {
+                    persentaseIhtInput.value = `${Math.round(data.iht.persentase)}%`;
+                }
+            }
+
+            // Trigger hitung semua untuk update total
+            if (typeof hitungSemua === 'function') {
+                hitungSemua();
+            }
+        })
+        .catch(error => {
+            console.error('Error mengambil nilai agenda:', error);
+            // Jangan tampilkan alert, karena mungkin belum ada agenda dengan jenis tersebut
+            // Atau bisa ditambahkan notifikasi subtle jika diperlukan
+        });
+    }
+
     // Event listener untuk trigger penghitungan
-    nikBawahanDropdown.addEventListener("change", hitungKepatuhan);
-    bulanInput.addEventListener("change", hitungKepatuhan);
+    nikBawahanDropdown.addEventListener("change", function() {
+        hitungKepatuhan();
+        hitungNilaiAgenda();
+    });
+    bulanInput.addEventListener("change", function() {
+        hitungKepatuhan();
+        hitungNilaiAgenda();
+    });
 });
 
 

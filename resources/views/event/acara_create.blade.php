@@ -10,9 +10,30 @@
                 <h2 class="mb-4">Tambah Agenda Baru</h2>
                 <form action="{{ route('acara_store') }}" method="POST" enctype="multipart/form-data">
                     @csrf
+                    
+                    {{-- Preview Nomor Agenda --}}
+                    <div class="alert alert-info mb-3">
+                        <strong>Nomor Agenda (Preview):</strong>
+                        <div id="nomor-agenda-preview" class="mt-2">
+                            <code class="text-primary" style="font-size: 14px;">RSASF/---/III.6.AU/---/--/----</code>
+                            <small class="text-muted d-block mt-1">Nomor akan otomatis di-generate setelah form disubmit</small>
+                        </div>
+                    </div>
+
                     <div class="form-group">
                         <label>Judul</label>
                         <input type="text" name="judul" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Jenis Agenda</label>
+                        <select name="jenis_agenda" id="jenis_agenda" class="form-control">
+                            <option value="umum">Umum</option>
+                            <option value="kajian">Kajian</option>
+                            <option value="kegiatan_rs">Kegiatan RS</option>
+                            <option value="iht">IHT/EHT</option>
+                        </select>
+                        <small class="text-muted">Pilih jenis agenda untuk memungkinkan sistem menghitung nilai penilaian individu secara otomatis</small>
                     </div>
 
                     <div class="form-group">
@@ -22,7 +43,7 @@
 
                     <div class="form-group">
                         <label>Mulai</label>
-                        <input type="datetime-local" name="mulai" class="form-control" required>
+                        <input type="datetime-local" name="mulai" id="mulai" class="form-control" required>
                     </div>
 
                     <div class="form-group">
@@ -99,7 +120,7 @@
                         
                         <div id="surat_keluar_select" style="display: none;">
                             <label for="id_surat_keluar">Pilih Surat Keluar</label>
-                            <select name="id_surat_keluar" id="id_surat_keluar" class="form-control">
+                            <select name="id_surat_keluar" id="id_surat_keluar" class="form-control select2">
                                 <option value="">-- Pilih Surat Keluar --</option>
                                 @foreach($suratKeluar ?? [] as $sk)
                                     <option value="{{ $sk->id_surat }}">
@@ -130,6 +151,41 @@
             enableTime: true,
             dateFormat: "Y-m-d H:i"
         });
+
+        // Preview nomor agenda
+        function updateNomorAgendaPreview() {
+            const jenisAgenda = document.getElementById('jenis_agenda')?.value || 'umum';
+            const mulaiInput = document.getElementById('mulai')?.value;
+            const previewElement = document.getElementById('nomor-agenda-preview');
+            
+            if (!previewElement) return;
+            
+            if (mulaiInput) {
+                const date = new Date(mulaiInput);
+                const bulan = String(date.getMonth() + 1).padStart(2, '0');
+                const tahun = date.getFullYear();
+                
+                // Format: RSASF/XXX/III.6.AU/jenis/bulan/tahun
+                // Nomor urut akan di-generate di backend, jadi kita tampilkan format dengan ---
+                const preview = `RSASF/---/III.6.AU/${jenisAgenda}/${bulan}/${tahun}`;
+                previewElement.innerHTML = `
+                    <code class="text-primary" style="font-size: 14px;">${preview}</code>
+                    <small class="text-muted d-block mt-1">Nomor akan otomatis di-generate setelah form disubmit</small>
+                `;
+            } else {
+                previewElement.innerHTML = `
+                    <code class="text-primary" style="font-size: 14px;">RSASF/---/III.6.AU/---/--/----</code>
+                    <small class="text-muted d-block mt-1">Isi tanggal mulai dan pilih jenis agenda untuk preview</small>
+                `;
+            }
+        }
+        
+        // Event listener untuk update preview
+        document.getElementById('jenis_agenda')?.addEventListener('change', updateNomorAgendaPreview);
+        document.getElementById('mulai')?.addEventListener('change', updateNomorAgendaPreview);
+        
+        // Initial preview
+        updateNomorAgendaPreview();
 
         const yangTerundangSelect = document.getElementById('yang_terundang');
 
@@ -291,11 +347,58 @@
         const suratKeluarSelect = document.getElementById('surat_keluar_select');
         if (suratKeluarSelect) {
             suratKeluarSelect.style.display = this.checked ? 'block' : 'none';
-            if (!this.checked) {
-                document.getElementById('id_surat_keluar').value = '';
+            if (this.checked) {
+                // Initialize Select2 when element is shown (with small delay to ensure element is visible)
+                setTimeout(function() {
+                    $('#id_surat_keluar').select2({
+                        placeholder: '-- Pilih Surat Keluar --',
+                        allowClear: true,
+                        width: '100%',
+                        language: {
+                            noResults: function() {
+                                return "Tidak ada hasil ditemukan";
+                            },
+                            searching: function() {
+                                return "Mencari...";
+                            }
+                        }
+                    });
+                }, 100);
+            } else {
+                // Destroy Select2 and reset value when hidden
+                if ($('#id_surat_keluar').hasClass('select2-hidden-accessible')) {
+                    $('#id_surat_keluar').val('').trigger('change');
+                    $('#id_surat_keluar').select2('destroy');
+                } else {
+                    $('#id_surat_keluar').val('');
+                }
             }
         }
     });
 </script>
+
+<style>
+    /* Select2 styling untuk konsistensi dengan form */
+    .select2-container--default .select2-selection--single {
+        height: 38px;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 38px;
+        padding-left: 12px;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 36px;
+    }
+    .select2-container--default .select2-search--dropdown .select2-search__field {
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+    }
+    .select2-dropdown {
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+    }
+</style>
 
 @endsection
