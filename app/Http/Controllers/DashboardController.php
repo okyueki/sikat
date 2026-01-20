@@ -21,21 +21,6 @@ class DashboardController extends Controller
 {
     public function index()
 {
-    // Data untuk pegawai yang terlambat hari ini
-    $topTerlambat = TemporaryPresensi::with('pegawai')  // Memuat relasi dengan tabel pegawai
-        ->whereIn('status', ['Terlambat Toleransi', 'Terlambat I', 'Terlambat II'])  // Filter berdasarkan status
-        ->whereDate('jam_datang', today())  // Data untuk hari ini
-        ->orderBy(DB::raw("TIME_TO_SEC(STR_TO_DATE(keterlambatan, '%H:%i:%s'))"), 'desc')  // Urutkan berdasarkan keterlambatan terbesar
-        ->limit(5)  // Batas 7 pegawai
-        ->get();
-            
-    $topPegawaiRajin = PemeriksaanRalan::select('pegawai.nama as nama_pegawai', 'pemeriksaan_ralan.nip', DB::raw('COUNT(pemeriksaan_ralan.no_rawat) as jumlah_entri'))
-    ->join('pegawai', 'pemeriksaan_ralan.nip', '=', 'pegawai.nik')  // Relasi dengan pegawai melalui nik
-    ->where('pemeriksaan_ralan.tgl_perawatan', '>=', now()->subDays(30))  // Data dari 30 hari terakhir
-    ->groupBy('pemeriksaan_ralan.nip', 'pegawai.nama')  // Tambahkan pegawai.nama ke dalam GROUP BY
-    ->orderBy('jumlah_entri', 'desc')  // Urutkan berdasarkan jumlah entri terbanyak
-    ->limit(10)  // Ambil 10 pegawai teratas
-    ->get();
             
     // Ambil data jumlah pegawai per departemen dengan filter stts_aktif = 'AKTIF'
     $pegawaiPerDepartemen = Pegawai::select('departemen', \DB::raw('count(*) as total'))
@@ -132,34 +117,6 @@ class DashboardController extends Controller
         ->where('kd_poli', 'IGDK')
         ->count();
     
-    // Ambil pegawai yang ulang tahun dalam rentang 10 hari ke depan
-    $tanggalSekarang = Carbon::now();
-    $tanggalAkhir = Carbon::now()->addDays(10);
-    $pegawaiUlangTahun = Pegawai::where('stts_aktif', 'AKTIF')
-        ->whereRaw("DATE_FORMAT(tgl_lahir, '%m-%d') BETWEEN ? AND ?", [
-            $tanggalSekarang->format('m-d'),
-            $tanggalAkhir->format('m-d')
-        ])
-        ->get()
-        ->map(function ($pegawai) use ($tanggalSekarang) {
-            $tanggalLahir = Carbon::parse($pegawai->tgl_lahir)->year($tanggalSekarang->year);
-            $hariIni = $tanggalSekarang->isSameDay($tanggalLahir);
-            $sisaHari = $tanggalSekarang->diffInDays($tanggalLahir, false);
-
-            if ($hariIni) {
-                $pegawai->status = 'Selamat Ulang Tahun';
-                $pegawai->sisaHari = 0;
-            } elseif ($sisaHari > 0) {
-                $pegawai->status = "Ulang tahun {$sisaHari} hari lagi";
-                $pegawai->sisaHari = $sisaHari;
-            }
-
-            return $pegawai;
-        })
-        ->filter(function ($pegawai) {
-            return $pegawai->status !== null;
-        })
-        ->sortBy('sisaHari');
 
     // Ranking Tim Paling Rajin dan Paling Sering Terlambat
     $bulanSekarang = Carbon::now()->format('m');
@@ -262,31 +219,29 @@ class DashboardController extends Controller
         ];
     }
     
-    // Ranking Paling Rajin: berdasarkan score rajin tertinggi
-    // Score = (persentase kehadiran * durasi kerja) - (keterlambatan * 1000)
-    // Semakin tinggi score = semakin rajin
+    // Ranking Paling Rajin: kehadiran 100%, durasi kerja tertinggi, tidak pernah terlambat
     $timPalingRajin = collect($rankingData)
         ->filter(function($item) {
-            // Filter: wajib masuk > 0, kehadiran > 0, dan tidak pernah terlambat
-            // (total_keterlambatan_detik == 0 dan jumlah_terlambat == 0)
+            // Filter: wajib masuk > 0, kehadiran 100%, dan tidak pernah terlambat
+            // (persen_kehadiran == 100, total_keterlambatan_detik == 0, jumlah_terlambat == 0)
             return $item['wajib_masuk'] > 0 
-                && $item['kehadiran'] > 0 
+                && $item['persen_kehadiran'] == 100 // Harus 100% kehadiran
                 && $item['total_keterlambatan_detik'] == 0 
                 && $item['jumlah_terlambat'] == 0;
         })
-        ->sortByDesc('ranking_score_rajin') // Sort berdasarkan score rajin tertinggi
+        ->sortByDesc('total_durasi_detik') // Sort berdasarkan durasi kerja tertinggi
         ->take(10)
         ->values();
     
-    // Ranking Paling Sering Terlambat: berdasarkan durasi keterlambatan tertinggi
+    // Ranking Paling Sering Terlambat: berdasarkan jumlah kali terlambat (frekuensi)
     $timPalingSeringTerlambat = collect($rankingData)
         ->filter(function($item) {
-            // Filter: wajib masuk > 0, kehadiran > 0, dan total keterlambatan > 0 (bukan 00:00:00)
+            // Filter: wajib masuk > 0, kehadiran > 0, dan ada keterlambatan (jumlah_terlambat > 0)
             return $item['wajib_masuk'] > 0 
                 && $item['kehadiran'] > 0 
-                && $item['total_keterlambatan_detik'] > 0; // Harus ada keterlambatan
+                && $item['jumlah_terlambat'] > 0; // Harus ada keterlambatan (frekuensi)
         })
-        ->sortByDesc('total_keterlambatan_detik') // Sort berdasarkan durasi keterlambatan tertinggi
+        ->sortByDesc('jumlah_terlambat') // Sort berdasarkan jumlah kali terlambat tertinggi
         ->take(10)
         ->values();
         
@@ -381,10 +336,10 @@ class DashboardController extends Controller
 
     // Jangan lupa untuk menambahkan 'pertumbuhanPasien' ke compact()
     return view('dashboard.index', compact(
-        'departemen', 'jumlahPegawai', 'pegawaiUlangTahun', 'bidang', 
+        'departemen', 'jumlahPegawai', 'bidang', 
         'jumlahPerBidang', 'jumlahPasienHariIni', 'pertumbuhanPasien',
-        'jumlahPasienRawatInap', 'jumlahPasienIGD', 'topTerlambat', 
-        'topPegawaiRajin', 'presensiUser', 'presensiMessage', 'totalHari',
+        'jumlahPasienRawatInap', 'jumlahPasienIGD', 
+        'presensiUser', 'presensiMessage', 'totalHari',
         'agendaTerundang', 'jumlahDokter', 'timPalingRajin', 'timPalingSeringTerlambat'
     ));
 }

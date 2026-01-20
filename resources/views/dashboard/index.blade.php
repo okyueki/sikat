@@ -256,7 +256,7 @@
                     <h5 class="mb-0">
                         <i class="fas fa-trophy me-2"></i>Top 10 Tim Paling Rajin (Bulan Ini)
                     </h5>
-                    <small class="text-white-50">Ranking berdasarkan: (Persentase Kehadiran × Durasi Kerja) - Keterlambatan | Tidak pernah terlambat</small>
+                    <small class="text-white-50">Ranking berdasarkan: Kehadiran 100%, Durasi Kerja Tertinggi, Tidak pernah terlambat</small>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -336,7 +336,7 @@
                     <h5 class="mb-0">
                         <i class="fas fa-exclamation-triangle me-2"></i>Top 10 Tim Paling Sering Terlambat (Bulan Ini)
                     </h5>
-                    <small class="text-white-50">Ranking berdasarkan: Total Durasi Keterlambatan Tertinggi</small>
+                    <small class="text-white-50">Ranking berdasarkan: Jumlah Kali Terlambat Tertinggi (Frekuensi)</small>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -394,82 +394,6 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Statistik Pegawai -->
-    <div class="row g-3">
-          <div class="col-xl-4 col-md-12 col-lg-6">
-        <div class="card">
-            <div class="card-header pb-1">
-                <h3 class="card-title mb-2">Terlambat Pegawai Hari Ini</h3>
-                <p class="fs-12 mb-0 text-muted">Daftar pegawai yang terlambat berdasarkan keterlambatan terbesar</p>
-            </div>
-            <div class="product-timeline card-body pt-2 mt-1">
-                <ul class="timeline-1 mb-0">
-                    @foreach($topTerlambat as $pegawai)
-                    <li class="mt-0">
-                        <i class="fe fe-user bg-primary-gradient text-fixed-white product-icon"></i>
-                        <span class="fw-medium mb-4 fs-14">{{ $pegawai->pegawai->nama }}</span>
-                        <a href="javascript:void(0);" class="float-end fs-11 text-muted">
-                            {{ $pegawai->jam_datang->diffForHumans() }}  <!-- Menggunakan diffForHumans() dengan Carbon -->
-                        </a>
-                        <p class="mb-0 text-muted fs-12">
-                            {{ $pegawai->status }} - Terlambat: {{ $pegawai->keterlambatan }} - Shift: {{ $pegawai->shift }}
-                        </p>
-                    </li>
-                    @endforeach
-                </ul>
-            </div>
-        </div>
-    </div>
-    
-            <div class="col-xl-4 col-md-12 col-lg-6">
-        <div class="card">
-            <div class="card-header pb-1">
-                <h3 class="card-title mb-2">Top 10 Pegawai Rajin (30 Hari Terakhir)</h3>
-                <p class="fs-12 mb-0 text-muted">Pegawai yang paling sering mengisi pemeriksaan rawat jalan</p>
-            </div>
-            <div class="product-timeline card-body pt-2 mt-1">
-                <ul class="timeline-1 mb-0">
-                    @foreach($topPegawaiRajin as $pegawai)
-                    <li class="mt-0">
-                        <i class="fe fe-user bg-primary-gradient text-fixed-white product-icon"></i>
-                        <span class="fw-medium mb-4 fs-14">{{ $pegawai->nama_pegawai }}</span>
-                        <p class="mb-0 text-muted fs-12">Jumlah Entri: {{ $pegawai->jumlah_entri }}</p>
-                    </li>
-                    @endforeach
-                </ul>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-xl-4 col-md-12 col-lg-6">
-        <div class="card">
-            <div class="card-header pb-1">
-                <h3 class="card-title mb-2">Pegawai Ulang Tahun Dalam 10 Hari Kedepan</h3>
-                <p class="fs-12 mb-0 text-muted">Daftar pegawai yang akan berulang tahun dalam waktu dekat</p>
-            </div>
-            <div class="product-timeline card-body pt-2 mt-1">
-                <ul class="timeline-1 mb-0">
-                    @if($pegawaiUlangTahun->isEmpty())
-                        <li class="mt-0">
-                            <i class="fe fe-calendar bg-danger-gradient text-fixed-white product-icon"></i>
-                            <span class="fw-medium mb-4 fs-14">Tidak ada pegawai yang berulang tahun dalam waktu dekat</span>
-                        </li>
-                    @else
-                        @foreach($pegawaiUlangTahun as $pegawai)
-                        <li class="mt-0">
-                            <i class="bi bi-emoji-smile-fill bg-danger-gradient text-fixed-white product-icon"></i>
-                            <span class="fw-medium mb-4 fs-14">{{ $pegawai->nama }}</span>
-                            <a href="javascript:void(0);" class="float-end fs-11 text-muted">{{ $pegawai->status }}</a>
-                            <p class="mb-0 text-muted fs-12">Tanggal Lahir: {{ \Carbon\Carbon::parse($pegawai->tgl_lahir)->format('d F') }}</p>
-                        </li>
-                        @endforeach
-                    @endif
-                </ul>
-            </div>
-        </div>
-    </div>
     </div>
 
     <!-- Statistik Grafik -->
