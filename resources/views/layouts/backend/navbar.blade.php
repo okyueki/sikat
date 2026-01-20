@@ -173,6 +173,9 @@
                                             <a href="{{ route('budayakerja.index') }}" class="side-menu__item {{ request()->routeIs('budayakerja.*') ? 'active' : '' }}">Penilaian Budaya Kerja</a>
                                         </li>
                                         <li class="slide">
+                                            <a href="{{ route('budayakerja.rekapan') }}" class="side-menu__item {{ request()->routeIs('budayakerja.rekapan') ? 'active' : '' }}">Rekapan Budaya Kerja</a>
+                                        </li>
+                                        <li class="slide">
                                             <a href="{{ route('jadwalbudayakerja.index') }}" class="side-menu__item {{ request()->routeIs('jadwalbudayakerja.*') ? 'active' : '' }}">Jadwal Budaya Kerja</a>
                                         </li>
                                         <li class="slide">
@@ -331,9 +334,11 @@
                                     <a href="{{ route('sifat_surat.index') }}" class="side-menu__item {{ request()->routeIs('sifat_surat.*') ? 'active' : '' }}">Sifat Surat</a>
                                 </li>
                                 @endif
+                                @if (in_array(Auth::user()->level, ['Kabag']))
                                 <li class="slide">
                                     <a href="{{ route('users.index') }}" class="side-menu__item {{ request()->routeIs('users.*') ? 'active' : '' }}">Users</a>
                                 </li>
+                                @endif
                                 @if (in_array(Auth::user()->level, ['Kabag']))
                                 <li class="slide">
                                     <a href="{{ route('klasifikasi_surat.index') }}" class="side-menu__item {{ request()->routeIs('klasifikasi_surat.*') ? 'active' : '' }}">Klasifikasi Surat</a>

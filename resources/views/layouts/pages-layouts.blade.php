@@ -271,6 +271,11 @@
         const menuSearch = document.getElementById('menuSearch');
         
         // Menu items configuration - Dikelompokkan berdasarkan parent-child sesuai navbar.blade.php
+        const userLevel = '{{ Auth::check() ? Auth::user()->level : '' }}';
+        const canAccess = (allowedLevels) => {
+            if (!allowedLevels || allowedLevels.length === 0) return true;
+            return allowedLevels.includes(userLevel);
+        };
         const menuItems = [
             // ========== MENU UTAMA ==========
             {
@@ -327,13 +332,15 @@
                 title: 'Sifat Surat',
                 category: 'Surat Menyurat',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>',
-                url: '{{ route("sifat_surat.index") }}'
+                url: '{{ route("sifat_surat.index") }}',
+                allowedLevels: ['Kabag']
             },
             {
                 title: 'Klasifikasi Surat',
                 category: 'Surat Menyurat',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>',
-                url: '{{ route("klasifikasi_surat.index") }}'
+                url: '{{ route("klasifikasi_surat.index") }}',
+                allowedLevels: ['Kabag']
             },
             
             // ========== EVENT & AGENDA ==========
@@ -347,7 +354,8 @@
                 title: 'Agenda',
                 category: 'Event & Agenda',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
-                url: '{{ route("backend_acara") }}'
+                url: '{{ route("backend_acara") }}',
+                allowedLevels: ['Kabag','Kasie']
             },
             {
                 title: 'Absensi Agenda',
@@ -373,7 +381,8 @@
                 title: 'Temporary Presensi',
                 category: 'Kepegawaian',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
-                url: '{{ route("presensi.index") }}'
+                url: '{{ route("presensi.index") }}',
+                allowedLevels: ['Kabag','Kasie']
             },
             {
                 title: 'Absensi',
@@ -404,6 +413,12 @@
                 category: 'Kepegawaian',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>',
                 url: '{{ route("budayakerja.index") }}'
+            },
+            {
+                title: 'Rekapan Budaya Kerja',
+                category: 'Kepegawaian',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>',
+                url: '{{ route("budayakerja.rekapan") }}'
             },
             {
                 title: 'Jadwal Budaya Kerja',
@@ -557,7 +572,8 @@
                 title: 'Users',
                 category: 'Pengaturan',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
-                url: '{{ route("users.index") }}'
+                url: '{{ route("users.index") }}',
+                allowedLevels: ['Kabag']
             },
             {
                 title: 'Struktur Organisasi',
@@ -706,13 +722,16 @@
             });
         }
         
+        // Filter by role (UI only). Real security is enforced by route middleware.
+        const visibleMenuItems = menuItems.filter(item => canAccess(item.allowedLevels));
+
         // Initial render
-        renderMenuItems(menuItems);
+        renderMenuItems(visibleMenuItems);
         
         // Search functionality
         menuSearch.addEventListener('input', function(e) {
             const searchTerm = e.target.value.toLowerCase();
-            const filteredItems = menuItems.filter(item => 
+            const filteredItems = visibleMenuItems.filter(item => 
                 item.title.toLowerCase().includes(searchTerm)
             );
             renderMenuItems(filteredItems);
@@ -736,7 +755,7 @@
         // Clear search when modal closes
         menuModal.addEventListener('hidden.bs.modal', function() {
             menuSearch.value = '';
-            renderMenuItems(menuItems);
+            renderMenuItems(visibleMenuItems);
         });
     });
     </script>

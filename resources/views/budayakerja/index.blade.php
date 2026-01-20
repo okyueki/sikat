@@ -11,6 +11,9 @@
                     <div class="card-header">
                         <h4 class="card-title">Daftar Penilaian Harian</h4>
                         <div class="card-actions">
+                            <a href="{{ route('budayakerja.rekapan') }}" class="btn btn-info me-2">
+                                <i class="fas fa-chart-bar me-1"></i>Rekapan Bulanan
+                            </a>
                             <a href="{{ route('budayakerja.create') }}" class="btn btn-primary">Tambah Penilaian</a>
                         </div>
                     </div>

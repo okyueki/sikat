@@ -45,7 +45,9 @@
                             <div class="form-group mb-3">
                                 <label for="level">Level:</label>
                                 <select name="level" class="form-control">
-                                <option value="Direktur">Direktur</option>
+                                    <option value="Direktur">Direktur</option>
+                                    <option value="Programmer">Programmer</option>
+                                    <option value="HRD">HRD</option>
                                     <option value="Kabag">Kabag</option>
                                     <option value="Kabid">Kabid</option>
                                     <option value="Kasie">Kasie</option>

@@ -72,6 +72,7 @@
                 </li>
             
                 <li class="menu-title" data-key="t-menu">Settings</li>
+                @if (in_array(Auth::user()->level, ['Kabag']))
                 <li>
                     <a href="{{ route('sifat_surat.index'); }}">
                         <i data-feather="archive"></i>
@@ -92,6 +93,7 @@
                         <span data-key="t-klasifikasi">Klasifikasi Surat</span>
                     </a>
                 </li>
+                @endif
              
                 <li>
                     <a href="{{ route('struktur_organisasi.index'); }}">

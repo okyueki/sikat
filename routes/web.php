@@ -95,7 +95,8 @@ Route::resource('sifat_surat', SifatSuratController::class);
 Route::resource('klasifikasi_surat', KlasifikasiSuratController::class);
 });
 
-Route::resource('users', UserController::class)->middleware('auth');
+// User management (super admin/admin)
+Route::resource('users', UserController::class)->middleware(['auth', 'checkAccess:users.manage']);
 Route::resource('cuti', CutiController::class)->middleware('auth');
 Route::resource('ijin', IjinController::class)->middleware('auth');
 Route::resource('struktur_organisasi', StrukturOrganisasiController::class)->middleware('auth');
@@ -111,7 +112,9 @@ Route::delete('/verifikasi_pengajuan_libur/destroy/{id}', [VerifikasiPengajuanLi
 Route::get('/pengajuan_libur/show/{kode_pengajuan_libur}', [PengajuanLiburController::class, 'show'])->name('pengajuan_libur.show');
 Route::get('/pengajuan_libur/cuti/pdf/{kode_pengajuan_libur}', [PengajuanLiburController::class, 'generateCutiPDF'])->name('pengajuan-libur-cuti.pdf');
 Route::get('/pengajuan_libur/ijin/pdf/{kode_pengajuan_libur}', [PengajuanLiburController::class, 'generateIjinPDF'])->name('pengajuan-libur-ijin.pdf');
-Route::get('/rekap-libur', [PengajuanLiburController::class, 'rekapLibur'])->name('pengajuan_libur.rekap-libur')->middleware('auth');
+Route::get('/rekap-libur', [PengajuanLiburController::class, 'rekapLibur'])
+    ->name('pengajuan_libur.rekap-libur')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
 
 Route::resource('pengajuan_lembur', PengajuanLemburController::class)->middleware('auth');
 
@@ -126,7 +129,9 @@ Route::put('/verifikasi_pengajuan_lembur/update/{id}', [VerifikasiPengajuanLembu
 
 Route::get('/pengajuan_lembur/show/{kode_pengajuan_lembur}', [PengajuanLemburController::class, 'show'])->name('pengajuan_lembur.show');
 Route::get('/pengajuan_lembur/pdf/{kode_pengajuan_lembur}', [PengajuanLemburController::class, 'generateLemburPDF'])->name('pengajuan-lembur.pdf');
-Route::get('/rekap-lembur', [PengajuanLemburController::class, 'rekapLembur'])->name('rekap.lembur')->middleware('auth');
+Route::get('/rekap-lembur', [PengajuanLemburController::class, 'rekapLembur'])
+    ->name('rekap.lembur')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
 
 Route::get('/presensi', [PresensiController::class, 'index'])->name('presensi.index')->middleware('auth');
 Route::put('/presensi/{id}/datang', [PresensiController::class, 'updateJamDatang'])->name('presensi.updateJamDatang')->middleware('auth');
@@ -137,8 +142,12 @@ Route::get('/absensi', [AbsensiController::class, 'showPresensiForm'])->name('ab
 Route::post('/absensi', [AbsensiController::class, 'handlePresensi'])->name('absensi.handle')->middleware('auth');
 Route::get('/pegawai', [PegawaiController::class, 'index'])->middleware(['auth'])->name('pegawai.index');
 
-Route::get('/kepegawaian/rekap-presensi', [RekapPresensiController::class, 'index'])->name('kepegawaian.rekap_presensi.index')->middleware('auth');
-Route::get('/kepegawaian/rekap-presensi/data', [RekapPresensiController::class, 'getData'])->name('kepegawaian.rekap_presensi.data')->middleware('auth');
+Route::get('/kepegawaian/rekap-presensi', [RekapPresensiController::class, 'index'])
+    ->name('kepegawaian.rekap_presensi.index')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
+Route::get('/kepegawaian/rekap-presensi/data', [RekapPresensiController::class, 'getData'])
+    ->name('kepegawaian.rekap_presensi.data')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
 
 Route::middleware(['auth'])->group(function () {
     Route::resource('inventaris-barang', InventarisBarangController::class)->names([
@@ -199,7 +208,9 @@ Route::middleware(['auth'])->group(function () {
         ->name('penilaian.search_pegawai');
 });
 
-Route::post('/rekapitulasi-bulanan', [PenilaianController::class, 'rekapitulasiBulanan'])->name('rekapitulasi.bulanan');
+Route::post('/rekapitulasi-bulanan', [PenilaianController::class, 'rekapitulasiBulanan'])
+    ->name('rekapitulasi.bulanan')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
 Route::resource('surat_keluar', SuratKeluarController::class)->middleware('auth');
 Route::get('/surat_keluar/show/{filename}', [SuratKeluarController::class, 'show'])->name('surat_keluar.show');
 Route::get('/surat_keluar/detail/{encryptedKodeSurat}', [SuratKeluarController::class, 'detail'])->name('surat_keluar.detail')->middleware('auth');
@@ -299,13 +310,18 @@ Route::post('/penilaian/kepatuhan', [PenilaianIndividuController::class, 'getKep
 Route::get('/budayakerja/create', [BudayaKerjaController::class, 'create'])->name('budayakerja.create');
 Route::post('/budayakerja/store', [BudayaKerjaController::class, 'store'])->name('budayakerja.store');
 Route::get('/databudayakerja', [BudayaKerjaController::class, 'getData'])->name('budayakerja.getData');
+Route::get('/budayakerja/rekapan', [BudayaKerjaController::class, 'rekapan'])
+    ->name('budayakerja.rekapan')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
 Route::resource('budayakerja', BudayaKerjaController::class);
 
 Route::get('/absensi_agenda', [AbsensiAgendaController::class, 'index'])->name('absensi_agenda.index');
 
 Route::get('/scan-qr', [AbsensiAgendaController::class, 'showScanQRCodePage'])->name('absensi_agenda.scan_qr_page');
 // Route scan attendance sudah ada di middleware auth (baris 265) - tidak perlu duplikat
-Route::get('/rekap-absensi', [AbsensiAgendaController::class, 'rekapAbsensi'])->name('rekap-absensi');
+Route::get('/rekap-absensi', [AbsensiAgendaController::class, 'rekapAbsensi'])
+    ->name('rekap-absensi')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
 
 Route::resource('jadwalbudayakerja', JadwalBudayaKerjaController::class)->except('show')->middleware('auth');
 Route::get('jadwalbudayakerja/kirimotomatis', [JadwalBudayaKerjaController::class,'kirimOtomatis'])->name('jadwalbudayakerja.kirimotomatis');

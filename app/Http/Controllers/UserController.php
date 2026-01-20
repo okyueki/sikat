@@ -47,7 +47,7 @@ class UserController extends Controller
         $request->validate([
             'username' => 'required|unique:users,username',
             'password' => 'required|min:8',
-            'level' => 'required|in:Direktur,Kabag,Kabid,Kasie,Koordinator,Pelaksana,Komite',
+            'level' => 'required|in:Direktur,Programmer,HRD,Kabag,Kabid,Kasie,Koordinator,Pelaksana,Komite',
         ]);
 
          // Extract the nik and nama from the pegawai_id
@@ -82,7 +82,7 @@ class UserController extends Controller
         $request->validate([
             'username' => 'required|unique:users,username,'.$user->id,
             'password' => 'nullable|min:8',
-            'level' => 'required|in:Direktur,Kabag,Kabid,Kasie,Koordinator,Pelaksana,Komite',
+            'level' => 'required|in:Direktur,Programmer,HRD,Kabag,Kabid,Kasie,Koordinator,Pelaksana,Komite',
         ]);
          // Extract the nik and nama from the pegawai_id
         $pegawaiData = explode(',', $request->input('pegawai_id'));
