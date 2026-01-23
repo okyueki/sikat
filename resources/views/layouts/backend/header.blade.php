@@ -10,10 +10,10 @@
                     <div class="header-element">
                         <div class="horizontal-logo">
                             <a href="{{ route('dashboard') }}" class="header-logo">
-                                <img src="./backend/assets/images/brand-logos/desktop-logo.png" alt="logo" class="desktop-logo">
-                                <img src="./backend/assets/images/brand-logos/toggle-logo.png" alt="logo" class="toggle-logo">
-                                <img src="./backend/assets/images/brand-logos/desktop-white.png" alt="logo" class="desktop-white">
-                                <img src="./backend/assets/images/brand-logos/toggle-white.png" alt="logo" class="toggle-white">
+                                <img src="{{ asset('backend/assets/images/brand-logos/desktop-logo.png') }}" alt="logo" class="desktop-logo">
+                                <img src="{{ asset('backend/assets/images/brand-logos/toggle-logo.png') }}" alt="logo" class="toggle-logo">
+                                <img src="{{ asset('backend/assets/images/brand-logos/desktop-white.png') }}" alt="logo" class="desktop-white">
+                                <img src="{{ asset('backend/assets/images/brand-logos/toggle-white.png') }}" alt="logo" class="toggle-white">
                             </a>
                         </div>
                     </div>
@@ -143,7 +143,7 @@
                     <div class="header-element headerProfile-dropdown">
                         <!-- Start::header-link|dropdown-toggle -->
                         <a href="javascript:void(0);" class="header-link dropdown-toggle" id="mainHeaderProfile" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                            <img src="./backend/assets/images/faces/6.jpg" alt="img" width="37" height="37" class="rounded-circle">
+                            <img src="{{ asset('backend/assets/images/faces/6.jpg') }}" alt="img" width="37" height="37" class="rounded-circle">
                         </a>
                         <!-- End::header-link|dropdown-toggle -->
                         <ul class="main-header-dropdown dropdown-menu pt-0 header-profile-dropdown dropdown-menu-end main-profile-menu" aria-labelledby="mainHeaderProfile">

@@ -239,6 +239,24 @@ class AgendaController extends Controller
     public function edit($id)
     {
         $agenda = Agenda::findOrFail($id);
+        
+        // Cek apakah acara sudah selesai (jam akhir sudah lewat)
+        $akhir = $agenda->akhir ? Carbon::parse($agenda->akhir) : null;
+        if ($akhir && Carbon::now()->isAfter($akhir)) {
+            abort(403, 'Tidak dapat mengedit agenda yang sudah selesai.');
+        }
+        
+        // Validasi akses: hanya yang membuat agenda, pimpinan rapat, atau notulen yang bisa edit
+        $userNik = Auth::user()->username;
+        $isCreator = ($agenda->created_by === $userNik || !$agenda->created_by);
+        $isPimpinan = ($userNik === $agenda->pimpinan_rapat);
+        $isNotulen = ($userNik === $agenda->notulen);
+
+        // Jika bukan creator, bukan pimpinan, dan bukan notulen, tolak akses
+        if (!$isCreator && !$isPimpinan && !$isNotulen) {
+            abort(403, 'Akses ditolak. Hanya yang membuat agenda, pimpinan rapat, atau notulen yang dapat mengedit agenda ini.');
+        }
+        
         $pegawai = Pegawai::where('stts_aktif', 'AKTIF')->get();
         
         // Cek apakah semua pegawai aktif terundang
@@ -272,6 +290,25 @@ class AgendaController extends Controller
     public function update(Request $request, $id)
     {
         $agenda = Agenda::findOrFail($id);
+        
+        // Cek apakah acara sudah selesai (jam akhir sudah lewat)
+        $akhir = $agenda->akhir ? Carbon::parse($agenda->akhir) : null;
+        if ($akhir && Carbon::now()->isAfter($akhir)) {
+            return redirect()->back()
+                ->with('error', 'Tidak dapat mengedit agenda yang sudah selesai.');
+        }
+        
+        // Validasi akses: hanya yang membuat agenda, pimpinan rapat, atau notulen yang bisa edit
+        $userNik = Auth::user()->username;
+        $isCreator = ($agenda->created_by === $userNik || !$agenda->created_by);
+        $isPimpinan = ($userNik === $agenda->pimpinan_rapat);
+        $isNotulen = ($userNik === $agenda->notulen);
+
+        // Jika bukan creator, bukan pimpinan, dan bukan notulen, tolak akses
+        if (!$isCreator && !$isPimpinan && !$isNotulen) {
+            return redirect()->back()
+                ->with('error', 'Akses ditolak. Hanya yang membuat agenda, pimpinan rapat, atau notulen yang dapat mengedit agenda ini.');
+        }
     
         // Validasi: lewati validasi exists jika ada "all"
         $rules = [
@@ -391,7 +428,7 @@ class AgendaController extends Controller
 
     public function show($id)
     {
-        $agenda = Agenda::with(['pimpinan', 'notulenPegawai', 'suratKeluar', 'materiFiles', 'dokumentasiFiles'])->findOrFail($id);
+        $agenda = Agenda::with(['pimpinan', 'notulenPegawai', 'creator', 'suratKeluar', 'materiFiles', 'dokumentasiFiles'])->findOrFail($id);
     
         // Hitung jumlah yang terundang — deteksi apakah semua pegawai aktif terundang
         $decoded = is_array($agenda->yang_terundang) 
@@ -453,6 +490,24 @@ class AgendaController extends Controller
         $materiFiles = $agenda->materiFiles()->with('uploader')->orderBy('diupload_pada', 'desc')->get();
         $dokumentasiFiles = $agenda->dokumentasiFiles()->with('uploader')->orderBy('diupload_pada', 'desc')->get();
         
+        // Cek apakah acara sudah selesai (jam akhir sudah lewat)
+        $akhir = $agenda->akhir ? Carbon::parse($agenda->akhir) : null;
+        $isSelesai = $akhir && Carbon::now()->isAfter($akhir);
+        
+        // Tentukan apakah user bisa edit agenda (hanya jika belum selesai)
+        $userNik = Auth::user()->username;
+        $canEdit = false;
+        if (!$isSelesai) {
+            $isCreator = ($agenda->created_by === $userNik || !$agenda->created_by);
+            $isPimpinan = ($userNik === $agenda->pimpinan_rapat);
+            $isNotulen = ($userNik === $agenda->notulen);
+
+            // User bisa edit jika: creator, pimpinan, atau notulen
+            if ($isCreator || $isPimpinan || $isNotulen) {
+                $canEdit = true;
+            }
+        }
+        
         return view('event.acara_show', compact(
             'agenda', 
             'jumlahTerundang', 
@@ -463,14 +518,16 @@ class AgendaController extends Controller
             'absensiList',
             'belumAbsenList',
             'materiFiles',
-            'dokumentasiFiles'
+            'dokumentasiFiles',
+            'canEdit',
+            'isSelesai'
         ));
     }
 
     public function backendAcara(Request $request)
     {
         if ($request->ajax()) {
-            $agendas = Agenda::with(['pimpinan', 'notulenPegawai', 'suratKeluar'])
+            $agendas = Agenda::with(['pimpinan', 'notulenPegawai', 'creator', 'suratKeluar'])
                 ->select('agendas.*');
 
             // Filter berdasarkan tahun (default: tahun ini)
@@ -525,6 +582,9 @@ class AgendaController extends Controller
                 ->addColumn('notulen_nama', function ($row) {
                     return $row->notulenPegawai->nama ?? '-';
                 })
+                ->addColumn('created_by_nama', function ($row) {
+                    return $row->creator->nama ?? ($row->created_by ?? '-');
+                })
                 ->addColumn('status_realisasi', function ($row) {
                     if (!$row->id_surat_keluar) {
                         return '<span class="badge bg-secondary">-</span>';
@@ -555,11 +615,47 @@ class AgendaController extends Controller
                     $pdfUrl         = route('agenda.pdf', $row->id);
                     // $sendMessageUrl = route('agenda.send_message', ['agendaId' => $row->id]);
     
+                    // Cek apakah acara sudah selesai (jam akhir sudah lewat)
+                    $akhir = $row->akhir ? Carbon::parse($row->akhir) : null;
+                    $isSelesai = $akhir && Carbon::now()->isAfter($akhir);
+                    
+                    // Cek apakah user memiliki akses untuk generate QR code dan edit
+                    $userNik = Auth::user()->username;
+                    $isCreator = ($row->created_by === $userNik || !$row->created_by);
+                    $isPimpinan = ($userNik === $row->pimpinan_rapat);
+                    $isNotulen = ($userNik === $row->notulen);
+                    
+                    // Cek apakah user memiliki akses rekap.view (untuk admin/staff yang berwenang) - hanya untuk generate QR
+                    $hasRekapAccess = false;
+                    $level = Auth::user()->level;
+                    $map = config('access.map', []);
+                    $allowedLevels = $map['rekap.view'] ?? [];
+                    if (is_array($allowedLevels) && in_array($level, $allowedLevels, true)) {
+                        $hasRekapAccess = true;
+                    }
+                    
+                    // QR code hanya bisa di-generate jika acara belum selesai
+                    $canGenerateQR = !$isSelesai && ($isCreator || $isPimpinan || $isNotulen || $hasRekapAccess);
+                    
+                    // Edit hanya bisa dilakukan jika acara belum selesai dan user adalah creator, pimpinan, atau notulen
+                    $canEdit = !$isSelesai && ($isCreator || $isPimpinan || $isNotulen);
+    
                     $btn = '
-                        <a href="'.$detailUrl.'" class="btn btn-info btn-sm">Detail</a>
-                        <a href="'.$pdfUrl.'" target="_blank" class="btn btn-danger btn-sm"><i class="fas fa-file-pdf"></i> PDF</a>
-                        <a href="'.$qrcodeUrl.'" class="btn btn-info btn-sm"><i class="fa-solid fa-qrcode"></i></a>
-                        <a href="'.$editUrl.'" class="btn btn-warning btn-sm">Edit</a>
+                        <a href="'.$detailUrl.'" class="btn btn-info btn-sm me-1">Detail</a>
+                        <a href="'.$pdfUrl.'" target="_blank" class="btn btn-danger btn-sm me-1"><i class="fas fa-file-pdf"></i> PDF</a>
+                    ';
+                    
+                    // Tampilkan tombol QR code hanya jika user memiliki akses
+                    if ($canGenerateQR) {
+                        $btn .= '<a href="'.$qrcodeUrl.'" class="btn btn-success btn-sm me-1" title="Generate QR Code"><i class="fa-solid fa-qrcode"></i> QR</a>';
+                    }
+                    
+                    // Tampilkan tombol Edit hanya jika user memiliki akses
+                    if ($canEdit) {
+                        $btn .= '<a href="'.$editUrl.'" class="btn btn-warning btn-sm me-1">Edit</a>';
+                    }
+                    
+                    $btn .= '
                         
                     ';
     
@@ -653,14 +749,45 @@ class AgendaController extends Controller
     public function showQRCodePage($agendaId)
     {
         $agenda = Agenda::findOrFail($agendaId);
+        
+        // Validasi akses: hanya yang membuat agenda, pimpinan rapat, notulen, atau admin/HRD yang bisa generate QR code
+        $userNik = Auth::user()->username;
+        $isCreator = ($agenda->created_by === $userNik || !$agenda->created_by);
+        $isPimpinan = ($userNik === $agenda->pimpinan_rapat);
+        $isNotulen = ($userNik === $agenda->notulen);
+        
+        // Cek apakah user memiliki akses rekap.view (untuk admin/staff yang berwenang)
+        $hasRekapAccess = false;
+        $level = Auth::user()->level;
+        $map = config('access.map', []);
+        $allowedLevels = $map['rekap.view'] ?? [];
+        if (is_array($allowedLevels) && in_array($level, $allowedLevels, true)) {
+            $hasRekapAccess = true;
+        }
+
+        // Jika bukan creator, bukan pimpinan, bukan notulen, dan tidak punya akses rekap, tolak akses
+        if (!$isCreator && !$isPimpinan && !$isNotulen && !$hasRekapAccess) {
+            abort(403, 'Akses ditolak. Hanya yang membuat agenda, pimpinan rapat, notulen, atau user dengan akses rekap yang dapat generate QR code untuk agenda ini.');
+        }
     
+        // Cek apakah acara sudah selesai (jam akhir sudah lewat)
+        $akhir = $agenda->akhir ? Carbon::parse($agenda->akhir) : null;
+        if ($akhir && Carbon::now()->isAfter($akhir)) {
+            // Jika acara sudah selesai, tampilkan pesan
+            return view('event.generate_qr_code', [
+                'agenda' => $agenda,
+                'agendaBerakhir' => true,
+                'belumWaktunya' => false,
+            ]);
+        }
+        
         // Parse waktu mulai agenda
         $mulai = Carbon::parse($agenda->mulai);
         $sekarang = Carbon::now();
         $waktuBukaQR = $mulai->copy()->subMinutes(35); // 35 menit sebelum mulai
     
         // Cek apakah QR Code boleh di-generate
-        $bolehGenerate = $sekarang->greaterThanOrEqualTo($waktuBukaQR) && $sekarang->lessThanOrEqualTo(Carbon::parse($agenda->akhir));
+        $bolehGenerate = $sekarang->greaterThanOrEqualTo($waktuBukaQR) && $sekarang->lessThanOrEqualTo($akhir);
     
         if (!$bolehGenerate) {
             // Jika belum waktunya, tampilkan pesan
@@ -689,9 +816,11 @@ class AgendaController extends Controller
         ]);
     
         $qrData = ['agenda_id' => $agendaId, 'token' => $token];
-        $fileName = 'qr_codes/qr_code_' . $agendaId . '_' . time() . '.svg';
-        Storage::disk('public')->put($fileName, QrCode::size(300)->generate(json_encode($qrData)));
-        $qrCodeUrl = asset('storage/' . $fileName);
+        
+        // Generate QR code sebagai PNG dan encode ke base64 untuk inline display
+        $qrCodeImage = QrCode::format('png')->size(300)->margin(1)->generate(json_encode($qrData));
+        $qrCodeBase64 = base64_encode($qrCodeImage);
+        $qrCodeUrl = 'data:image/png;base64,' . $qrCodeBase64;
     
         return view('event.generate_qr_code', [
             'qrCodeUrl' => $qrCodeUrl,
@@ -706,6 +835,47 @@ class AgendaController extends Controller
     public function generateQRCode(Request $request)
     {
         $agendaId = $request->get('agenda_id');
+        
+        if (!$agendaId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Agenda ID tidak ditemukan.'
+            ], 400);
+        }
+        
+        $agenda = Agenda::findOrFail($agendaId);
+        
+        // Cek apakah acara sudah selesai (jam akhir sudah lewat)
+        $akhir = $agenda->akhir ? Carbon::parse($agenda->akhir) : null;
+        if ($akhir && Carbon::now()->isAfter($akhir)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak dapat generate QR code untuk agenda yang sudah selesai.'
+            ], 403);
+        }
+        
+        // Validasi akses: hanya yang membuat agenda, pimpinan rapat, notulen, atau admin/HRD yang bisa generate QR code
+        $userNik = Auth::user()->username;
+        $isCreator = ($agenda->created_by === $userNik || !$agenda->created_by);
+        $isPimpinan = ($userNik === $agenda->pimpinan_rapat);
+        $isNotulen = ($userNik === $agenda->notulen);
+        
+        // Cek apakah user memiliki akses rekap.view (untuk admin/staff yang berwenang)
+        $hasRekapAccess = false;
+        $level = Auth::user()->level;
+        $map = config('access.map', []);
+        $allowedLevels = $map['rekap.view'] ?? [];
+        if (is_array($allowedLevels) && in_array($level, $allowedLevels, true)) {
+            $hasRekapAccess = true;
+        }
+
+        // Jika bukan creator, bukan pimpinan, bukan notulen, dan tidak punya akses rekap, tolak akses
+        if (!$isCreator && !$isPimpinan && !$isNotulen && !$hasRekapAccess) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya yang membuat agenda, pimpinan rapat, notulen, atau user dengan akses rekap yang dapat generate QR code untuk agenda ini.'
+            ], 403);
+        }
     
         // Selalu buat token baru setiap kali permintaan AJAX dilakukan
         $token = Str::random(32);
@@ -723,15 +893,15 @@ class AgendaController extends Controller
             'expiry' => $expiry
         ]);
     
-        // Generate QR Code
+        // Generate QR Code sebagai PNG dan encode ke base64 untuk inline display
         $qrData = [
             'agenda_id' => $agendaId,
             'token' => $token,
         ];
-        $fileName = 'qr_codes/qr_code_' . $agendaId . '_' . time() . '.svg';
-        Storage::disk('public')->put($fileName, QrCode::size(300)->generate(json_encode($qrData)));
-    
-        $qrCodeUrl = asset('storage/' . $fileName);
+        
+        $qrCodeImage = QrCode::format('png')->size(300)->margin(1)->generate(json_encode($qrData));
+        $qrCodeBase64 = base64_encode($qrCodeImage);
+        $qrCodeUrl = 'data:image/png;base64,' . $qrCodeBase64;
     
         return response()->json([
             'qrCodeUrl' => $qrCodeUrl,
@@ -980,17 +1150,28 @@ class AgendaController extends Controller
         $akhir = $agenda->akhir ? Carbon::parse($agenda->akhir) : null;
         $sekarang = Carbon::now();
         $statusBaru = null;
+        $updateData = [];
         
         if ($mulai->isFuture()) {
             $statusBaru = 'akan_datang';
         } elseif ($akhir && $sekarang->isAfter($akhir)) {
             $statusBaru = 'selesai';
+            
+            // Auto-update status realisasi menjadi 'selesai' jika jam akhir sudah lewat
+            // Hanya update jika status_realisasi saat ini adalah 'sedang' atau 'belum'
+            if ($agenda->status_realisasi == 'sedang' || $agenda->status_realisasi == 'belum') {
+                $updateData['status_realisasi'] = 'selesai';
+            }
         } elseif ($mulai->isPast() && (!$akhir || $sekarang->isBefore($akhir))) {
             $statusBaru = 'sedang_berlangsung';
         }
         
         if ($statusBaru && $agenda->status_acara != $statusBaru) {
-            $agenda->update(['status_acara' => $statusBaru]);
+            $updateData['status_acara'] = $statusBaru;
+        }
+        
+        if (!empty($updateData)) {
+            $agenda->update($updateData);
             $agenda->refresh();
         }
     }

@@ -33,6 +33,16 @@
                             @endif
                         </div>
                         <div>
+                            @if(isset($canEdit) && $canEdit && (!isset($isSelesai) || !$isSelesai))
+                                <a href="{{ route('acara_edit', $agenda->id) }}" class="btn btn-warning me-2">
+                                    <i class="fas fa-edit"></i> Edit Agenda
+                                </a>
+                            @endif
+                            @if(isset($canEdit) && $canEdit && (!isset($isSelesai) || !$isSelesai))
+                                <a href="{{ route('agenda.qr_code', ['agendaId' => $agenda->id]) }}" class="btn btn-success me-2">
+                                    <i class="fa-solid fa-qrcode"></i> Generate QR Code
+                                </a>
+                            @endif
                             <a href="{{ route('rekap-absensi') }}?agenda_id={{ $agenda->id }}" class="btn btn-info me-2">
                                 <i class="fas fa-chart-bar"></i> Rekap Absensi
                             </a>
@@ -271,6 +281,9 @@
                             <p><strong>Tempat:</strong> {{ $agenda->tempat ?? '-' }}</p>
                             <p><strong>Pimpinan Rapat:</strong> {{ $agenda->pimpinan->nama ?? '-' }}</p>
                             <p><strong>Notulen:</strong> {{ $agenda->notulenPegawai->nama ?? '-' }}</p>
+                            @if($agenda->created_by && $agenda->creator)
+                                <p><strong>Dibuat Oleh:</strong> {{ $agenda->creator->nama ?? $agenda->created_by }}</p>
+                            @endif
                             <p><strong>Keterangan:</strong> {{ $agenda->keterangan ?? '-' }}</p>
                             
                             {{-- Tampilkan jenis agenda --}}

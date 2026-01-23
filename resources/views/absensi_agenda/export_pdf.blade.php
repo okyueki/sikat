@@ -124,7 +124,7 @@
             <img src="{{ $logo }}" alt="Logo" class="logo">
         @endif
         <div class="title">DAFTAR PRESENSI AGENDA</div>
-        <div class="subtitle">Rumah Sakit Aisyiyah Surakarta</div>
+        <div class="subtitle">Rumah Sakit Aisyiyah Siti Fatimah Tulangan</div>
     </div>
 
     <div class="info-box">

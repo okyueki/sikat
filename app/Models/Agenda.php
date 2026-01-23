@@ -47,6 +47,12 @@ class Agenda extends Model
         return $this->belongsTo(Pegawai::class, 'notulen', 'nik');
     }
 
+    // Relasi ke model Pegawai untuk pembuat agenda
+    public function creator()
+    {
+        return $this->belongsTo(Pegawai::class, 'created_by', 'nik');
+    }
+
     // Relasi untuk yang terundang, karena menggunakan JSON kita perlu memprosesnya berbeda
     public function getYangTerundangAttribute($value)
     {

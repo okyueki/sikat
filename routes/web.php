@@ -24,7 +24,6 @@ use App\Http\Controllers\{
     InventarisProdusenController,
     FullCalendarController,
     AgendaController,
-    AbsensiEventController,
     TicketController,
     AIController,
     Profil\ProfilController,
@@ -277,8 +276,6 @@ Route::middleware('auth')->group(function () {
 
 });
 
-Route::get('absensi_event/create', [AbsensiEventController::class, 'create'])->name('absensi_event.create');
-Route::post('absensi_event', [AbsensiEventController::class, 'store'])->name('absensi_event.store');
 
 Route::get('/surat/show/{encryptedKodeSurat}', [SuratController::class, 'show'])->name('surat.show');
 Route::get('/surat/tampillampiran/{filename}', [SuratController::class, 'tampillampiran'])->name('surat_masuk.tampillampiran');
@@ -322,7 +319,7 @@ Route::get('/scan-qr', [AbsensiAgendaController::class, 'showScanQRCodePage'])->
 // Route scan attendance sudah ada di middleware auth (baris 265) - tidak perlu duplikat
 Route::get('/rekap-absensi', [AbsensiAgendaController::class, 'rekapAbsensi'])
     ->name('rekap-absensi')
-    ->middleware(['auth', 'checkAccess:rekap.view']);
+    ->middleware('auth');
 Route::post('/absensi-agenda/update-status', [AbsensiAgendaController::class, 'updateStatusKehadiran'])
     ->name('absensi-agenda.update-status')
     ->middleware('auth');

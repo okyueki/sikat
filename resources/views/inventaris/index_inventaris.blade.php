@@ -69,6 +69,22 @@
 </div>
 
 <style>
+    /* Loading indicator untuk DataTables */
+    .dataTables_processing {
+        background: rgba(255, 255, 255, 0.9) !important;
+        border: 1px solid #ddd !important;
+        border-radius: 4px !important;
+        padding: 15px !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        z-index: 1000 !important;
+    }
+    
+    .spinner-border-sm {
+        width: 1rem;
+        height: 1rem;
+        border-width: 0.15em;
+    }
+    
     /* Responsive styles untuk inventaris table */
     @media (max-width: 768px) {
         .table-responsive {
@@ -130,7 +146,7 @@
             dropdownAutoWidth: true
         });
 
-        // Inisialisasi DataTables dengan responsive
+        // Inisialisasi DataTables dengan responsive dan optimasi performa
         var table = $('#inventaris-table').DataTable({
             processing: true,
             serverSide: true,
@@ -143,7 +159,7 @@
             pageLength: 10,
             lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
             language: {
-                processing: "Memproses...",
+                processing: '<div class="spinner-border spinner-border-sm me-2" role="status"><span class="visually-hidden">Loading...</span></div> Memproses data...',
                 search: "Cari:",
                 lengthMenu: "Tampilkan _MENU_ data",
                 info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
@@ -158,11 +174,20 @@
             },
             ajax: {
                 url: '/inventaris',
+                type: 'GET',
                 data: function(d) {
                     d.ruang = $('#ruang').val();
                     d.search = $('#search').val();
+                },
+                error: function(xhr, error, thrown) {
+                    console.error('DataTables error:', error);
+                    alert('Terjadi kesalahan saat memuat data. Silakan refresh halaman.');
                 }
             },
+            // Optimasi performa
+            deferRender: true, // Render hanya baris yang terlihat
+            stateSave: false, // Disable state save untuk performa
+            orderMulti: false, // Disable multi-column ordering untuk performa
             columns: [
                 { 
                     data: 'no_inventaris', 
@@ -230,19 +255,35 @@
                 $('.js-example-basic-single').select2({
                     width: '100%'
                 });
+            },
+            // Optimasi: Cache hasil untuk performa lebih baik
+            initComplete: function() {
+                console.log('DataTables initialized successfully');
             }
         });
 
-        // Event listener untuk filter
+        // Event listener untuk filter dengan debounce untuk performa
+        var searchTimeout;
         $('#filter-button').click(function() {
             table.draw();
         });
         
-        // Filter on Enter key
-        $('#search').on('keypress', function(e) {
+        // Filter on Enter key atau setelah 500ms tidak mengetik (debounce)
+        $('#search').on('keyup', function(e) {
+            clearTimeout(searchTimeout);
             if (e.which === 13) {
                 table.draw();
+            } else {
+                // Debounce: tunggu 500ms setelah user berhenti mengetik
+                searchTimeout = setTimeout(function() {
+                    table.draw();
+                }, 500);
             }
+        });
+        
+        // Filter ruang on change
+        $('#ruang').on('change', function() {
+            table.draw();
         });
     });
 </script>

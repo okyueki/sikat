@@ -219,6 +219,49 @@ class AbsensiAgendaController extends Controller
 public function rekapAbsensi(Request $request)
 {
     $agendaId = $request->get('agenda_id');
+    $userNik = Auth::user()->username;
+
+    // Validasi akses: jika ada agenda_id, cek apakah user adalah pimpinan rapat atau notulen
+    if ($agendaId) {
+        $agenda = Agenda::find($agendaId);
+        
+        if (!$agenda) {
+            abort(404, 'Agenda tidak ditemukan.');
+        }
+
+        // Cek apakah user adalah pimpinan rapat atau notulen
+        $isPimpinan = ($userNik === $agenda->pimpinan_rapat);
+        $isNotulen = ($userNik === $agenda->notulen);
+        
+        // Cek apakah user memiliki akses rekap.view (untuk admin/staff yang berwenang)
+        $hasRekapAccess = false;
+        $level = Auth::user()->level;
+        $map = config('access.map', []);
+        $allowedLevels = $map['rekap.view'] ?? [];
+        if (is_array($allowedLevels) && in_array($level, $allowedLevels, true)) {
+            $hasRekapAccess = true;
+        }
+
+        // Jika bukan pimpinan, bukan notulen, dan tidak punya akses rekap.view, tolak akses
+        if (!$isPimpinan && !$isNotulen && !$hasRekapAccess) {
+            abort(403, 'Akses ditolak. Hanya pimpinan rapat, notulen, atau user dengan akses rekap yang dapat melihat rekap absensi agenda ini.');
+        }
+    } else {
+        // Jika tidak ada agenda_id (melihat semua agenda), cek akses rekap.view
+        $hasRekapAccess = false;
+        $level = Auth::user()->level;
+        $map = config('access.map', []);
+        $allowedLevels = $map['rekap.view'] ?? [];
+        if (is_array($allowedLevels) && in_array($level, $allowedLevels, true)) {
+            $hasRekapAccess = true;
+        }
+
+        // Jika tidak punya akses rekap.view, hanya tampilkan agenda di mana user adalah pimpinan atau notulen
+        if (!$hasRekapAccess) {
+            // Filter agenda di mana user adalah pimpinan atau notulen
+            // Ini akan dilakukan di view dengan filter
+        }
+    }
 
     $query = AbsensiAgenda::with(['pegawai', 'agenda'])
         ->when($agendaId, function ($q) use ($agendaId) {
@@ -395,7 +438,28 @@ public function rekapAbsensi(Request $request)
             ->make(true);
     }
 
-    $agendas = Agenda::with(['pimpinan'])->get(['id', 'judul', 'mulai', 'akhir', 'pimpinan_rapat']);
+    // Filter agenda berdasarkan akses user
+    $hasRekapAccess = false;
+    $level = Auth::user()->level;
+    $map = config('access.map', []);
+    $allowedLevels = $map['rekap.view'] ?? [];
+    if (is_array($allowedLevels) && in_array($level, $allowedLevels, true)) {
+        $hasRekapAccess = true;
+    }
+
+    if ($hasRekapAccess) {
+        // Jika punya akses rekap.view, tampilkan semua agenda
+        $agendas = Agenda::with(['pimpinan'])->get(['id', 'judul', 'mulai', 'akhir', 'pimpinan_rapat', 'notulen']);
+    } else {
+        // Jika tidak punya akses, hanya tampilkan agenda di mana user adalah pimpinan atau notulen
+        $agendas = Agenda::with(['pimpinan'])
+            ->where(function($query) use ($userNik) {
+                $query->where('pimpinan_rapat', $userNik)
+                      ->orWhere('notulen', $userNik);
+            })
+            ->get(['id', 'judul', 'mulai', 'akhir', 'pimpinan_rapat', 'notulen']);
+    }
+    
     return view('absensi_agenda.rekap', compact('agendas'));
 }
 
@@ -623,7 +687,8 @@ public function rekapAbsensi(Request $request)
         
         $filename = 'Daftar_Presensi_' . str_replace(' ', '_', $agenda->judul) . '_' . Carbon::parse($agenda->mulai)->format('Y-m-d') . '.pdf';
         
-        return $pdf->download($filename);
+        // Return PDF untuk preview di browser (bukan langsung download)
+        return $pdf->stream($filename);
     }
 
 }

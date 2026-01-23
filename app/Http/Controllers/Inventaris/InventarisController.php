@@ -17,24 +17,40 @@ public function index(Request $request)
 {
     // Cek apakah request berasal dari DataTables (AJAX request)
     if ($request->ajax()) {
-        $query = Inventaris::with(['barang.produsen', 'barang.merk', 'ruang', 'gambar']);
+        // Load helper function sekali saja
+        if (!function_exists('formatRupiah')) {
+            $formatPath = app_path('Helpers/FormatHelper.php');
+            if (file_exists($formatPath)) {
+                require_once $formatPath;
+            }
+        }
+
+        // Optimasi: Gunakan join untuk menghindari N+1 query dan mempercepat pencarian
+        $query = Inventaris::select([
+                'inventaris.*',
+                'inventaris_barang.nama_barang',
+                'inventaris_produsen.nama_produsen',
+                'inventaris_merk.nama_merk',
+                'inventaris_ruang.nama_ruang'
+            ])
+            ->leftJoin('inventaris_barang', 'inventaris.kode_barang', '=', 'inventaris_barang.kode_barang')
+            ->leftJoin('inventaris_produsen', 'inventaris_barang.kode_produsen', '=', 'inventaris_produsen.kode_produsen')
+            ->leftJoin('inventaris_merk', 'inventaris_barang.id_merk', '=', 'inventaris_merk.id_merk')
+            ->leftJoin('inventaris_ruang', 'inventaris.id_ruang', '=', 'inventaris_ruang.id_ruang');
 
         // Filter berdasarkan Nama Ruang
         if ($request->filled('ruang')) {
-            $query->where('id_ruang', $request->ruang);
+            $query->where('inventaris.id_ruang', $request->ruang);
         }
 
-        // Fitur Pencarian
+        // Optimasi pencarian: Gunakan join langsung, lebih cepat dari orWhereHas
         if ($request->filled('search')) {
-            $query->where(function($q) use ($request) {
-                $q->where('no_inventaris', 'like', '%' . $request->search . '%')
-                  ->orWhere('kode_barang', 'like', '%' . $request->search . '%')
-                  ->orWhereHas('barang', function($q) use ($request) {
-                      $q->where('nama_barang', 'like', '%' . $request->search . '%');
-                  })
-                  ->orWhereHas('ruang', function($q) use ($request) {
-                      $q->where('nama_ruang', 'like', '%' . $request->search . '%');
-                  });
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('inventaris.no_inventaris', 'like', '%' . $search . '%')
+                  ->orWhere('inventaris.kode_barang', 'like', '%' . $search . '%')
+                  ->orWhere('inventaris_barang.nama_barang', 'like', '%' . $search . '%')
+                  ->orWhere('inventaris_ruang.nama_ruang', 'like', '%' . $search . '%');
             });
         }
 
@@ -47,16 +63,16 @@ public function index(Request $request)
                 return $row->kode_barang ?? '-';
             })
             ->addColumn('nama_barang', function ($row) {
-                return $row->barang->nama_barang ?? '-';
+                return $row->nama_barang ?? '-';
             })
             ->addColumn('nama_produsen', function ($row) {
-                return $row->barang->produsen->nama_produsen ?? 'Tidak Diketahui';
+                return $row->nama_produsen ?? 'Tidak Diketahui';
             })
             ->addColumn('nama_merk', function ($row) {
-                return $row->barang->merk->nama_merk ?? 'Tidak Diketahui';
+                return $row->nama_merk ?? 'Tidak Diketahui';
             })
             ->addColumn('nama_ruang', function ($row) {
-                return $row->ruang->nama_ruang ?? '-';
+                return $row->nama_ruang ?? '-';
             })
             ->addColumn('asal_barang', function ($row) {
                 return $row->asal_barang ?? '-';
@@ -65,14 +81,8 @@ public function index(Request $request)
                 return $row->tgl_pengadaan ? date('d/m/Y', strtotime($row->tgl_pengadaan)) : '-';
             })
             ->addColumn('harga', function ($row) {
-                if (!function_exists('formatRupiah')) {
-                    $formatPath = app_path('Helpers/FormatHelper.php');
-                    if (file_exists($formatPath)) {
-                        require_once $formatPath;
-                    }
-                }
                 $harga = $row->harga ?? 0;
-                return function_exists('formatRupiah') ? formatRupiah($harga, true) : 'Rp ' . number_format($harga, 2, ',', '.');
+                return function_exists('formatRupiah') ? formatRupiah($harga, true) : 'Rp ' . number_format($harga, 0, ',', '.');
             })
             ->addColumn('status_barang', function ($row) {
                 $status = $row->status_barang ?? '-';
@@ -97,16 +107,8 @@ public function index(Request $request)
                 return '<span class="badge ' . $badgeClass . '">' . $status . '</span>';
             })
             ->addColumn('photo', function ($row) {
-                // Handle hasMany relationship - get first image
-                $gambar = $row->gambar->first();
-                if ($gambar && !empty($gambar->photo)) {
-                    if (function_exists('getInventarisImageBase64')) {
-                        $base64Image = getInventarisImageBase64($gambar->photo);
-                        if ($base64Image) {
-                            return '<img src="' . $base64Image . '" class="img-thumbnail" alt="Gambar Inventaris" style="max-width: 80px; max-height: 80px; object-fit: cover; cursor: pointer;" onclick="window.open(this.src, \'_blank\')">';
-                        }
-                    }
-                }
+                // Skip loading gambar untuk performa - kolom ini hidden di mobile anyway
+                // Jika perlu gambar, bisa lazy load via AJAX terpisah
                 return '<span class="text-muted">-</span>';
             })
             ->addColumn('action', function ($row) {

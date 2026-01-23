@@ -79,23 +79,26 @@
                         </script>
                     @endif
                 
-                    <table class="table table-bordered" id="agendaTable">
-                        <thead>
-                            <tr>
-                                <th>No</th>
-                                <th>Nomor Agenda</th>
-                                <th>Judul</th>
-                                <th>Mulai</th>
-                                <th>Akhir</th>
-                                <th>Tempat</th>
-                                <th>Pimpinan Rapat</th>
-                                <th>Notulen</th>
-                                <th>Jumlah Terundang</th>
-                                <th>Status Realisasi</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                    </table>
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="agendaTable">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Nomor Agenda</th>
+                                    <th>Judul</th>
+                                    <th>Mulai</th>
+                                    <th>Akhir</th>
+                                    <th>Tempat</th>
+                                    <th>Pimpinan Rapat</th>
+                                    <th>Notulen</th>
+                                    <th>Dibuat Oleh</th>
+                                    <th>Jumlah Terundang</th>
+                                    <th>Status Realisasi</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -133,6 +136,7 @@
                     { data: 'tempat', name: 'tempat' },
                     { data: 'pimpinan_nama', name: 'pimpinan.nama' },
                     { data: 'notulen_nama', name: 'notulenPegawai.nama' },
+                    { data: 'created_by_nama', name: 'created_by_nama' },
                     { data: 'jumlah_terundang', name: 'jumlah_terundang', searchable: false },
                     { data: 'status_realisasi', name: 'status_realisasi' },
                     { data: 'aksi', name: 'aksi', orderable: false, searchable: false }

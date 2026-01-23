@@ -83,7 +83,8 @@
                             @endforeach
                         </select>
                     </div>
-
+                    
+                    <!--    
                     <div class="form-group">
                         <label>Foto</label>
                         <input type="file" name="foto" id="foto" class="form-control" accept="image/*">
@@ -117,7 +118,7 @@
                                 <strong>Ini realisasi dari Surat Keluar</strong>
                             </label>
                         </div>
-                        
+                    -->   
                         <div id="surat_keluar_select" style="display: none;">
                             <label for="id_surat_keluar">Pilih Surat Keluar</label>
                             <select name="id_surat_keluar" id="id_surat_keluar" class="form-control select2">
@@ -142,14 +143,16 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Initialize Flatpickr for both date fields
+        // Initialize Flatpickr for both date fields with 24-hour format
         flatpickr('input[name="mulai"]', {
             enableTime: true,
-            dateFormat: "Y-m-d H:i"
+            dateFormat: "Y-m-d H:i",
+            time_24hr: true
         });
         flatpickr('input[name="akhir"]', {
             enableTime: true,
-            dateFormat: "Y-m-d H:i"
+            dateFormat: "Y-m-d H:i",
+            time_24hr: true
         });
 
         // Preview nomor agenda

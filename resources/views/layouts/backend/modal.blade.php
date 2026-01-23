@@ -7,7 +7,7 @@
                         <div class="action-header clearfix">
                             <div class="float-start hidden-xs d-flex">
                                 <div class="avatar avatar-lg rounded-circle me-3">
-                                    <img src="./backend/assets/images/faces/6.jpg" class="rounded-circle user_img" alt="img">
+                                    <img src="{{ asset('backend/assets/images/faces/6.jpg') }}" class="rounded-circle user_img" alt="img">
                                 </div>
                                 <div class="align-items-center mt-2">
                                     <h5 class="text-fixed-white mb-0">Daneil Scott</h5>
@@ -52,7 +52,7 @@
                             </div>
                             <div class="d-flex justify-content-start">
                                 <div class="img_cont_msg">
-                                    <img src="./backend/assets/images/faces/6.jpg" class="rounded-circle user_img_msg" alt="img">
+                                    <img src="{{ asset('backend/assets/images/faces/6.jpg') }}" class="rounded-circle user_img_msg" alt="img">
                                 </div>
                                 <div class="msg_cotainer">
                                     Hi, how are you Jenna Side?
@@ -65,12 +65,12 @@
                                     <span class="msg_time_send">8:55 AM, Today</span>
                                 </div>
                                 <div class="img_cont_msg">
-                                    <img src="./backend/assets/images/faces/9.jpg" class="rounded-circle user_img_msg" alt="img">
+                                    <img src="{{ asset('backend/assets/images/faces/9.jpg') }}" class="rounded-circle user_img_msg" alt="img">
                                 </div>
                             </div>
                             <div class="d-flex justify-content-start ">
                                 <div class="img_cont_msg">
-                                    <img src="./backend/assets/images/faces/6.jpg" class="rounded-circle user_img_msg" alt="img">
+                                    <img src="{{ asset('backend/assets/images/faces/6.jpg') }}" class="rounded-circle user_img_msg" alt="img">
                                 </div>
                                 <div class="msg_cotainer">
                                     I am good too, thank you for your chat template
@@ -83,12 +83,12 @@
                                     <span class="msg_time_send">9:05 AM, Today</span>
                                 </div>
                                 <div class="img_cont_msg">
-                                    <img src="./backend/assets/images/faces/9.jpg" class="rounded-circle user_img_msg" alt="img">
+                                    <img src="{{ asset('backend/assets/images/faces/9.jpg') }}" class="rounded-circle user_img_msg" alt="img">
                                 </div>
                             </div>
                             <div class="d-flex justify-content-start ">
                                 <div class="img_cont_msg">
-                                    <img src="./backend/assets/images/faces/6.jpg" class="rounded-circle user_img_msg" alt="img">
+                                    <img src="{{ asset('backend/assets/images/faces/6.jpg') }}" class="rounded-circle user_img_msg" alt="img">
                                 </div>
                                 <div class="msg_cotainer">
                                     Yo, Can you update Views?
@@ -101,12 +101,12 @@
                                     <span class="msg_time_send">9:10 AM, Today</span>
                                 </div>
                                 <div class="img_cont_msg">
-                                    <img src="./backend/assets/images/faces/9.jpg" class="rounded-circle user_img_msg" alt="img">
+                                    <img src="{{ asset('backend/assets/images/faces/9.jpg') }}" class="rounded-circle user_img_msg" alt="img">
                                 </div>
                             </div>
                             <div class="d-flex justify-content-start ">
                                 <div class="img_cont_msg">
-                                    <img src="./backend/assets/images/faces/6.jpg" class="rounded-circle user_img_msg" alt="img">
+                                    <img src="{{ asset('backend/assets/images/faces/6.jpg') }}" class="rounded-circle user_img_msg" alt="img">
                                 </div>
                                 <div class="msg_cotainer">
                                     Yo, Can you update Views?
@@ -119,12 +119,12 @@
                                     <span class="msg_time_send">9:10 AM, Today</span>
                                 </div>
                                 <div class="img_cont_msg">
-                                    <img src="./backend/assets/images/faces/9.jpg" class="rounded-circle user_img_msg" alt="img">
+                                    <img src="{{ asset('backend/assets/images/faces/9.jpg') }}" class="rounded-circle user_img_msg" alt="img">
                                 </div>
                             </div>
                             <div class="d-flex justify-content-start ">
                                 <div class="img_cont_msg">
-                                    <img src="./backend/assets/images/faces/6.jpg" class="rounded-circle user_img_msg" alt="img">
+                                    <img src="{{ asset('backend/assets/images/faces/6.jpg') }}" class="rounded-circle user_img_msg" alt="img">
                                 </div>
                                 <div class="msg_cotainer">
                                     Yo, Can you update Views?
@@ -137,12 +137,12 @@
                                     <span class="msg_time_send">9:10 AM, Today</span>
                                 </div>
                                 <div class="img_cont_msg">
-                                    <img src="./backend/assets/images/faces/9.jpg" class="rounded-circle user_img_msg" alt="img">
+                                    <img src="{{ asset('backend/assets/images/faces/9.jpg') }}" class="rounded-circle user_img_msg" alt="img">
                                 </div>
                             </div>
                             <div class="d-flex justify-content-start">
                                 <div class="img_cont_msg">
-                                    <img src="./backend/assets/images/faces/6.jpg" class="rounded-circle user_img_msg" alt="img">
+                                    <img src="{{ asset('backend/assets/images/faces/6.jpg') }}" class="rounded-circle user_img_msg" alt="img">
                                 </div>
                                 <div class="msg_cotainer">
                                     Okay Bye, text you later..
@@ -174,7 +174,7 @@
                 <div class="modal-content bg-fixed-dark border-0">
                     <div class="modal-body mx-auto text-center p-5">
                         <h5 class="text-fixed-white">Valex Video call</h5>
-                        <img src="./backend/assets/images/faces/6.jpg" class="rounded-circle user-img-circle h-8 w-8 mt-4 mb-3" alt="img">
+                        <img src="{{ asset('backend/assets/images/faces/6.jpg') }}" class="rounded-circle user-img-circle h-8 w-8 mt-4 mb-3" alt="img">
                         <h4 class="mb-1 fw-semibold text-fixed-white">Daneil Scott</h4>
                         <h6 class="loading text-fixed-white">Calling...</h6>
                         <div class="mt-5">
@@ -208,7 +208,7 @@
                 <div class="modal-content border-0">
                     <div class="modal-body mx-auto text-center p-5">
                         <h6>Valex Voice call</h6>
-                        <img src="./backend/assets/images/faces/6.jpg" class="rounded-circle user-img-circle h-8 w-8 mt-4 mb-3" alt="img">
+                        <img src="{{ asset('backend/assets/images/faces/6.jpg') }}" class="rounded-circle user-img-circle h-8 w-8 mt-4 mb-3" alt="img">
                         <h5 class="mb-1 fw-medium">Daneil Scott</h5>
                         <h6 class="loading">Calling...</h6>
                         <div class="mt-5">

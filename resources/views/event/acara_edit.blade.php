@@ -146,14 +146,16 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Initialize Flatpickr for both date fields
+        // Initialize Flatpickr for both date fields with 24-hour format
         flatpickr('input[name="mulai"]', {
             enableTime: true,
-            dateFormat: "Y-m-d H:i"
+            dateFormat: "Y-m-d H:i",
+            time_24hr: true
         });
         flatpickr('input[name="akhir"]', {
             enableTime: true,
-            dateFormat: "Y-m-d H:i"
+            dateFormat: "Y-m-d H:i",
+            time_24hr: true
         });
 
         const yangTerundangSelect = document.getElementById('yang_terundang');

@@ -29,7 +29,7 @@
                     <p class="card-text">Berikut adalah QR Code untuk agenda Anda:</p>
 
                     <div class="my-3">
-                        <img id="qrCodeImage" src="{{ $qrCodeUrl }}?timestamp={{ time() }}" alt="QR Code" class="img-fluid">
+                        <img id="qrCodeImage" src="{{ $qrCodeUrl }}" alt="QR Code" class="img-fluid">
                     </div>
 
                     <p><strong>Token:</strong> <span id="token">{{ $token }}</span></p>
@@ -55,7 +55,7 @@
             data: { agenda_id: agendaId },
             success: function(data) {
                 if (data.qrCodeUrl) {
-                    $('#qrCodeImage').attr('src', data.qrCodeUrl + '?timestamp=' + new Date().getTime());
+                    $('#qrCodeImage').attr('src', data.qrCodeUrl);
                 }
                 if (data.token) {
                     $('#token').text(data.token);
