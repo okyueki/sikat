@@ -13,6 +13,7 @@ class Pegawai extends Model
 
     protected $connection = 'server_74';
     protected $table = 'pegawai';
+    public $timestamps = false;
 
     protected $fillable = [
         'id', 'nik', 'nama', 'jk', 'jbtn', 'jnj_jabatan', 'kode_kelompok', 'kode_resiko',
@@ -54,7 +55,8 @@ class Pegawai extends Model
     }
     public function berkasPegawai()
     {
-        return $this->hasMany(BerkasPegawai::class, 'nik', 'nik_pegawai');
+        // Relasi ke berkas pegawai SIMRS (server_74): berkas_pegawai.nik -> pegawai.nik
+        return $this->hasMany(BerkasPegawai::class, 'nik', 'nik');
     }
     public function pengajuanLibur()
     {

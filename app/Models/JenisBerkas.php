@@ -9,6 +9,8 @@ class JenisBerkas extends Model
 {
     use HasFactory;
 
+    // Berada di DB koneksi default (mysql).
+    protected $connection = 'mysql';
     protected $primaryKey = 'id_jenis_berkas';
     protected $fillable = [
         'jenis_berkas',

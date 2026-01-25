@@ -34,8 +34,9 @@ public function index(Request $request)
                 return optional($row->jenis)->nama_jenis ?? 'Tidak Diketahui';
             })
             ->addColumn('action', function($row) {
-                $btn = '<a href="'.route('inventaris-barang.edit', $row->kode_barang).'" class="btn btn-warning btn-sm mr-2">Edit</a>';
-                $btn .= '<form action="'.route('inventaris-barang.destroy', $row->kode_barang).'" method="POST" style="display:inline;">
+                $key = function_exists('route_key_encode') ? route_key_encode($row->kode_barang) : $row->kode_barang;
+                $btn = '<a href="'.route('inventaris-barang.edit', $key).'" class="btn btn-warning btn-sm mr-2">Edit</a>';
+                $btn .= '<form action="'.route('inventaris-barang.destroy', $key).'" method="POST" style="display:inline;">
                             '.csrf_field().'
                             '.method_field("DELETE").'
                             <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
@@ -83,6 +84,7 @@ public function index(Request $request)
 
    public function edit($kode_barang)
 {
+    $kode_barang = function_exists('route_key_decode') ? route_key_decode($kode_barang) : $kode_barang;
     $barang = InventarisBarang::findOrFail($kode_barang);
     $produsen = InventarisProdusen::all();
     $merk = InventarisMerk::all();
@@ -106,6 +108,7 @@ public function index(Request $request)
             'id_jenis' => 'required'
         ]);
 
+        $id = function_exists('route_key_decode') ? route_key_decode($id) : $id;
         $barang = InventarisBarang::findOrFail($id);
         $barang->update($request->all());
 
@@ -114,6 +117,7 @@ public function index(Request $request)
 
     public function destroy($kode_barang)
 {
+    $kode_barang = function_exists('route_key_decode') ? route_key_decode($kode_barang) : $kode_barang;
     $barang = InventarisBarang::findOrFail($kode_barang); // Gunakan kode_barang sebagai parameter
     $barang->delete();
 

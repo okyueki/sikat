@@ -149,15 +149,13 @@ Route::get('/kepegawaian/rekap-presensi/data', [RekapPresensiController::class, 
     ->middleware(['auth', 'checkAccess:rekap.view']);
 
 Route::middleware(['auth'])->group(function () {
-    Route::resource('inventaris-barang', InventarisBarangController::class)->names([
-        'index' => 'inventaris-barang.index',
-        'create' => 'inventaris-barang.create',
-        'store' => 'inventaris-barang.store',
-        'show' => 'inventaris-barang.show',
-        'edit' => 'inventaris-barang.edit',
-        'update' => 'inventaris-barang.update',
-        'destroy' => 'inventaris-barang.destroy'
-    ]);
+    // inventaris-barang: `kode_barang` bisa mengandung '/', jadi gunakan route_key_encode() pada URL.
+    Route::get('inventaris-barang', [InventarisBarangController::class, 'index'])->name('inventaris-barang.index');
+    Route::get('inventaris-barang/create', [InventarisBarangController::class, 'create'])->name('inventaris-barang.create');
+    Route::post('inventaris-barang', [InventarisBarangController::class, 'store'])->name('inventaris-barang.store');
+    Route::get('inventaris-barang/{kode}/edit', [InventarisBarangController::class, 'edit'])->name('inventaris-barang.edit');
+    Route::put('inventaris-barang/{kode}', [InventarisBarangController::class, 'update'])->name('inventaris-barang.update');
+    Route::delete('inventaris-barang/{kode}', [InventarisBarangController::class, 'destroy'])->name('inventaris-barang.destroy');
 });
 Route::middleware(['auth'])->group(function () {
     // Route khusus harus diletakkan SEBELUM resource route
@@ -283,8 +281,17 @@ Route::resource('template_surat', TemplateSuratController::class);
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/profil', [ProfilController::class, 'show'])->name('profil.show');
+    Route::put('/profil', [ProfilController::class, 'updateProfil'])->name('profil.update');
+    Route::put('/profil/photo', [ProfilController::class, 'updatePhoto'])->name('profil.photo.update');
+    Route::put('/profil/berkas', [ProfilController::class, 'updateBerkas'])->name('profil.berkas.update');
+    Route::put('/profil/berkas/masa-berlaku', [ProfilController::class, 'updateMasaBerlaku'])->name('profil.berkas.masa.update');
     
 });
+
+// Download berkas pegawai (terproteksi, cek pemilik atau level SDM)
+Route::get('/berkas_pegawai/{id}/download', [BerkasPegawaiController::class, 'download'])
+    ->middleware('auth')
+    ->name('berkas_pegawai.download');
 Route::get('/grafik-ralan', [GrafikralanController::class, 'index'])->name('grafikralan.index');
 
 Route::get('/tata_naskah', [TataNaskahController::class, 'index'])->name('tata_naskah.index');

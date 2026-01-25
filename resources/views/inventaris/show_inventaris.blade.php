@@ -10,7 +10,7 @@
             <a href="{{ route('inventaris.index') }}" class="btn btn-secondary float-right">Kembali</a>
         </div>
         <div class="card-body">
-            <table class="table table-bordered">
+            <table class="table table-bordered table-striped table-hover align-middle">
                 <tr>
                     <th>No Inventaris</th>
                     <td>{{ $inventaris->no_inventaris }}</td>
@@ -77,14 +77,6 @@
 
             <h4>Gambar Inventaris</h4>
             @php
-                // Load helper function if not loaded
-                if (!function_exists('getInventarisImageBase64')) {
-                    $helperPath = app_path('Helpers/InventarisHelper.php');
-                    if (file_exists($helperPath)) {
-                        require_once $helperPath;
-                    }
-                }
-                
                 $hasGambar = $inventaris->gambar && $inventaris->gambar->count() > 0;
             @endphp
             
@@ -94,10 +86,14 @@
                         @if(!empty($gambar->photo))
                             <div class="col-md-3 mb-3">
                                 @php
-                                    $base64Image = function_exists('getInventarisImageBase64') ? getInventarisImageBase64($gambar->photo) : null;
+                                    $imgUrl = getInventarisPhotoUrl($gambar->photo);
                                 @endphp
-                                @if($base64Image)
-                                    <img src="{{ $base64Image }}" class="img-fluid rounded shadow-sm" alt="Gambar Inventaris" style="max-height: 200px; object-fit: cover; cursor: pointer;" onclick="window.open(this.src, '_blank')">
+                                @if($imgUrl)
+                                    <img src="{{ $imgUrl }}"
+                                         class="img-fluid rounded shadow-sm border"
+                                         alt="Gambar Inventaris"
+                                         style="max-height: 200px; width: 100%; object-fit: cover; cursor: pointer;"
+                                         onclick="window.open('{{ $imgUrl }}', '_blank')">
                                 @else
                                     <div class="alert alert-warning small mb-0">
                                         <i class="fa fa-exclamation-triangle me-1"></i>Gambar tidak dapat dimuat

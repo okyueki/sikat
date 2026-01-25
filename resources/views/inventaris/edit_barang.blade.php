@@ -9,7 +9,7 @@
             <h3 class="card-title">{{ $pageTitle }}</h3>
         </div>
         <div class="card-body">
-            <form action="{{ route('inventaris-barang.update', $barang->kode_barang) }}" method="POST">
+            <form action="{{ route('inventaris-barang.update', route_key_encode($barang->kode_barang)) }}" method="POST">
                 @csrf
                 @method('PUT')
                 @include('inventaris.form_barang')

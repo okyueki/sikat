@@ -82,3 +82,23 @@
     <input type="file" name="gambar" id="gambar" class="form-control" accept="image/*">
 </div>
 
+@php
+    $gambarTerbaru = null;
+    try {
+        $gambarTerbaru = ($inventaris->gambar ?? collect())->last();
+    } catch (\Exception $e) {
+        $gambarTerbaru = null;
+    }
+    $gambarUrl = $gambarTerbaru?->photo ? getInventarisPhotoUrl($gambarTerbaru->photo) : null;
+@endphp
+
+@if(!empty($inventaris) && $gambarUrl)
+    <div class="mt-2">
+        <div class="text-muted small mb-1">Gambar saat ini</div>
+        <a href="{{ $gambarUrl }}" target="_blank" rel="noopener">
+            <img src="{{ $gambarUrl }}" alt="Gambar Inventaris" class="img-fluid rounded border" style="max-height: 160px; object-fit: cover;">
+        </a>
+        <div class="text-muted small mt-1 text-break">{{ $gambarTerbaru->photo }}</div>
+    </div>
+@endif
+

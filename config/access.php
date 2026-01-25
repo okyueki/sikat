@@ -14,6 +14,9 @@ return [
 
         // Rekap & laporan
         'rekap.view' => ['Direktur', 'Programmer', 'HRD', 'Kabag', 'Kasie'],
+
+        // Berkas pegawai (pengelolaan/verifikasi oleh SDM)
+        'berkas_pegawai.manage' => ['Direktur', 'Programmer', 'HRD', 'Kabag', 'Kasie'],
     ],
 ];
 

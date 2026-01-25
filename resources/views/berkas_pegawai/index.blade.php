@@ -19,6 +19,19 @@
                         });
                     </script>
                 @endif
+                <div class="row g-2 align-items-end mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Filter Status Verifikasi</label>
+                        <select id="filter-verifikasi" class="form-control">
+                            <option value="">Semua</option>
+                            <option value="review">Review</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="uploaded">Uploaded</option>
+                        </select>
+                    </div>
+                </div>
+
 <div class="table-responsive">
                 <table class="table table-bordered" id="berkas-pegawai">
                     <thead>
@@ -27,6 +40,8 @@
                             <th>Nama</th>
                             <th>Jabatan</th>
                             <th>Bidang</th>
+                            <th>Kategori</th>
+                            <th>Progress</th>
                             <th width="280px">Aksi</th>
                         </tr>
                     </thead>
@@ -38,10 +53,15 @@
 </div>
 <script>
     $(document).ready(function () {
-        $('#berkas-pegawai').DataTable({
+        var table = $('#berkas-pegawai').DataTable({
             processing: true,
             serverSide: true,
-            ajax: '/berkas_pegawai',
+            ajax: {
+                url: '/berkas_pegawai',
+                data: function (d) {
+                    d.verifikasi = $('#filter-verifikasi').val();
+                }
+            },
             columns: [
                 { data: null, name: 'no', searchable: false, orderable: false, render: function (data, type, row, meta) {
                     return meta.row + 1;
@@ -49,8 +69,14 @@
                 { data: 'nama', name: 'nama' },
                 { data: 'jbtn', name: 'jbtn' },
                 { data: 'bidang', name: 'bidang' },
+                { data: 'kategori', name: 'kategori', orderable: false, searchable: false },
+                { data: 'progress', name: 'progress', orderable: false, searchable: false },
                 { data: 'action', name: 'action', orderable: false, searchable: false },
             ]
+        });
+
+        $('#filter-verifikasi').on('change', function () {
+            table.ajax.reload();
         });
     });
      document.addEventListener('DOMContentLoaded', function () {
