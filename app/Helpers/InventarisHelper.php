@@ -223,8 +223,33 @@ if (!function_exists('getPegawaiPhotoUrl')) {
         $default = trim((string) env('PEGAWAI_PHOTO_PATH', 'penggajian/pages/pegawai/photo'), '/');
 
         // Jika hanya nama file (tanpa folder), prefix default path
-        if (strpos($photoPath, '/') === false && $default !== '') {
-            $photoPath = $default . '/' . $photoPath;
+        if (strpos($photoPath, '/') === false) {
+            // Normal case: ada default path dari env / fallback
+            if ($default !== '') {
+                $photoPath = $default . '/' . $photoPath;
+            } else {
+                // Heuristik: beberapa environment mengosongkan PEGAWAI_PHOTO_PATH.
+                // Coba beberapa kandidat path yang umum dipakai di SIMRS.
+                $candidates = [
+                    'pages/pegawai/photo/' . $photoPath,
+                    'penggajian/pages/pegawai/photo/' . $photoPath,
+                ];
+
+                foreach ($candidates as $candidate) {
+                    try {
+                        if (file_exists(public_path($candidate))) {
+                            return asset($candidate);
+                        }
+                    } catch (\Exception $e) {
+                        // ignore
+                    }
+
+                    $url = simrs_webapps_url($candidate);
+                    if ($url) {
+                        return $url;
+                    }
+                }
+            }
         }
 
         // Jika path dari DB tanpa prefix modul: pages/pegawai/photo/...

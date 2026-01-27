@@ -87,6 +87,31 @@ Route::get('/logout', [LogoutController::class, 'logout'])->name('logout');
 
 Auth::routes(['register' => true]);
 
+/**
+ * Mobile UI (Blade)
+ * Catatan: kita buat scope khusus /mobile supaya tidak mengganggu halaman admin.
+ */
+Route::prefix('mobile')->name('mobile.')->group(function () {
+    // halaman login versi mobile
+    Route::view('/login', 'mobileui.login')->name('login');
+
+    Route::middleware('auth')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Mobile\MobileHomeController::class, 'index'])->name('home');
+
+        // placeholder routes agar menu tidak 404 (bisa diganti controller nanti)
+        Route::get('/calendar', fn () => view('mobileui.blank', ['title' => 'Calendar', 'active' => 'calendar']))->name('calendar');
+        Route::get('/presence', [\App\Http\Controllers\Kepegawaian\AbsensiController::class, 'showPresensiFormMobile'])->name('presence');
+        Route::get('/docs', fn () => view('mobileui.blank', ['title' => 'Docs', 'active' => 'docs']))->name('docs');
+
+        // profil versi mobile (menggunakan data dari ProfilController)
+        Route::get('/profile', [\App\Http\Controllers\Profil\ProfilController::class, 'showMobile'])->name('profile');
+
+        Route::get('/cuti', fn () => view('mobileui.blank', ['title' => 'Cuti', 'active' => '']))->name('cuti');
+        Route::get('/histori', fn () => view('mobileui.blank', ['title' => 'Histori', 'active' => '']))->name('histori');
+        Route::get('/lokasi', fn () => view('mobileui.blank', ['title' => 'Lokasi', 'active' => '']))->name('lokasi');
+    });
+});
+
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('auth');
 
 Route::group(['middleware' => ['auth', 'checkLevel:Kabag']], function () {

@@ -9,6 +9,7 @@ use App\Models\InventarisRuang;
 use Yajra\DataTables\DataTables;
 use Illuminate\Http\Request;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use Illuminate\Support\Facades\Log;
 
 class InventarisController extends Controller
 {
@@ -165,9 +166,40 @@ public function index(Request $request)
         $filePath = null;
         if ($request->hasFile('gambar')) {
             $file = $request->file('gambar');
-            $fileName = time() . '_' . $file->getClientOriginalName();
+            $safeOriginal = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $file->getClientOriginalName());
+            $fileName = time() . '_' . $safeOriginal;
             $filePath = 'pages/upload/' . $fileName;
-            $file->move(public_path('pages/upload'), $fileName);
+
+            // ===== Prefer: simpan ke filesystem webapps SIMRS (agar bisa diakses via SIMRS_WEBAPPS_BASE_URL) =====
+            $webappsFsRoot = trim((string) env('SIMRS_WEBAPPS_FS_PATH', ''));
+            $module = trim((string) env('INVENTARIS_WEBAPPS_PREFIX', 'inventaris'), '/');
+            $webappsRelDir = ($module !== '' ? $module . '/' : '') . 'pages/upload';
+
+            $saved = false;
+            if ($webappsFsRoot !== '' && is_dir($webappsFsRoot)) {
+                $targetDir = rtrim($webappsFsRoot, "/\\") . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $webappsRelDir);
+                if (!is_dir($targetDir)) {
+                    @mkdir($targetDir, 0775, true);
+                }
+                try {
+                    $file->move($targetDir, $fileName);
+                    $saved = true;
+                } catch (\Throwable $e) {
+                    Log::warning('Upload inventaris ke webapps gagal, fallback ke local', [
+                        'targetDir' => $targetDir,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // ===== Fallback: simpan ke public Laravel =====
+            if (!$saved) {
+                $localDir = public_path('pages/upload');
+                if (!is_dir($localDir)) {
+                    @mkdir($localDir, 0775, true);
+                }
+                $file->move($localDir, $fileName);
+            }
         }
 
         $inventaris = Inventaris::create([
@@ -223,23 +255,76 @@ public function index(Request $request)
     // Handle upload gambar jika ada file baru
     if ($request->hasFile('gambar')) {
         $file = $request->file('gambar');
-        $fileName = time() . '_' . $file->getClientOriginalName();
+        $safeOriginal = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $file->getClientOriginalName());
+        $fileName = time() . '_' . $safeOriginal;
         $filePath = 'pages/upload/' . $fileName;
 
-        // Pindahkan file ke folder tujuan
-        $file->move(public_path('pages/upload'), $fileName);
+        // Prefer: simpan ke filesystem webapps SIMRS (agar bisa diakses via SIMRS_WEBAPPS_BASE_URL)
+        $webappsFsRoot = trim((string) env('SIMRS_WEBAPPS_FS_PATH', ''));
+        $module = trim((string) env('INVENTARIS_WEBAPPS_PREFIX', 'inventaris'), '/');
+        $webappsRelDir = ($module !== '' ? $module . '/' : '') . 'pages/upload';
+
+        $saved = false;
+        if ($webappsFsRoot !== '' && is_dir($webappsFsRoot)) {
+            $targetDir = rtrim($webappsFsRoot, "/\\") . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $webappsRelDir);
+            if (!is_dir($targetDir)) {
+                @mkdir($targetDir, 0775, true);
+            }
+            try {
+                $file->move($targetDir, $fileName);
+                $saved = true;
+            } catch (\Throwable $e) {
+                Log::warning('Update inventaris: upload ke webapps gagal, fallback ke local', [
+                    'targetDir' => $targetDir,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Fallback: simpan ke public Laravel
+        if (!$saved) {
+            $localDir = public_path('pages/upload');
+            if (!is_dir($localDir)) {
+                @mkdir($localDir, 0775, true);
+            }
+            $file->move($localDir, $fileName);
+        }
 
         // Hapus gambar lama jika ada
         if ($inventaris->gambar()->exists()) {
-            $oldImagePath = public_path($inventaris->gambar->photo);
-            if (file_exists($oldImagePath)) {
-                unlink($oldImagePath);
+            // Relasi gambar() adalah hasMany → ambil 1 record yang dipakai sebagai "cover" (terakhir).
+            $oldImage = $inventaris->gambar()->orderByDesc('photo')->first();
+            $oldRel = ltrim((string) ($oldImage->photo ?? ''), '/');
+
+            // Hapus local jika ada
+            if ($oldRel !== '') {
+                $oldLocal = public_path($oldRel);
+                if (file_exists($oldLocal)) {
+                    @unlink($oldLocal);
+                }
+            }
+
+            // Hapus di webapps jika env SIMRS_WEBAPPS_FS_PATH ada
+            $webappsFsRootDelete = trim((string) env('SIMRS_WEBAPPS_FS_PATH', ''));
+            if ($oldRel !== '' && $webappsFsRootDelete !== '' && is_dir($webappsFsRootDelete)) {
+                $moduleDelete = trim((string) env('INVENTARIS_WEBAPPS_PREFIX', 'inventaris'), '/');
+                // oldRel umumnya: pages/upload/xxx.jpg → webapps: <module>/pages/upload/xxx.jpg
+                $oldWebappsRel = ($moduleDelete !== '' ? $moduleDelete . '/' : '') . $oldRel;
+                $oldWebappsAbs = rtrim($webappsFsRootDelete, "/\\") . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $oldWebappsRel);
+                if (file_exists($oldWebappsAbs)) {
+                    @unlink($oldWebappsAbs);
+                }
             }
 
             // Update gambar lama
-            $inventaris->gambar->update([
-                'photo' => $filePath,
-            ]);
+            if ($oldImage) {
+                $oldImage->update(['photo' => $filePath]);
+            } else {
+                InventarisGambar::create([
+                    'no_inventaris' => $no_inventaris,
+                    'photo' => $filePath,
+                ]);
+            }
         } else {
             // Simpan gambar baru jika belum ada gambar
             InventarisGambar::create([

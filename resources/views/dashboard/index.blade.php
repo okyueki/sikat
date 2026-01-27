@@ -329,7 +329,7 @@
             </div>
         </div>
 
-        <!-- Tim Paling Sering Terlambat -->
+        <!-- Tim Paling Sering Terlambat 
         <div class="col-xl-6 col-md-12">
             <div class="card custom-card">
                 <div class="card-header bg-danger text-white">
@@ -394,6 +394,8 @@
                 </div>
             </div>
         </div>
+        -->
+
     </div>
 
     <!-- Statistik Grafik -->

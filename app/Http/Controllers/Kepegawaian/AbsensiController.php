@@ -106,6 +106,75 @@ class AbsensiController extends Controller
     }
 
     /**
+     * Menampilkan formulir presensi versi Mobile UI (Mobilekit).
+     * Data & logic sama dengan showPresensiForm(), hanya view yang berbeda.
+     */
+    public function showPresensiFormMobile()
+    {
+        // Pastikan user sudah login
+        if (!Auth::check()) {
+            return redirect()->route('mobile.login')->with('error', 'Silakan login terlebih dahulu.');
+        }
+
+        $nik = Auth::user()->username;
+        $pegawai = Pegawai::where('nik', $nik)->first();
+
+        if (!$pegawai) {
+            return redirect()->route('mobile.home')
+                ->with('error', 'Data pegawai tidak ditemukan. Silakan hubungi administrator.');
+        }
+
+        // Cek jadwal shift hari ini
+        $shiftHariIni = $this->getShiftHariIni($pegawai->id);
+        $jamJaga = null;
+        $jadwalAda = ($shiftHariIni && !empty($shiftHariIni['shift']));
+
+        if ($jadwalAda) {
+            $shiftName = trim($shiftHariIni['shift']);
+
+            $jamJaga = JamJaga::where('shift', $shiftName)->first();
+
+            // Fallback: jika tidak ditemukan di JamJaga, coba JamMasuk (agar UI tetap informatif)
+            if (!$jamJaga) {
+                $jamMasuk = \App\Models\JamMasuk::where('shift', $shiftName)->first();
+                if ($jamMasuk) {
+                    $jamJaga = new \stdClass();
+                    $jamJaga->shift = $jamMasuk->shift;
+                    $jamJaga->jam_masuk = $jamMasuk->jam_masuk;
+                    $jamJaga->jam_pulang = $jamMasuk->jam_pulang;
+                }
+            }
+        }
+
+        // Cek status presensi hari ini
+        $presensiHariIni = RekapPresensi::where('id', $pegawai->id)
+            ->whereDate('jam_datang', Carbon::today())
+            ->first();
+
+        if ($presensiHariIni) {
+            $statusPresensi = $presensiHariIni->jam_pulang ? 'selesai' : 'datang';
+        } else {
+            $statusPresensi = 'belum';
+        }
+
+        $now = Carbon::now('Asia/Jakarta');
+        $tanggalHariIni = $now->format('d F Y');
+        $jamSaatIni = $now->format('H:i:s');
+        $hariNama = $now->locale('id')->dayName;
+
+        return view('mobileui.presence', compact(
+            'pegawai',
+            'statusPresensi',
+            'jadwalAda',
+            'shiftHariIni',
+            'jamJaga',
+            'tanggalHariIni',
+            'jamSaatIni',
+            'hariNama'
+        ));
+    }
+
+    /**
      * Handle presensi otomatis (datang atau pulang)
      */
     public function handlePresensi(Request $request)

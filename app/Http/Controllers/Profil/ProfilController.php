@@ -89,6 +89,53 @@ class ProfilController extends Controller
         return view('profil.show', compact('pegawai', 'masterBerkas', 'berkasLatestByKode', 'metaByKode', 'showAllBerkas', 'kategoriPegawai'));
     }
 
+    /**
+     * Versi tampilan Mobile UI (Blade template mobileui).
+     * Data sama seperti show(), hanya view yang berbeda.
+     */
+    public function showMobile()
+    {
+        $showAllBerkas = request()->boolean('show_all', false);
+
+        $pegawai = Pegawai::with(['departemen_unit', 'dokter', 'petugas.jabatan'])
+            ->where('nik', Auth::user()->username)
+            ->first();
+
+        if (!$pegawai) {
+            abort(404, 'Pegawai tidak ditemukan');
+        }
+
+        $kategoriPegawai = $this->resolveKategoriPegawai($pegawai);
+
+        $masterBerkas = MasterBerkasPegawai::query()
+            ->where('kategori', $kategoriPegawai)
+            ->orderBy('no_urut')
+            ->get();
+
+        $berkasSimrs = BerkasPegawai::query()
+            ->where('nik', $pegawai->nik)
+            ->get();
+
+        $berkasLatestByKode = ($berkasSimrs ?? collect())
+            ->sortByDesc(function ($b) {
+                return $b->tgl_uploud ?? '0000-00-00';
+            })
+            ->groupBy('kode_berkas')
+            ->map(fn ($items) => $items->first());
+
+        $metaByKode = collect();
+        try {
+            $metaByKode = BerkasPegawaiMysql::query()
+                ->where('nik', $pegawai->nik)
+                ->get()
+                ->keyBy('kode_berkas');
+        } catch (QueryException $e) {
+            $metaByKode = collect();
+        }
+
+        return view('mobileui.profile', compact('pegawai', 'masterBerkas', 'berkasLatestByKode', 'metaByKode', 'showAllBerkas', 'kategoriPegawai'));
+    }
+
     public function updateProfil(Request $request)
     {
         $nik = Auth::user()->username;
