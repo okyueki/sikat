@@ -43,12 +43,21 @@
                                     <i class="fa-solid fa-qrcode"></i> Generate QR Code
                                 </a>
                             @endif
-                            <a href="{{ route('rekap-absensi') }}?agenda_id={{ $agenda->id }}" class="btn btn-info me-2">
-                                <i class="fas fa-chart-bar"></i> Rekap Absensi
-                            </a>
-                            <a href="{{ route('agenda.pdf', $agenda->id) }}" target="_blank" class="btn btn-danger">
-                                <i class="fas fa-file-pdf"></i> Download PDF
-                            </a>
+                            @if(isset($isSelesai) && $isSelesai)
+                                <a href="{{ route('rekap-absensi') }}?agenda_id={{ $agenda->id }}" class="btn btn-info me-2">
+                                    <i class="fas fa-chart-bar"></i> Rekap Absensi
+                                </a>
+                                <a href="{{ route('agenda.pdf', $agenda->id) }}" target="_blank" class="btn btn-danger">
+                                    <i class="fas fa-file-pdf"></i> Download PDF
+                                </a>
+                            @else
+                                <span class="btn btn-info me-2 disabled" title="Tersedia setelah acara selesai">
+                                    <i class="fas fa-chart-bar"></i> Rekap Absensi
+                                </span>
+                                <span class="btn btn-danger disabled" title="Tersedia setelah acara selesai">
+                                    <i class="fas fa-file-pdf"></i> Download PDF
+                                </span>
+                            @endif
                         </div>
                     </div>
 

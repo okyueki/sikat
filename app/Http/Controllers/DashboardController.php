@@ -16,6 +16,7 @@ use App\Models\Agenda;
 use App\Models\Dokter;
 use App\Models\JadwalPegawai;
 use App\Models\RekapPresensi;
+use App\Models\AbsensiAgenda;
 
 class DashboardController extends Controller
 {
@@ -28,8 +29,9 @@ class DashboardController extends Controller
         ->groupBy('departemen')
         ->get();
 
-   $nik = Auth::user()->username;
-    $pegawai = Pegawai::where('nik', $nik)->first();
+    // NIK untuk absensi agenda: pakai dari Pegawai agar konsisten dengan tabel absensi_agenda
+    $pegawai = Pegawai::where('nik', Auth::user()->username)->first();
+    $nik = $pegawai ? (string) $pegawai->nik : (string) Auth::user()->username;
 
     // Pastikan $presensiUser didefinisikan sebagai collection kosong
     $presensiUser = collect();
@@ -306,11 +308,15 @@ class DashboardController extends Controller
             return in_array('all', $terundang) || $isAll || in_array($nik, $terundang);
         })
         ->map(function ($agenda) use ($nik) {
-            // Cek apakah user sudah absen
-            $agenda->sudah_absen = \App\Models\AbsensiAgenda::where('agenda_id', $agenda->id)
-                ->where('nik', $nik)
-                ->exists();
-            
+            // Cek absensi: "Sudah Absen" hanya bila user benar-benar scan (status hadir). Record AUTO/tidak_hadir tidak dianggap sudah absen.
+            $agendaId = (int) $agenda->id;
+            $row = DB::selectOne(
+                'SELECT status_kehadiran FROM absensi_agenda WHERE agenda_id = ? AND nik = ? LIMIT 1',
+                [$agendaId, (string) $nik]
+            );
+            $agenda->status_kehadiran_agenda = $row ? ($row->status_kehadiran ?? null) : null; // hadir, tidak_hadir, ijin, cuti, dll
+            $agenda->sudah_absen = $row && ($row->status_kehadiran === 'hadir');
+
             // Format waktu
             $mulai = Carbon::parse($agenda->mulai);
             $akhir = $agenda->akhir ? Carbon::parse($agenda->akhir) : null;

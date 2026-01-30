@@ -11,6 +11,8 @@ class AbsensiAgenda extends Model
 
     protected $table = 'absensi_agenda';
 
+    protected $primaryKey = 'id_absensi_agenda';
+
     protected $fillable = [
         'nik',
         'agenda_id',

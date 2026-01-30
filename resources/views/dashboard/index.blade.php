@@ -68,14 +68,28 @@
                                         <a href="{{ route('acara_show', $agenda->id) }}" class="btn btn-sm btn-info flex-fill">
                                             <i class="fas fa-eye me-1"></i> Detail
                                         </a>
-                                        @if(!$agenda->sudah_absen && ($agenda->status_class == 'info' || $agenda->status_class == 'success'))
-                                            <a href="{{ route('absensi.scan', $agenda->id) }}" class="btn btn-sm btn-success flex-fill">
-                                                <i class="fas fa-qrcode me-1"></i> Scan
-                                            </a>
-                                        @elseif($agenda->sudah_absen)
+                                        @if($agenda->sudah_absen)
                                             <button class="btn btn-sm btn-secondary flex-fill" disabled>
                                                 <i class="fas fa-check me-1"></i> Sudah Absen
                                             </button>
+                                        @elseif($agenda->status_kehadiran_agenda ?? null)
+                                            <button class="btn btn-sm btn-outline-secondary flex-fill" disabled title="Status tercatat (bukan dari scan)">
+                                                @if($agenda->status_kehadiran_agenda === 'tidak_hadir')
+                                                    <i class="fas fa-user-times me-1"></i> Tidak hadir
+                                                @elseif($agenda->status_kehadiran_agenda === 'ijin')
+                                                    <i class="fas fa-file-signature me-1"></i> Ijin
+                                                @elseif($agenda->status_kehadiran_agenda === 'cuti')
+                                                    <i class="fas fa-umbrella-beach me-1"></i> Cuti
+                                                @elseif($agenda->status_kehadiran_agenda === 'sakit')
+                                                    <i class="fas fa-notes-medical me-1"></i> Sakit
+                                                @else
+                                                    <i class="fas fa-clipboard-check me-1"></i> {{ ucfirst(str_replace('_', ' ', $agenda->status_kehadiran_agenda)) }}
+                                                @endif
+                                            </button>
+                                        @elseif($agenda->status_class == 'info' || $agenda->status_class == 'success')
+                                            <a href="{{ route('absensi.scan', $agenda->id) }}" class="btn btn-sm btn-success flex-fill">
+                                                <i class="fas fa-qrcode me-1"></i> Scan
+                                            </a>
                                         @endif
                                     </div>
                                 </div>
