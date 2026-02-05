@@ -115,6 +115,17 @@
                         <i class="fa fa-map-marker-alt me-2"></i>
                         <span id="gpsStatusText">Meminta izin akses lokasi...</span>
                     </div>
+
+                    <!-- Peta Lokasi (OpenStreetMap) -->
+                    <div class="mb-4">
+                        <h6 class="mb-2"><i class="fas fa-map me-2"></i>Peta Lokasi & Titik Presensi</h6>
+                        <p class="text-muted small mb-2">Peta menampilkan titik presensi (biru). Jika izin lokasi diizinkan, posisi Anda (hijau) juga akan muncul.</p>
+                        <div id="presensiMap" style="height: 280px; border-radius: 8px; border: 1px solid #dee2e6; display: none;"></div>
+                        <div id="mapPlaceholder" class="text-center py-4 text-muted small bg-light rounded">
+                            <i class="fas fa-spinner fa-spin fa-2x mb-2"></i><br>
+                            Memuat peta...
+                        </div>
+                    </div>
                     
                     <div class="form-group mb-4">
                         <label class="form-label"><strong>Ambil Foto Presensi</strong></label>
@@ -173,6 +184,8 @@
     </div>            
 </div>
 
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/webcamjs/1.0.26/webcam.min.js"></script>
 <script>
     // Konfigurasi Webcam
@@ -212,6 +225,69 @@
     const ALLOWED_RADIUS = 30; // dalam meter
     let currentLocation = null;
     let isLocationValid = false;
+
+    // Peta OpenStreetMap (Leaflet)
+    let presensiMapObj = null;
+    let userMarker = null;
+    let targetMarker = null;
+
+    function showMapAndHidePlaceholder() {
+        const mapEl = document.getElementById('presensiMap');
+        const placeholder = document.getElementById('mapPlaceholder');
+        if (placeholder) placeholder.style.display = 'none';
+        if (mapEl) mapEl.style.display = 'block';
+    }
+
+    // Tampilkan peta dengan titik presensi saja (tanpa lokasi user) - dipanggil saat halaman load
+    function initPresensiMapWithTargetOnly() {
+        const mapEl = document.getElementById('presensiMap');
+        if (!mapEl) return;
+        if (presensiMapObj) return; // sudah ada
+
+        presensiMapObj = L.map('presensiMap').setView([TARGET_LAT, TARGET_LNG], 17);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(presensiMapObj);
+
+        targetMarker = L.marker([TARGET_LAT, TARGET_LNG], {
+            icon: L.divIcon({
+                className: 'presensi-target-marker',
+                html: '<div style="background:#0d6efd;color:#fff;padding:4px 8px;border-radius:4px;font-size:11px;white-space:nowrap;">Titik Presensi (radius ' + ALLOWED_RADIUS + ' m)</div>',
+                iconSize: [140, 24],
+                iconAnchor: [70, 12]
+            })
+        }).addTo(presensiMapObj).bindPopup('Titik presensi. Berada dalam radius ' + ALLOWED_RADIUS + ' m untuk bisa absen.');
+
+        showMapAndHidePlaceholder();
+    }
+
+    function initOrUpdatePresensiMap(userLat, userLng) {
+        const mapEl = document.getElementById('presensiMap');
+        if (!mapEl) return;
+
+        showMapAndHidePlaceholder();
+
+        if (!presensiMapObj) {
+            initPresensiMapWithTargetOnly();
+        }
+
+        if (!userMarker) {
+            userMarker = L.marker([userLat, userLng], {
+                icon: L.divIcon({
+                    className: 'presensi-user-marker',
+                    html: '<div style="background:#198754;color:#fff;padding:4px 8px;border-radius:4px;font-size:11px;white-space:nowrap;"><i class="fa fa-user"></i> Lokasi Saya</div>',
+                    iconSize: [100, 24],
+                    iconAnchor: [50, 12]
+                })
+            }).addTo(presensiMapObj).bindPopup('Posisi Anda sekarang');
+        } else {
+            userMarker.setLatLng([userLat, userLng]);
+            userMarker.getPopup().setContent('Posisi Anda sekarang');
+        }
+
+        var bounds = L.latLngBounds([userLat, userLng], [TARGET_LAT, TARGET_LNG]);
+        presensiMapObj.fitBounds(bounds.pad(0.35));
+    }
 
     // Deteksi apakah di Android WebView
     function isAndroidWebView() {
@@ -299,7 +375,7 @@
                         gpsStatusText.innerHTML = `<i class="fa fa-exclamation-triangle me-2"></i>Anda berada di luar radius presensi. Jarak: ${Math.round(distance)} meter (maksimal ${ALLOWED_RADIUS} meter). Silakan mendekat ke titik presensi.`;
                         isLocationValid = false;
                     }
-                    
+                    initOrUpdatePresensiMap(location.lat, location.lng);
                     updateSubmitButton();
                 })
                 .catch(error => {
@@ -345,7 +421,7 @@
                     gpsStatusText.innerHTML = `<i class="fa fa-exclamation-triangle me-2"></i>Anda berada di luar radius presensi. Jarak: ${Math.round(distance)} meter (maksimal ${ALLOWED_RADIUS} meter). Silakan mendekat ke titik presensi.`;
                     isLocationValid = false;
                 }
-                
+                initOrUpdatePresensiMap(lat, lng);
                 updateSubmitButton();
             },
             function(error) {
@@ -394,11 +470,11 @@
         }
     }
 
-    // Request lokasi saat halaman dimuat
+    // Peta ditampilkan dulu dengan titik presensi; lokasi user ditambah jika GPS berhasil
     document.addEventListener('DOMContentLoaded', function() {
+        initPresensiMapWithTargetOnly();
         getCurrentLocation();
-        
-        // Refresh lokasi setiap 30 detik
+
         setInterval(getCurrentLocation, 30000);
     });
 
