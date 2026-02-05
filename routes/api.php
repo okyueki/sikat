@@ -59,8 +59,21 @@ Route::get('/pegawai/{nik}', function ($nik) {
 Route::get('/booking-operasi', [BookingOperasiController::class, 'index']);
 Route::post('/telegram/webhook', [TelegramController::class, 'handleWebhook']);
 
+// Login/Logout API (untuk mobile / token)
+Route::post('/login', [App\Http\Controllers\Api\AuthController::class, 'login']);
+
 // GPS Validation API untuk Android WebView
-// Support both session auth (web) dan sanctum (mobile app)
 Route::middleware(['auth:sanctum,web'])->group(function () {
     Route::post('/gps/validate', [App\Http\Controllers\Api\GpsValidationController::class, 'validateGps']);
 });
+
+// API Absensi (presensi pegawai) - butuh token Bearer
+Route::middleware('auth:sanctum')->prefix('absensi')->group(function () {
+    Route::get('/jadwal-hari-ini', [App\Http\Controllers\Api\AbsensiController::class, 'jadwalHariIni']);
+    Route::get('/status-hari-ini', [App\Http\Controllers\Api\AbsensiController::class, 'statusHariIni']);
+    Route::get('/config', [App\Http\Controllers\Api\AbsensiController::class, 'config']);
+    Route::get('/riwayat', [App\Http\Controllers\Api\AbsensiController::class, 'riwayat']);
+    Route::post('/submit', [App\Http\Controllers\Api\AbsensiController::class, 'submit']);
+});
+
+Route::middleware('auth:sanctum')->post('/logout', [App\Http\Controllers\Api\AuthController::class, 'logout']);
