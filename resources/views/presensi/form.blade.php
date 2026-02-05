@@ -120,7 +120,12 @@
                     <div class="mb-4">
                         <h6 class="mb-2"><i class="fas fa-map me-2"></i>Peta Lokasi & Titik Presensi</h6>
                         <p class="text-muted small mb-2">Peta menampilkan titik presensi (biru). Jika izin lokasi diizinkan, posisi Anda (hijau) juga akan muncul.</p>
-                        <div id="presensiMap" style="height: 280px; border-radius: 8px; border: 1px solid #dee2e6; display: none;"></div>
+                        <div class="d-flex justify-content-end mb-2">
+                            <button type="button" id="btnAmbilLokasi" class="btn btn-outline-primary btn-sm" onclick="getCurrentLocation(); this.disabled=true; setTimeout(function(){ document.getElementById('btnAmbilLokasi').disabled=false; }, 3000);">
+                                <i class="fas fa-location-crosshairs me-1"></i> Ambil lokasi saya
+                            </button>
+                        </div>
+                        <div id="presensiMap" style="height: 280px; width: 100%; border-radius: 8px; border: 1px solid #dee2e6; display: none;"></div>
                         <div id="mapPlaceholder" class="text-center py-4 text-muted small bg-light rounded">
                             <i class="fas fa-spinner fa-spin fa-2x mb-2"></i><br>
                             Memuat peta...
@@ -235,7 +240,16 @@
         const mapEl = document.getElementById('presensiMap');
         const placeholder = document.getElementById('mapPlaceholder');
         if (placeholder) placeholder.style.display = 'none';
-        if (mapEl) mapEl.style.display = 'block';
+        if (mapEl) {
+            mapEl.style.display = 'block';
+            mapEl.style.width = '100%';
+        }
+        // Penting: setelah container tampil, Leaflet harus hitung ulang ukuran agar tile tidak terpotong
+        if (presensiMapObj) {
+            setTimeout(function() {
+                presensiMapObj.invalidateSize();
+            }, 150);
+        }
     }
 
     // Tampilkan peta dengan titik presensi saja (tanpa lokasi user) - dipanggil saat halaman load
@@ -244,7 +258,9 @@
         if (!mapEl) return;
         if (presensiMapObj) return; // sudah ada
 
-        presensiMapObj = L.map('presensiMap').setView([TARGET_LAT, TARGET_LNG], 17);
+        showMapAndHidePlaceholder();
+
+        presensiMapObj = L.map('presensiMap', { attributionControl: true }).setView([TARGET_LAT, TARGET_LNG], 17);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         }).addTo(presensiMapObj);
@@ -258,7 +274,9 @@
             })
         }).addTo(presensiMapObj).bindPopup('Titik presensi. Berada dalam radius ' + ALLOWED_RADIUS + ' m untuk bisa absen.');
 
-        showMapAndHidePlaceholder();
+        setTimeout(function() {
+            if (presensiMapObj) presensiMapObj.invalidateSize();
+        }, 200);
     }
 
     function initOrUpdatePresensiMap(userLat, userLng) {
