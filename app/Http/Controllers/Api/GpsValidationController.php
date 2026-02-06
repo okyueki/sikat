@@ -10,10 +10,6 @@ use Illuminate\Support\Facades\Validator;
 
 class GpsValidationController extends Controller
 {
-    // Titik koordinat presensi
-    private const TARGET_LAT = -7.485628943494862;
-    private const TARGET_LNG = 112.6527141877153;
-    private const ALLOWED_RADIUS = 30; // dalam meter
 
     /**
      * Validasi GPS untuk presensi (dari Android native app)
@@ -60,11 +56,11 @@ class GpsValidationController extends Controller
                 ], 403);
             }
 
-            // Hitung jarak dari titik target
-            $distance = $this->calculateDistance($lat, $lng, self::TARGET_LAT, self::TARGET_LNG);
-
-            // Validasi jarak
-            $isValid = $distance <= self::ALLOWED_RADIUS;
+            $targetLat = config('presensi.target_latitude');
+            $targetLng = config('presensi.target_longitude');
+            $allowedRadius = config('presensi.allowed_radius_meter');
+            $distance = $this->calculateDistance($lat, $lng, $targetLat, $targetLng);
+            $isValid = $distance <= $allowedRadius;
 
             // Log aktivitas
             Log::info('Validasi GPS', [
@@ -82,10 +78,10 @@ class GpsValidationController extends Controller
                 'success' => true,
                 'valid' => $isValid,
                 'distance' => round($distance, 2),
-                'allowed_radius' => self::ALLOWED_RADIUS,
+                'allowed_radius' => $allowedRadius,
                 'message' => $isValid 
                     ? "Lokasi valid. Jarak: " . round($distance, 2) . " meter"
-                    : "Lokasi tidak valid. Jarak: " . round($distance, 2) . " meter (maksimal " . self::ALLOWED_RADIUS . " meter)",
+                    : "Lokasi tidak valid. Jarak: " . round($distance, 2) . " meter (maksimal " . $allowedRadius . " meter)",
                 'is_fake_gps' => false,
             ]);
 

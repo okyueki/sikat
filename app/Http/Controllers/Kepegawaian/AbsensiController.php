@@ -93,6 +93,11 @@ class AbsensiController extends Controller
         $jamSaatIni = $now->format('H:i:s');
         $hariNama = $now->locale('id')->dayName;
 
+        $presensiConfig = [
+            'target_lat' => config('presensi.target_latitude'),
+            'target_lng' => config('presensi.target_longitude'),
+            'allowed_radius' => config('presensi.allowed_radius_meter'),
+        ];
         return view('presensi.form', compact(
             'pegawai', 
             'statusPresensi', 
@@ -101,7 +106,8 @@ class AbsensiController extends Controller
             'jamJaga',
             'tanggalHariIni',
             'jamSaatIni',
-            'hariNama'
+            'hariNama',
+            'presensiConfig'
         ));
     }
 
@@ -162,6 +168,11 @@ class AbsensiController extends Controller
         $jamSaatIni = $now->format('H:i:s');
         $hariNama = $now->locale('id')->dayName;
 
+        $presensiConfig = [
+            'target_lat' => config('presensi.target_latitude'),
+            'target_lng' => config('presensi.target_longitude'),
+            'allowed_radius' => config('presensi.allowed_radius_meter'),
+        ];
         return view('mobileui.presence', compact(
             'pegawai',
             'statusPresensi',
@@ -170,7 +181,8 @@ class AbsensiController extends Controller
             'jamJaga',
             'tanggalHariIni',
             'jamSaatIni',
-            'hariNama'
+            'hariNama',
+            'presensiConfig'
         ));
     }
 

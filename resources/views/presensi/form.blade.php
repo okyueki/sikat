@@ -224,10 +224,17 @@
         }, 1000);
     });
 
-    // Konfigurasi GPS
-    const TARGET_LAT = -7.485628943494862;
-    const TARGET_LNG = 112.6527141877153;
-    const ALLOWED_RADIUS = 30; // dalam meter
+    // Konfigurasi GPS (dari config/presensi.php / .env)
+    @php
+        $pc = $presensiConfig ?? [
+            'target_lat' => config('presensi.target_latitude', -7.485628943494862),
+            'target_lng' => config('presensi.target_longitude', 112.6527141877153),
+            'allowed_radius' => config('presensi.allowed_radius_meter', 100),
+        ];
+    @endphp
+    const TARGET_LAT = {{ $pc['target_lat'] }};
+    const TARGET_LNG = {{ $pc['target_lng'] }};
+    const ALLOWED_RADIUS = {{ $pc['allowed_radius'] }};
     let currentLocation = null;
     let isLocationValid = false;
 
@@ -264,6 +271,14 @@
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         }).addTo(presensiMapObj);
+
+        L.circle([TARGET_LAT, TARGET_LNG], {
+            color: '#0d6efd',
+            fillColor: '#0d6efd',
+            fillOpacity: 0.15,
+            weight: 2,
+            radius: ALLOWED_RADIUS
+        }).addTo(presensiMapObj).bindPopup('Radius presensi: ' + ALLOWED_RADIUS + ' m');
 
         targetMarker = L.marker([TARGET_LAT, TARGET_LNG], {
             icon: L.divIcon({

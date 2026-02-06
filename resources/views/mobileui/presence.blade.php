@@ -194,10 +194,17 @@
 
 @push('scripts')
     <script>
-        // ===== GPS CONFIG (copy konsep dari presensi/form.blade.php) =====
-        const TARGET_LAT = -7.485628943494862;
-        const TARGET_LNG = 112.6527141877153;
-        const ALLOWED_RADIUS = 30; // meter
+        // ===== GPS CONFIG (dari config/presensi.php / .env) =====
+        @php
+            $pc = $presensiConfig ?? [
+                'target_lat' => config('presensi.target_latitude', -7.485628943494862),
+                'target_lng' => config('presensi.target_longitude', 112.6527141877153),
+                'allowed_radius' => config('presensi.allowed_radius_meter', 100),
+            ];
+        @endphp
+        const TARGET_LAT = {{ $pc['target_lat'] }};
+        const TARGET_LNG = {{ $pc['target_lng'] }};
+        const ALLOWED_RADIUS = {{ $pc['allowed_radius'] }};
 
         let isLocationValid = false;
         let hasImage = false;

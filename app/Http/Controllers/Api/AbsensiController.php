@@ -19,9 +19,6 @@ use Carbon\Carbon;
 
 class AbsensiController extends Controller
 {
-    private const TARGET_LAT = -7.485628943494862;
-    private const TARGET_LNG = 112.6527141877153;
-    private const ALLOWED_RADIUS_METER = 30;
 
     /**
      * GET /api/absensi/jadwal-hari-ini
@@ -110,9 +107,9 @@ class AbsensiController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'target_latitude' => self::TARGET_LAT,
-                'target_longitude' => self::TARGET_LNG,
-                'allowed_radius_meter' => self::ALLOWED_RADIUS_METER,
+                'target_latitude' => config('presensi.target_latitude'),
+                'target_longitude' => config('presensi.target_longitude'),
+                'allowed_radius_meter' => config('presensi.allowed_radius_meter'),
             ],
         ]);
     }
@@ -169,13 +166,16 @@ class AbsensiController extends Controller
 
         $lat = (float) $request->latitude;
         $lng = (float) $request->longitude;
-        $distance = $this->calculateDistance($lat, $lng, self::TARGET_LAT, self::TARGET_LNG);
-        if ($distance > self::ALLOWED_RADIUS_METER) {
+        $targetLat = config('presensi.target_latitude');
+        $targetLng = config('presensi.target_longitude');
+        $allowedRadius = config('presensi.allowed_radius_meter');
+        $distance = $this->calculateDistance($lat, $lng, $targetLat, $targetLng);
+        if ($distance > $allowedRadius) {
             return response()->json([
                 'success' => false,
-                'message' => 'Anda berada di luar radius presensi. Jarak: ' . round($distance) . ' m (maks ' . self::ALLOWED_RADIUS_METER . ' m).',
+                'message' => 'Anda berada di luar radius presensi. Jarak: ' . round($distance) . ' m (maks ' . $allowedRadius . ' m).',
                 'distance_meter' => round($distance, 2),
-                'allowed_radius_meter' => self::ALLOWED_RADIUS_METER,
+                'allowed_radius_meter' => $allowedRadius,
             ], 400);
         }
 
