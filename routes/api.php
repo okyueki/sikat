@@ -77,3 +77,26 @@ Route::middleware('auth:sanctum')->prefix('absensi')->group(function () {
 });
 
 Route::middleware('auth:sanctum')->post('/logout', [App\Http\Controllers\Api\AuthController::class, 'logout']);
+
+// API Cuti & Ijin (untuk app React) - butuh token Bearer
+Route::middleware('auth:sanctum')->prefix('cuti')->group(function () {
+    Route::get('/', [App\Http\Controllers\Api\CutiController::class, 'index']);
+    Route::post('/', [App\Http\Controllers\Api\CutiController::class, 'store']);
+    Route::get('/{id}', [App\Http\Controllers\Api\CutiController::class, 'show']);
+    Route::put('/{id}', [App\Http\Controllers\Api\CutiController::class, 'update']);
+    Route::delete('/{id}', [App\Http\Controllers\Api\CutiController::class, 'destroy']);
+});
+Route::middleware('auth:sanctum')->prefix('ijin')->group(function () {
+    Route::get('/', [App\Http\Controllers\Api\IjinController::class, 'index']);
+    Route::post('/', [App\Http\Controllers\Api\IjinController::class, 'store']);
+    Route::get('/{id}', [App\Http\Controllers\Api\IjinController::class, 'show']);
+    Route::put('/{id}', [App\Http\Controllers\Api\IjinController::class, 'update']);
+    Route::delete('/{id}', [App\Http\Controllers\Api\IjinController::class, 'destroy']);
+});
+// Daftar pegawai (untuk dropdown atasan di form cuti/ijin)
+Route::middleware('auth:sanctum')->get('/pegawai-atasan', function () {
+    $list = \App\Models\Pegawai::where('stts_aktif', 'AKTIF')
+        ->orderBy('nama')
+        ->get(['nik', 'nama']);
+    return response()->json(['success' => true, 'data' => $list]);
+});
