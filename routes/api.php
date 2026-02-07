@@ -100,3 +100,36 @@ Route::middleware('auth:sanctum')->get('/pegawai-atasan', function () {
         ->get(['nik', 'nama']);
     return response()->json(['success' => true, 'data' => $list]);
 });
+
+// API Dashboard (undangan agenda + notifikasi) - butuh token Bearer
+Route::middleware('auth:sanctum')->get('/dashboard', [App\Http\Controllers\Api\DashboardController::class, 'index']);
+
+// API Jadwal Pegawai (CRUD jadwal presensi per bulan/tahun - nyambung dengan absensi)
+Route::middleware('auth:sanctum')->prefix('jadwal-pegawai')->group(function () {
+    Route::get('/', [App\Http\Controllers\Api\JadwalPegawaiController::class, 'index']);
+    Route::get('/data', [App\Http\Controllers\Api\JadwalPegawaiController::class, 'data']);
+    Route::put('/', [App\Http\Controllers\Api\JadwalPegawaiController::class, 'update']);
+});
+
+// API Absensi Agenda (scan barcode/QR untuk kehadiran rapat) - butuh token Bearer
+Route::middleware('auth:sanctum')->prefix('absensi-agenda')->group(function () {
+    Route::get('/agenda', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'agenda']);
+    Route::post('/scan', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'scan']);
+});
+
+// API Surat Masuk (read-only: list + detail + notifikasi) - butuh token Bearer
+Route::middleware('auth:sanctum')->prefix('surat-masuk')->group(function () {
+    Route::get('/', [App\Http\Controllers\Api\SuratMasukController::class, 'index']);
+    Route::get('/notifikasi', [App\Http\Controllers\Api\SuratMasukController::class, 'notifikasi']);
+    Route::get('/kode/{kodeSurat}', [App\Http\Controllers\Api\SuratMasukController::class, 'showByKode']);
+    Route::get('/{id}', [App\Http\Controllers\Api\SuratMasukController::class, 'show']);
+});
+
+// API Profil pegawai (untuk app React) - butuh token Bearer
+Route::middleware('auth:sanctum')->prefix('profil')->group(function () {
+    Route::get('/', [App\Http\Controllers\Api\ProfilController::class, 'show']);
+    Route::put('/', [App\Http\Controllers\Api\ProfilController::class, 'update']);
+    Route::put('/photo', [App\Http\Controllers\Api\ProfilController::class, 'updatePhoto']);
+    Route::put('/berkas/masa-berlaku', [App\Http\Controllers\Api\ProfilController::class, 'updateMasaBerlaku']);
+    Route::put('/berkas', [App\Http\Controllers\Api\ProfilController::class, 'updateBerkas']);
+});

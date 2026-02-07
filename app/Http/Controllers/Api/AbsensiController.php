@@ -316,13 +316,6 @@ class AbsensiController extends Controller
             ->first();
 
         if (!$jadwalPegawai) {
-            $jadwalPegawai = JadwalPegawai::where('id', $pegawaiId)
-                ->where('bulan', $currentMonth)
-                ->where('tahun', (int) $currentYear)
-                ->first();
-        }
-
-        if (!$jadwalPegawai) {
             return null;
         }
 

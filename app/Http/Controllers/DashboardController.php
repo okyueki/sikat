@@ -37,14 +37,22 @@ class DashboardController extends Controller
     $presensiUser = collect();
 
     if ($pegawai) {
-        // Ambil data presensi jika pegawai ditemukan
+        // Ambil data presensi jika pegawai ditemukan (temporary = dari web/barcode)
         $presensiUser = TemporaryPresensi::where('id', $pegawai->id)
             ->orderBy('jam_datang', 'desc')
             ->get();
     }
 
-    // Cek apakah ada presensi hari ini
+    // Cek apakah ada presensi hari ini: dari temporary (web) ATAU dari rekap (API/app)
     $presensiHariIni = $presensiUser->where('jam_datang', '>=', today())->first();
+    if (!$presensiHariIni && $pegawai) {
+        $rekapHariIni = RekapPresensi::where('id', $pegawai->id)
+            ->whereDate('jam_datang', \Carbon\Carbon::today())
+            ->first();
+        if ($rekapHariIni) {
+            $presensiHariIni = $rekapHariIni; // pakai objek rekap untuk pesan (punya jam_datang)
+        }
+    }
 
     // Tentukan pesan presensi berdasarkan apakah sudah ada data presensi hari ini atau belum
     if ($presensiHariIni) {
