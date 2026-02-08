@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 use App\Models\Pegawai;
 use App\Models\Agenda;
@@ -18,42 +19,29 @@ use App\Http\Controllers\Api\TelegramController;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->get('/user', function (Request $request) {
     return $request->user();
 });
-Route::get('/pegawai/{nik}', function($nik) {
-    // Cari pegawai berdasarkan NIK
-    $pegawai = Pegawai::where('nik', $nik)->firstOrFail();
-    
-    // Kembalikan data pegawai sebagai JSON
-    return response()->json([
-        'nama' => $pegawai->nama,
-        'departemen' => $pegawai->departemen,
-        'jabatan' => $pegawai->jbtn
-    ]);
-});
-Route::get('/agenda/{id}', function($id) {
-    // Cari agenda berdasarkan ID
-    $agenda = Agenda::findOrFail($id);
-    
-    // Kembalikan data tanggal mulai
-    return response()->json([
-        'mulai' => $agenda->mulai,
-    ]);
-});
 
-Route::get('/pegawai/{nik}', function ($nik) {
-    $pegawai = Pegawai::where('nik', $nik)->first();
-
-    if ($pegawai) {
+// Endpoint sensitif: pegawai & agenda — wajib auth Bearer token
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->group(function () {
+    Route::get('/pegawai/{nik}', function ($nik) {
+        $pegawai = Pegawai::where('nik', $nik)->first();
+        if ($pegawai) {
+            return response()->json([
+                'nama' => $pegawai->nama,
+                'departemen' => $pegawai->departemen,
+                'jabatan' => $pegawai->jbtn,
+            ]);
+        }
+        return response()->json(['message' => 'Pegawai tidak ditemukan!'], 404);
+    });
+    Route::get('/agenda/{id}', function ($id) {
+        $agenda = Agenda::findOrFail($id);
         return response()->json([
-            'nama' => $pegawai->nama,
-            'departemen' => $pegawai->departemen,
-            'jabatan' => $pegawai->jbtn
+            'mulai' => $agenda->mulai,
         ]);
-    }
-
-    return response()->json(['message' => 'Pegawai tidak ditemukan!'], 404);
+    });
 });
 
 Route::get('/booking-operasi', [BookingOperasiController::class, 'index']);
@@ -63,12 +51,12 @@ Route::post('/telegram/webhook', [TelegramController::class, 'handleWebhook']);
 Route::post('/login', [App\Http\Controllers\Api\AuthController::class, 'login']);
 
 // GPS Validation API untuk Android WebView
-Route::middleware(['auth:sanctum,web'])->group(function () {
+Route::middleware(['auth:sanctum,web', 'throttle:api-auth'])->group(function () {
     Route::post('/gps/validate', [App\Http\Controllers\Api\GpsValidationController::class, 'validateGps']);
 });
 
 // API Absensi (presensi pegawai) - butuh token Bearer
-Route::middleware('auth:sanctum')->prefix('absensi')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('absensi')->group(function () {
     Route::get('/jadwal-hari-ini', [App\Http\Controllers\Api\AbsensiController::class, 'jadwalHariIni']);
     Route::get('/status-hari-ini', [App\Http\Controllers\Api\AbsensiController::class, 'statusHariIni']);
     Route::get('/config', [App\Http\Controllers\Api\AbsensiController::class, 'config']);
@@ -76,57 +64,68 @@ Route::middleware('auth:sanctum')->prefix('absensi')->group(function () {
     Route::post('/submit', [App\Http\Controllers\Api\AbsensiController::class, 'submit']);
 });
 
-Route::middleware('auth:sanctum')->post('/logout', [App\Http\Controllers\Api\AuthController::class, 'logout']);
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->post('/logout', [App\Http\Controllers\Api\AuthController::class, 'logout']);
 
 // API Cuti & Ijin (untuk app React) - butuh token Bearer
-Route::middleware('auth:sanctum')->prefix('cuti')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('cuti')->group(function () {
     Route::get('/', [App\Http\Controllers\Api\CutiController::class, 'index']);
     Route::post('/', [App\Http\Controllers\Api\CutiController::class, 'store']);
     Route::get('/{id}', [App\Http\Controllers\Api\CutiController::class, 'show']);
     Route::put('/{id}', [App\Http\Controllers\Api\CutiController::class, 'update']);
     Route::delete('/{id}', [App\Http\Controllers\Api\CutiController::class, 'destroy']);
 });
-Route::middleware('auth:sanctum')->prefix('ijin')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('ijin')->group(function () {
     Route::get('/', [App\Http\Controllers\Api\IjinController::class, 'index']);
     Route::post('/', [App\Http\Controllers\Api\IjinController::class, 'store']);
     Route::get('/{id}', [App\Http\Controllers\Api\IjinController::class, 'show']);
     Route::put('/{id}', [App\Http\Controllers\Api\IjinController::class, 'update']);
     Route::delete('/{id}', [App\Http\Controllers\Api\IjinController::class, 'destroy']);
 });
-// Daftar pegawai (untuk dropdown atasan di form cuti/ijin)
-Route::middleware('auth:sanctum')->get('/pegawai-atasan', function () {
-    $list = \App\Models\Pegawai::where('stts_aktif', 'AKTIF')
-        ->orderBy('nama')
-        ->get(['nik', 'nama']);
+// Daftar pegawai (untuk dropdown atasan di form cuti/ijin). Cache 10 menit.
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->get('/pegawai-atasan', function () {
+    $list = Cache::remember('api.pegawai_atasan', 600, function () {
+        return Pegawai::where('stts_aktif', 'AKTIF')
+            ->orderBy('nama')
+            ->get(['nik', 'nama']);
+    });
     return response()->json(['success' => true, 'data' => $list]);
 });
 
-// API Dashboard (undangan agenda + notifikasi) - butuh token Bearer
-Route::middleware('auth:sanctum')->get('/dashboard', [App\Http\Controllers\Api\DashboardController::class, 'index']);
+// API Dashboard (undangan agenda + notifikasi, ulang tahun) - butuh token Bearer
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('dashboard')->group(function () {
+    Route::get('/', [App\Http\Controllers\Api\DashboardController::class, 'index']);
+    Route::get('/ulang-tahun', [App\Http\Controllers\Api\DashboardController::class, 'ulangTahunHariIni']);
+});
 
 // API Jadwal Pegawai (CRUD jadwal presensi per bulan/tahun - nyambung dengan absensi)
-Route::middleware('auth:sanctum')->prefix('jadwal-pegawai')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('jadwal-pegawai')->group(function () {
     Route::get('/', [App\Http\Controllers\Api\JadwalPegawaiController::class, 'index']);
     Route::get('/data', [App\Http\Controllers\Api\JadwalPegawaiController::class, 'data']);
     Route::put('/', [App\Http\Controllers\Api\JadwalPegawaiController::class, 'update']);
 });
 
 // API Absensi Agenda (scan barcode/QR untuk kehadiran rapat) - butuh token Bearer
-Route::middleware('auth:sanctum')->prefix('absensi-agenda')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('absensi-agenda')->group(function () {
+    Route::get('/agenda/{id}/rekap', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'rekap']);
+    Route::get('/agenda/{id}', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'agendaDetail']);
     Route::get('/agenda', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'agenda']);
+    Route::get('/riwayat', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'riwayat']);
     Route::post('/scan', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'scan']);
 });
 
 // API Surat Masuk (read-only: list + detail + notifikasi) - butuh token Bearer
-Route::middleware('auth:sanctum')->prefix('surat-masuk')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('surat-masuk')->group(function () {
     Route::get('/', [App\Http\Controllers\Api\SuratMasukController::class, 'index']);
     Route::get('/notifikasi', [App\Http\Controllers\Api\SuratMasukController::class, 'notifikasi']);
     Route::get('/kode/{kodeSurat}', [App\Http\Controllers\Api\SuratMasukController::class, 'showByKode']);
+    Route::post('/{id}/tandai-dibaca', [App\Http\Controllers\Api\SuratMasukController::class, 'tandaiDibaca']);
+    Route::get('/{id}/file-pdf', [App\Http\Controllers\Api\SuratMasukController::class, 'filePdf'])->middleware('throttle:10,1');
+    Route::get('/{id}/file-lampiran', [App\Http\Controllers\Api\SuratMasukController::class, 'fileLampiran']);
     Route::get('/{id}', [App\Http\Controllers\Api\SuratMasukController::class, 'show']);
 });
 
 // API Profil pegawai (untuk app React) - butuh token Bearer
-Route::middleware('auth:sanctum')->prefix('profil')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('profil')->group(function () {
     Route::get('/', [App\Http\Controllers\Api\ProfilController::class, 'show']);
     Route::put('/', [App\Http\Controllers\Api\ProfilController::class, 'update']);
     Route::put('/photo', [App\Http\Controllers\Api\ProfilController::class, 'updatePhoto']);

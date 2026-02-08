@@ -2,12 +2,57 @@
 
 namespace App\Services;
 
+use App\Models\Agenda;
+use App\Models\AgendaToken;
 use App\Models\PengajuanLibur;
 use App\Models\AbsensiAgenda;
 use Carbon\Carbon;
 
 class AbsensiAgendaService
 {
+    /**
+     * Validasi scan absensi agenda: token, terundang, waktu, absen ganda.
+     * Dipakai oleh API scan dan web scanAttendance.
+     *
+     * @return null jika valid, atau ['message' => string, 'http' => int] jika gagal
+     */
+    public static function validateScan(Agenda $agenda, string $nik, string $token): ?array
+    {
+        $agendaId = (int) $agenda->id;
+
+        // Token harus ada & belum expired
+        $agendaToken = AgendaToken::where('agenda_id', $agendaId)
+            ->where('token', $token)
+            ->where('expiry', '>', now())
+            ->first();
+
+        if (!$agendaToken) {
+            return ['message' => 'Token tidak valid atau telah kedaluwarsa.', 'http' => 400];
+        }
+
+        if (!$agenda->userTerundang($nik)) {
+            return ['message' => 'Anda tidak diundang dalam agenda ini.', 'http' => 403];
+        }
+
+        $now = Carbon::now();
+        $mulai = Carbon::parse($agenda->mulai);
+        $akhir = $agenda->akhir ? Carbon::parse($agenda->akhir) : null;
+
+        if ($now->lt($mulai->copy()->subMinutes(15))) {
+            return ['message' => 'Agenda belum dimulai. Waktu mulai: ' . $mulai->format('d M Y H:i'), 'http' => 400];
+        }
+
+        if ($akhir && $now->gt($akhir->copy()->addHour())) {
+            return ['message' => 'Agenda sudah berakhir. Waktu akhir: ' . Carbon::parse($agenda->akhir)->format('d M Y H:i'), 'http' => 400];
+        }
+
+        if (AbsensiAgenda::where('nik', $nik)->where('agenda_id', $agendaId)->exists()) {
+            return ['message' => 'Anda sudah melakukan absensi untuk agenda ini.', 'http' => 409];
+        }
+
+        return null;
+    }
+
     /**
      * Auto-detect status kehadiran berdasarkan pengajuan libur yang disetujui
      * 

@@ -59,5 +59,10 @@ class RouteServiceProvider extends ServiceProvider
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by(optional($request->user())->id ?: $request->ip());
         });
+
+        // Rate limit untuk API yang memakai auth:sanctum (per user, 90 request/menit)
+        RateLimiter::for('api-auth', function (Request $request) {
+            return Limit::perMinute(90)->by($request->user()?->id ?? $request->ip());
+        });
     }
 }

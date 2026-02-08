@@ -3,6 +3,7 @@
 namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -36,6 +37,18 @@ class Handler extends ExceptionHandler
     {
         $this->reportable(function (Throwable $e) {
             //
+        });
+
+        $this->renderable(function (ThrottleRequestsException $e, $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                $headers = method_exists($e, 'getHeaders') ? $e->getHeaders() : [];
+                $retryAfter = $headers['Retry-After'] ?? 60;
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Terlalu banyak request. Coba lagi dalam ' . $retryAfter . ' detik.',
+                ], 429)->withHeaders($headers);
+            }
+            return null;
         });
     }
 }

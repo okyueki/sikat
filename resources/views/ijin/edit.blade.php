@@ -40,7 +40,7 @@
                                     </div>
                                     <div class="col-2 mb-3">
                                         <span id="jumlah_hari_badge" style="font-size: 24px;" class="badge bg-success"></span>
-                                    <div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -126,6 +126,7 @@
                     }
                 }
             }
+            calculateDays(); // tampilkan badge jumlah hari saat halaman edit dimuat
         });
 
         document.addEventListener('DOMContentLoaded', function () {
@@ -136,15 +137,6 @@
                 position: 'top', // Menampilkan dropdown di bawah elemen
                 shouldSort: false, // Menghindari pengurutan jika tidak diperlukan
             });
-
         });
-
-        document.addEventListener('DOMContentLoaded', function () {
-            const element = document.getElementById('jenis_pengajuan_libur');
-            const choices = new Choices(element, {
-            placeholderValue: '-- Select Jenis Cuti --',
-            searchEnabled: true, // set to true if you want a search feature
-         });
-});
 </script>
 @endsection

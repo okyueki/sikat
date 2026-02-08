@@ -59,102 +59,105 @@ class IjinController extends Controller
 
     public function store(Request $request)
     {
-    $request->merge(['nik' => Auth::user()->username]);
+        $request->validate([
+            'tanggal_awal' => 'required|date',
+            'tanggal_akhir' => 'required|date|after_or_equal:tanggal_awal',
+            'jumlah_hari' => 'required|integer|min:1',
+            'keterangan' => 'required|string|max:500',
+            'nik_atasan_langsung' => 'required|string',
+            'file' => 'nullable|file|mimes:jpeg,jpg,png,pdf|max:2048',
+        ]);
 
-    $request->validate([
-        'tanggal_awal' => 'required|date',
-        'tanggal_akhir' => 'required|date|after_or_equal:tanggal_awal',
-        'keterangan' => 'required|string|max:255',
-        'nik_atasan_langsung' => 'required',
-        'file' => 'nullable|file|mimes:jpeg,jpg,png,pdf|max:2048',
-        'tanggal_dibuat' => 'nullable|date',
-    ]);
+        $filePath = null;
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $fileName = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file->getClientOriginalName());
+            $filePath = $file->storeAs('uploads/ijin_files', $fileName, 'public');
+        }
 
-    // Simpan file yang diunggah jika ada
-    if ($request->hasFile('file')) {
-        $file = $request->file('file');
-        $fileName = time() . '_' . $file->getClientOriginalName();
-        $filePath = $file->storeAs('uploads/ijin_files', $fileName, 'public');
-    }
+        PengajuanLibur::create([
+            'jenis_pengajuan_libur' => 'Ijin',
+            'nik' => Auth::user()->username,
+            'tanggal_awal' => $request->tanggal_awal,
+            'tanggal_akhir' => $request->tanggal_akhir,
+            'jumlah_hari' => (int) $request->jumlah_hari,
+            'keterangan' => $request->keterangan,
+            'nik_atasan_langsung' => $request->nik_atasan_langsung,
+            'foto' => $filePath,
+            'tanggal_dibuat' => Carbon::now(),
+        ]);
 
-    // Simpan data form beserta path file
-    PengajuanLibur::create([
-        'jenis_pengajuan_libur' => 'Ijin',
-        'nik' => Auth::user()->username,
-        'tanggal_awal' => $request->tanggal_awal,
-        'tanggal_akhir' => $request->tanggal_akhir,
-        'jumlah_hari' => $request->jumlah_hari,
-        'keterangan' => $request->keterangan,
-        'nik_atasan_langsung' => $request->nik_atasan_langsung,
-        'foto' => $filePath ?? null, // Path file
-        'tanggal_dibuat' => Carbon::now(),
-    ]);
-
-    
         return redirect()->route('ijin.index')->with('success', 'Pengajuan Ijin berhasil disimpan.');
     }
 
     public function edit($id)
     {
-        $title = 'Edit ijin';
-        $pegawai = Pegawai::where('stts_aktif','AKTIF')->get();
-        $pengajuanLibur = PengajuanLibur::findOrFail($id);
-        return view('ijin.edit', compact('pengajuanLibur', 'pegawai','title'));
+        $title = 'Edit Ijin';
+        $nik = Auth::user()->username;
+        $pengajuanLibur = PengajuanLibur::where('nik', $nik)
+            ->where('jenis_pengajuan_libur', 'Ijin')
+            ->findOrFail($id);
+        if ($pengajuanLibur->status !== 'Dikirim') {
+            return redirect()->route('ijin.index')->with('error', 'Hanya pengajuan dengan status Dikirim yang dapat diedit.');
+        }
+        $pegawai = Pegawai::where('stts_aktif', 'AKTIF')->orderBy('nama')->get();
+        return view('ijin.edit', compact('pengajuanLibur', 'pegawai', 'title'));
     }
 
     public function update(Request $request, $id)
     {
-         // Validasi input
-    $request->validate([
-        'tanggal_awal' => 'required|date',
-        'tanggal_akhir' => 'required|date|after_or_equal:tanggal_awal',
-        'keterangan' => 'required|string|max:255',
-        'nik_atasan_langsung' => 'required',
-        'file' => 'nullable|file|mimes:jpeg,jpg,png,pdf|max:2048', // File validasi
-    ]);
-
-    // Temukan data pengajuan libur berdasarkan ID
-    $pengajuanLibur = PengajuanLibur::findOrFail($id);
-
-    // Simpan file yang baru diunggah (jika ada)
-    if ($request->hasFile('file')) {
-        // Hapus file lama jika ada
-        if ($pengajuanLibur->foto && Storage::exists('public/' . $pengajuanLibur->foto)) {
-            Storage::delete('public/' . $pengajuanLibur->foto);
+        $nik = Auth::user()->username;
+        $pengajuanLibur = PengajuanLibur::where('nik', $nik)
+            ->where('jenis_pengajuan_libur', 'Ijin')
+            ->findOrFail($id);
+        if ($pengajuanLibur->status !== 'Dikirim') {
+            return redirect()->route('ijin.index')->with('error', 'Hanya pengajuan dengan status Dikirim yang dapat diedit.');
         }
 
-        // Simpan file baru
-        $file = $request->file('file');
-        $fileName = time() . '_' . $file->getClientOriginalName();
-        $filePath = $file->storeAs('uploads/ijin_files', $fileName, 'public');
-    } else {
-        // Jika tidak ada file baru, gunakan file lama
+        $request->validate([
+            'tanggal_awal' => 'required|date',
+            'tanggal_akhir' => 'required|date|after_or_equal:tanggal_awal',
+            'jumlah_hari' => 'required|integer|min:1',
+            'keterangan' => 'required|string|max:500',
+            'nik_atasan_langsung' => 'required|string',
+            'file' => 'nullable|file|mimes:jpeg,jpg,png,pdf|max:2048',
+        ]);
+
         $filePath = $pengajuanLibur->foto;
-    }
+        if ($request->hasFile('file')) {
+            if ($pengajuanLibur->foto && Storage::disk('public')->exists($pengajuanLibur->foto)) {
+                Storage::disk('public')->delete($pengajuanLibur->foto);
+            }
+            $file = $request->file('file');
+            $fileName = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file->getClientOriginalName());
+            $filePath = $file->storeAs('uploads/ijin_files', $fileName, 'public');
+        }
 
-    // Update data pengajuan libur
-    $pengajuanLibur->update([
-        'tanggal_awal' => $request->tanggal_awal,
-        'tanggal_akhir' => $request->tanggal_akhir,
-        'keterangan' => $request->keterangan,
-        'nik_atasan_langsung' => $request->nik_atasan_langsung,
-        'foto' => $filePath, // Gunakan file path yang baru atau lama
-    ]);
+        $pengajuanLibur->update([
+            'tanggal_awal' => $request->tanggal_awal,
+            'tanggal_akhir' => $request->tanggal_akhir,
+            'jumlah_hari' => (int) $request->jumlah_hari,
+            'keterangan' => $request->keterangan,
+            'nik_atasan_langsung' => $request->nik_atasan_langsung,
+            'foto' => $filePath,
+        ]);
 
-    return redirect()->route('ijin.index')->with('success', 'Pengajuan Ijin berhasil diupdate.');    
+        return redirect()->route('ijin.index')->with('success', 'Pengajuan Ijin berhasil diupdate.');
     }
 
     public function destroy($id)
     {
-        $pengajuanLibur = PengajuanLibur::findOrFail($id);
-
-        // Hapus file yang terkait jika ada
-        if ($pengajuanLibur->foto) {
+        $nik = Auth::user()->username;
+        $pengajuanLibur = PengajuanLibur::where('nik', $nik)
+            ->where('jenis_pengajuan_libur', 'Ijin')
+            ->findOrFail($id);
+        if ($pengajuanLibur->status !== 'Dikirim') {
+            return redirect()->route('ijin.index')->with('error', 'Hanya pengajuan dengan status Dikirim yang dapat dihapus.');
+        }
+        if ($pengajuanLibur->foto && Storage::disk('public')->exists($pengajuanLibur->foto)) {
             Storage::disk('public')->delete($pengajuanLibur->foto);
         }
-    
         $pengajuanLibur->delete();
-    
         return redirect()->route('ijin.index')->with('success', 'Pengajuan Ijin berhasil dihapus.');
     }
 }

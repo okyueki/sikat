@@ -48,8 +48,8 @@
                             </div>
 
                             <div class="form-group mb-3">
-                                <label for="myFile" class="form-label">Upload Foto Bukti:</label>
-                                <input class="form-control" type="file" id="myFile">
+                                <label for="myFile" class="form-label">Upload Foto Bukti (opsional, jpeg/png/pdf max 2MB):</label>
+                                <input class="form-control" type="file" id="myFile" name="file" accept=".jpeg,.jpg,.png,.pdf">
                             </div>
 
                             <div class="form-group mb-3">

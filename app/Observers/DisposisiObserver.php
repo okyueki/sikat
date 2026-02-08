@@ -4,7 +4,10 @@ namespace App\Observers;
 
 use App\Models\DisposisiSurat;
 use App\Models\TelegramUser;
+use App\Models\User;
 use App\Jobs\SendTelegramNotification;
+use App\Events\SuratMasukNotifikasi;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class DisposisiObserver
@@ -16,7 +19,7 @@ class DisposisiObserver
         $penerimaNik = $disposisi->nik_penerima;
 
         if (!$penerimaNik) {
-            Log::warning("Disposisi {$disposisi->id_disposisi} tidak punya nik_penerima.");
+            Log::warning("Disposisi tidak punya nik_penerima.");
             return;
         }
 
@@ -35,7 +38,7 @@ class DisposisiObserver
 
         $surat = $disposisi->surat; // pastikan ada relasi disposisi -> surat()
         if (!$surat) {
-            Log::warning("Disposisi {$disposisi->id_disposisi} tidak punya surat.");
+            Log::warning("Disposisi tidak punya surat.");
             return;
         }
 
@@ -59,5 +62,20 @@ class DisposisiObserver
 
         // Gunakan Queue untuk async processing
         SendTelegramNotification::dispatch($telegramUser->chat_id, $message);
+
+        // Invalidate cache notifikasi API agar polling dapat data terbaru
+        Cache::forget('surat_notif_' . $penerimaNik);
+
+        // Broadcast ke frontend (React/mobile) agar bisa tampil notifikasi real-time
+        $user = User::where('username', $penerimaNik)->first();
+        if ($user) {
+            event(new SuratMasukNotifikasi(
+                $user->id,
+                'disposisi',
+                'Disposisi baru: ' . $perihal,
+                $surat->id_surat,
+                $surat->kode_surat
+            ));
+        }
     }
 }

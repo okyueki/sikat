@@ -17,7 +17,10 @@ class CutiController extends Controller
         $title = 'Cuti';
         $nik=Auth::user()->username;
         if ($request->ajax()) {
-            $data = PengajuanLibur::with('pegawai')->where('nik', $nik)->where('jenis_pengajuan_libur', '!=', 'Ijin')->get();
+            $data = PengajuanLibur::with('pegawai')->where('nik', $nik)
+                ->whereIn('jenis_pengajuan_libur', ['Tahunan', 'Melahirkan', 'Ambil Libur', 'Menikah'])
+                ->orderBy('tanggal_dibuat', 'desc')
+                ->get();
             return DataTables::of($data)
                 ->addIndexColumn()
                 ->addColumn('nama_pegawai', function($row) {
@@ -55,23 +58,46 @@ class CutiController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'jenis_pengajuan_libur' => 'required',
+            'jenis_pengajuan_libur' => 'required|in:Tahunan,Melahirkan,Ambil Libur,Menikah',
             'tanggal_awal' => 'required|date',
             'tanggal_akhir' => 'required|date|after_or_equal:tanggal_awal',
             'jumlah_hari' => 'required|integer|min:1',
-            'nik_atasan_langsung' => 'required',
-            'keterangan' => 'required',
-            'tanggal_dibuat' => Carbon::now(),
+            'nik_atasan_langsung' => 'required|string',
+            'keterangan' => 'required|string|max:500',
+            'alamat' => 'nullable|string|max:1000',
         ]);
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
-            // Add `nik` as the username of the currently authenticated user
-            $request->merge(['nik' => Auth::user()->username]);
+        $nik = Auth::user()->username;
+        $jenis = $request->jenis_pengajuan_libur;
+        $jumlahHari = (int) $request->jumlah_hari;
+        $tahunCuti = (int) Carbon::parse($request->tanggal_awal)->format('Y');
 
-        $pengajuanLibur = PengajuanLibur::create($request->all());
+        if ($jenis === 'Tahunan') {
+            if ($jumlahHari > 2) {
+                return redirect()->back()->withErrors(['jumlah_hari' => 'Cuti Tahunan maksimal 2 hari per pengajuan.'])->withInput();
+            }
+            $sudahDipakai = PengajuanLibur::where('nik', $nik)
+                ->where('jenis_pengajuan_libur', 'Tahunan')
+                ->where('status', 'Disetujui')
+                ->whereYear('tanggal_awal', $tahunCuti)
+                ->count();
+            if ($sudahDipakai >= 12) {
+                return redirect()->back()->withErrors(['jenis_pengajuan_libur' => 'Kuota cuti Tahunan tahun ' . $tahunCuti . ' sudah habis (maksimal 12x per tahun).'])->withInput();
+            }
+        }
+        if ($jenis === 'Ambil Libur' && $jumlahHari > 2) {
+            return redirect()->back()->withErrors(['jumlah_hari' => 'Ambil Libur maksimal 2 hari per pengajuan.'])->withInput();
+        }
+
+        $request->merge(['nik' => $nik, 'tanggal_dibuat' => Carbon::now()]);
+        $pengajuanLibur = PengajuanLibur::create($request->only([
+            'jenis_pengajuan_libur', 'nik', 'tanggal_awal', 'tanggal_akhir', 'jumlah_hari',
+            'nik_atasan_langsung', 'keterangan', 'alamat', 'tanggal_dibuat',
+        ]));
 
         return redirect()->route('cuti.index')->with('success', 'Cuti created successfully.');
     }
@@ -79,31 +105,55 @@ class CutiController extends Controller
     public function edit($id)
     {
         $title = 'Edit Cuti';
-        $pegawai = Pegawai::where('stts_aktif','AKTIF')->get();
-        $cuti = PengajuanLibur::findOrFail($id);
-        return view('cuti.edit', compact('cuti','title','pegawai'));
+        $nik = Auth::user()->username;
+        $cuti = PengajuanLibur::where('nik', $nik)
+            ->whereIn('jenis_pengajuan_libur', ['Tahunan', 'Melahirkan', 'Ambil Libur', 'Menikah'])
+            ->findOrFail($id);
+        if ($cuti->status !== 'Dikirim') {
+            return redirect()->route('cuti.index')->with('error', 'Hanya pengajuan dengan status Dikirim yang dapat diedit.');
+        }
+        $pegawai = Pegawai::where('stts_aktif', 'AKTIF')->orderBy('nama')->get();
+        return view('cuti.edit', compact('cuti', 'title', 'pegawai'));
     }
 
     public function update(Request $request, $id)
     {
+        $nik = Auth::user()->username;
+        $cuti = PengajuanLibur::where('nik', $nik)
+            ->whereIn('jenis_pengajuan_libur', ['Tahunan', 'Melahirkan', 'Ambil Libur', 'Menikah'])
+            ->findOrFail($id);
+        if ($cuti->status !== 'Dikirim') {
+            return redirect()->route('cuti.index')->with('error', 'Hanya pengajuan dengan status Dikirim yang dapat diedit.');
+        }
         $validator = Validator::make($request->all(), [
-            'jenis_pengajuan_libur' => 'required',
+            'jenis_pengajuan_libur' => 'required|in:Tahunan,Melahirkan,Ambil Libur,Menikah',
             'tanggal_awal' => 'required|date',
             'tanggal_akhir' => 'required|date|after_or_equal:tanggal_awal',
             'jumlah_hari' => 'required|integer|min:1',
-            'nik_atasan_langsung' => 'required',
-            'keterangan' => 'required',
+            'nik_atasan_langsung' => 'required|string',
+            'keterangan' => 'required|string|max:500',
+            'alamat' => 'nullable|string|max:1000',
         ]);
-
-        $cuti = PengajuanLibur::findOrFail($id);
-        $cuti->update($request->all());
-
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator)->withInput();
+        }
+        $cuti->update($request->only([
+            'jenis_pengajuan_libur', 'tanggal_awal', 'tanggal_akhir', 'jumlah_hari',
+            'nik_atasan_langsung', 'keterangan', 'alamat',
+        ]));
         return redirect()->route('cuti.index')->with('success', 'Cuti updated successfully.');
     }
 
     public function destroy($id)
     {
-        PengajuanLibur::findOrFail($id)->delete();
+        $nik = Auth::user()->username;
+        $cuti = PengajuanLibur::where('nik', $nik)
+            ->whereIn('jenis_pengajuan_libur', ['Tahunan', 'Melahirkan', 'Ambil Libur', 'Menikah'])
+            ->findOrFail($id);
+        if ($cuti->status !== 'Dikirim') {
+            return redirect()->route('cuti.index')->with('error', 'Hanya pengajuan dengan status Dikirim yang dapat dihapus.');
+        }
+        $cuti->delete();
         return redirect()->route('cuti.index')->with('success', 'Cuti deleted successfully.');
     }
 }

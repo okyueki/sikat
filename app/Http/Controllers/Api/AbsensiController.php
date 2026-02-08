@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Pegawai;
 use App\Models\RekapPresensi;
@@ -39,9 +40,9 @@ class AbsensiController extends Controller
 
         if ($jadwalAda) {
             $shift = trim($shiftHariIni['shift']);
-            $jamJaga = JamJaga::where('shift', $shift)->first();
+            $jamJaga = $this->getJamJagaFromCache($shift);
             if (!$jamJaga) {
-                $jamMasukModel = JamMasuk::where('shift', $shift)->first();
+                $jamMasukModel = $this->getJamMasukFromCache($shift);
                 if ($jamMasukModel) {
                     $jamMasuk = $jamMasukModel->jam_masuk ?? null;
                     $jamPulang = $jamMasukModel->jam_pulang ?? null;
@@ -100,17 +101,20 @@ class AbsensiController extends Controller
 
     /**
      * GET /api/absensi/config
-     * Konfigurasi lokasi presensi (titik & radius) untuk validasi di client.
+     * Konfigurasi lokasi presensi (titik & radius) untuk validasi di client. Cache 10 menit.
      */
     public function config(Request $request)
     {
-        return response()->json([
-            'success' => true,
-            'data' => [
+        $data = Cache::remember('api.absensi.config', 600, function () {
+            return [
                 'target_latitude' => config('presensi.target_latitude'),
                 'target_longitude' => config('presensi.target_longitude'),
                 'allowed_radius_meter' => config('presensi.allowed_radius_meter'),
-            ],
+            ];
+        });
+        return response()->json([
+            'success' => true,
+            'data' => $data,
         ]);
     }
 
@@ -187,9 +191,9 @@ class AbsensiController extends Controller
             ], 400);
         }
 
-        $jamJaga = JamJaga::where('shift', trim($shiftHariIni['shift']))->first();
+        $jamJaga = $this->getJamJagaFromCache(trim($shiftHariIni['shift']));
         if (!$jamJaga) {
-            $jamMasukModel = JamMasuk::where('shift', trim($shiftHariIni['shift']))->first();
+            $jamMasukModel = $this->getJamMasukFromCache(trim($shiftHariIni['shift']));
             if (!$jamMasukModel) {
                 return response()->json([
                     'success' => false,
@@ -300,6 +304,20 @@ class AbsensiController extends Controller
             ], 404);
         }
         return $pegawai;
+    }
+
+    /** Daftar JamJaga di-cache 1 jam untuk kurangi query. */
+    private function getJamJagaFromCache(string $shift)
+    {
+        $list = Cache::remember('api.jam_jaga_list', 3600, fn () => JamJaga::all());
+        return $list->firstWhere('shift', $shift);
+    }
+
+    /** Daftar JamMasuk di-cache 1 jam untuk kurangi query. */
+    private function getJamMasukFromCache(string $shift)
+    {
+        $list = Cache::remember('api.jam_masuk_list', 3600, fn () => JamMasuk::all());
+        return $list->firstWhere('shift', $shift);
     }
 
     private function getShiftHariIni($pegawaiId)

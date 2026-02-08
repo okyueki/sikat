@@ -14,21 +14,45 @@ class IjinController extends Controller
 {
     /**
      * GET /api/ijin
-     * Daftar pengajuan ijin user yang login.
+     * Daftar pengajuan ijin. Query: per_page, page, status (Dikirim|Disetujui|Ditolak), tahun.
      */
     public function index(Request $request)
     {
+        $perPage = min((int) $request->query('per_page', 20), 50);
+        $perPage = $perPage >= 1 ? $perPage : 20;
+
         $nik = Auth::user()->username;
-        $data = PengajuanLibur::with(['pegawai', 'pegawai2'])
+        $query = PengajuanLibur::with(['pegawai', 'pegawai2'])
             ->where('nik', $nik)
-            ->where('jenis_pengajuan_libur', 'Ijin')
-            ->orderBy('tanggal_dibuat', 'desc')
-            ->get()
-            ->map(fn ($row) => $this->formatRow($row));
+            ->where('jenis_pengajuan_libur', 'Ijin');
+
+        if ($request->filled('status')) {
+            $status = $request->query('status');
+            if (in_array($status, ['Dikirim', 'Disetujui', 'Ditolak'], true)) {
+                $query->where('status', $status);
+            }
+        }
+        if ($request->filled('tahun')) {
+            $tahun = (int) $request->query('tahun');
+            $query->whereYear('tanggal_awal', $tahun);
+        }
+
+        $query->orderBy('tanggal_dibuat', 'desc');
+        $paginator = $query->paginate($perPage);
+
+        $data = $paginator->getCollection()->map(fn ($row) => $this->formatRow($row))->values()->all();
 
         return response()->json([
             'success' => true,
             'data' => $data,
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+            ],
         ]);
     }
 

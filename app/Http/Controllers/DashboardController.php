@@ -298,23 +298,7 @@ class DashboardController extends Controller
         ->orderBy('mulai', 'asc')
         ->limit(5) // Limit 5 agenda terdekat
         ->get()
-        ->filter(function ($agenda) use ($nik) {
-            // Double check: pastikan user benar-benar terundang
-            $terundang = is_array($agenda->yang_terundang) 
-                ? $agenda->yang_terundang 
-                : (json_decode($agenda->yang_terundang, true) ?? []);
-            
-            // Cek apakah semua pegawai aktif terundang
-            $semuaNikAktif = Pegawai::where('stts_aktif', 'AKTIF')->pluck('nik')->toArray();
-            $isAll = false;
-            
-            if (is_array($terundang)) {
-                $intersect = array_intersect($semuaNikAktif, $terundang);
-                $isAll = count($intersect) === count($semuaNikAktif) && count($terundang) === count($semuaNikAktif);
-            }
-            
-            return in_array('all', $terundang) || $isAll || in_array($nik, $terundang);
-        })
+        ->filter(fn ($agenda) => $agenda->userTerundang($nik))
         ->map(function ($agenda) use ($nik) {
             // Cek absensi: "Sudah Absen" hanya bila user benar-benar scan (status hadir). Record AUTO/tidak_hadir tidak dianggap sudah absen.
             $agendaId = (int) $agenda->id;
@@ -348,13 +332,21 @@ class DashboardController extends Controller
             return $agenda;
         });
 
-    // Jangan lupa untuk menambahkan 'pertumbuhanPasien' ke compact()
+    // Pegawai yang ulang tahun hari ini (bulan + tanggal = hari ini, hanya pegawai aktif)
+    $pegawaiUlangTahunHariIni = Pegawai::where('stts_aktif', 'AKTIF')
+        ->whereNotNull('tgl_lahir')
+        ->whereMonth('tgl_lahir', $today->month)
+        ->whereDay('tgl_lahir', $today->day)
+        ->orderBy('nama')
+        ->get(['id', 'nik', 'nama', 'departemen', 'tgl_lahir']);
+
     return view('dashboard.index', compact(
         'departemen', 'jumlahPegawai', 'bidang', 
         'jumlahPerBidang', 'jumlahPasienHariIni', 'pertumbuhanPasien',
         'jumlahPasienRawatInap', 'jumlahPasienIGD', 
         'presensiUser', 'presensiMessage', 'totalHari',
-        'agendaTerundang', 'jumlahDokter', 'timPalingRajin', 'timPalingSeringTerlambat'
+        'agendaTerundang', 'jumlahDokter', 'timPalingRajin', 'timPalingSeringTerlambat',
+        'pegawaiUlangTahunHariIni'
     ));
 }
     /**

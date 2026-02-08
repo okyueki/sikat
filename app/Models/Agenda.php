@@ -60,6 +60,28 @@ class Agenda extends Model
         return json_decode($value, true);
     }
 
+    /**
+     * Cek apakah NIK (user) terundang di agenda ini.
+     * Satu sumber kebenaran: all, isAll (semua pegawai aktif), atau in_array(nik).
+     */
+    public function userTerundang(string $nik): bool
+    {
+        $terundang = is_array($this->yang_terundang) ? $this->yang_terundang : [];
+        if (empty($terundang)) {
+            return false;
+        }
+        if (in_array('all', $terundang)) {
+            return true;
+        }
+        if (in_array($nik, $terundang)) {
+            return true;
+        }
+        $semuaNikAktif = Pegawai::where('stts_aktif', 'AKTIF')->pluck('nik')->toArray();
+        $intersect = array_intersect($semuaNikAktif, $terundang);
+        $isAll = count($intersect) === count($semuaNikAktif) && count($terundang) === count($semuaNikAktif);
+        return $isAll;
+    }
+
     // Method helper untuk mengecek apakah semua pegawai aktif terundang
     public function isAllPegawaiTerundang()
     {

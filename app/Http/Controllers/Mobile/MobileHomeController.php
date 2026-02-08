@@ -101,10 +101,7 @@ class MobileHomeController extends Controller
             ->orderBy('mulai', 'asc')
             ->limit(5)
             ->get()
-            ->filter(function ($agenda) use ($nik) {
-                $terundang = is_array($agenda->yang_terundang) ? $agenda->yang_terundang : (json_decode($agenda->yang_terundang, true) ?? []);
-                return in_array('all', $terundang, true) || (method_exists($agenda, 'isAllPegawaiTerundang') && $agenda->isAllPegawaiTerundang()) || in_array($nik, $terundang, true);
-            })
+            ->filter(fn ($agenda) => $agenda->userTerundang($nik))
             ->map(function ($agenda) use ($nik) {
                 $agenda->sudah_absen = $agenda->absensi()
                     ->where('nik', $nik)

@@ -8,6 +8,7 @@ use App\Models\Pegawai;
 use App\Models\JamMasuk;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -41,11 +42,12 @@ class JadwalPegawaiController extends Controller
             ->where('tahun', $tahun)
             ->first();
 
-        $shifts = JamMasuk::all()->map(fn ($s) => [
+        $jamMasukList = Cache::remember('api.jam_masuk_list', 3600, fn () => JamMasuk::all());
+        $shifts = $jamMasukList->map(fn ($s) => [
             'shift' => $s->shift,
             'jam_masuk' => $s->jam_masuk,
             'jam_pulang' => $s->jam_pulang,
-        ]);
+        ])->values()->all();
 
         $jadwalHari = [];
         if ($jadwal) {

@@ -14,7 +14,8 @@ class BroadcastServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        Broadcast::routes();
+        // Web (session) dan API (Sanctum token) bisa auth untuk private channel
+        Broadcast::routes(['middleware' => ['auth:web,sanctum']]);
 
         require base_path('routes/channels.php');
     }

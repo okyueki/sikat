@@ -4,10 +4,12 @@ namespace App\Observers;
 
 use App\Models\VerifikasiSurat;
 use App\Models\TelegramUser;
+use App\Models\User;
 use App\Jobs\SendTelegramNotification;
+use App\Events\SuratMasukNotifikasi;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
-use App\Helpers\CryptoHelper;
 
 class VerifikasiSuratObserver
 {
@@ -16,12 +18,12 @@ class VerifikasiSuratObserver
      */
     public function created(VerifikasiSurat $verifikasi): void
     {
-        Log::info("Observer Verifikasi jalan, id_verifikasi={$verifikasi->id_verifikasi}");
+        Log::info("Observer Verifikasi jalan, id_verifikasi_surat=" . ($verifikasi->id_verifikasi_surat ?? $verifikasi->getKey()));
 
         $nik = $verifikasi->nik_verifikator;
 
         if (!$nik) {
-            Log::warning("Verifikasi {$verifikasi->id_verifikasi} tidak punya nik_verifikator.");
+            Log::warning("Verifikasi tidak punya nik_verifikator.");
             return;
         }
 
@@ -40,23 +42,43 @@ class VerifikasiSuratObserver
 
         $surat = $verifikasi->surat; // pastikan ada relasi di model VerifikasiSurat -> surat()
         if (!$surat) {
-            Log::warning("Verifikasi {$verifikasi->id_verifikasi} tidak punya surat.");
+            Log::warning("Verifikasi tidak punya surat.");
             return;
         }
 
         $encryptedId = Crypt::encrypt($surat->kode_surat);
         $url = route('surat_masuk.detail', ['encryptedKodeSurat' => $encryptedId]);
 
+        $pengirimNama = $surat->pegawai ? $surat->pegawai->nama : ($surat->pengirim_external ?? '-');
+        $tanggalStr = $surat->tanggal_surat
+            ? \Carbon\Carbon::parse($surat->tanggal_surat)->translatedFormat('d F Y')
+            : '-';
+
         // Pesan Telegram
         $message = "📩 <b>Surat Baru untuk Verifikasi</b>\n" .
-           "Pengirim: {$surat->pegawai->nama}\n" .
-           "Perihal: {$surat->perihal}\n" .
-           "Tanggal: " . \Carbon\Carbon::parse($surat->tanggal_surat)->translatedFormat('d F Y') . "\n\n" .
+           "Pengirim: {$pengirimNama}\n" .
+           "Perihal: " . ($surat->perihal ?? '-') . "\n" .
+           "Tanggal: {$tanggalStr}\n\n" .
            "<a href=\"{$url}\">👉 Lihat Detail</a>";
 
         Log::info("Notif dikirim ke NIK {$nik}, chat_id={$telegramUser->chat_id}, url={$url}");
 
         // Kirim ke job queue
         SendTelegramNotification::dispatch($telegramUser->chat_id, $message);
+
+        // Invalidate cache notifikasi API agar polling dapat data terbaru
+        Cache::forget('surat_notif_' . $nik);
+
+        // Broadcast ke frontend (React/mobile) agar bisa tampil notifikasi real-time
+        $user = User::where('username', $nik)->first();
+        if ($user) {
+            event(new SuratMasukNotifikasi(
+                $user->id,
+                'verifikasi',
+                'Surat baru untuk verifikasi: ' . ($surat->perihal ?? 'Surat masuk'),
+                $surat->id_surat,
+                $surat->kode_surat
+            ));
+        }
     }
 }

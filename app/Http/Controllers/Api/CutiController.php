@@ -14,23 +14,56 @@ class CutiController extends Controller
     /** Jenis cuti (bukan Ijin) */
     private const JENIS_CUTI = ['Tahunan', 'Melahirkan', 'Ambil Libur', 'Menikah'];
 
+    /** Kuota: cuti Tahunan 12x per tahun, 1x maksimal 2 hari. Ambil Libur 1x maksimal 2 hari. */
+    private const KUOTA_TAHUNAN_PER_TAHUN = 12;
+    private const MAX_HARI_TAHUNAN_PER_PENGAJUAN = 2;
+    private const MAX_HARI_AMBIL_LIBUR = 2;
+
     /**
      * GET /api/cuti
-     * Daftar pengajuan cuti user yang login.
+     * Daftar pengajuan cuti. Query: per_page, page, status (Dikirim|Disetujui|Ditolak), tahun.
      */
     public function index(Request $request)
     {
+        $perPage = min((int) $request->query('per_page', 20), 50);
+        $perPage = $perPage >= 1 ? $perPage : 20;
+
         $nik = Auth::user()->username;
-        $data = PengajuanLibur::with(['pegawai', 'pegawai2'])
+        $query = PengajuanLibur::with(['pegawai', 'pegawai2'])
             ->where('nik', $nik)
-            ->whereIn('jenis_pengajuan_libur', self::JENIS_CUTI)
-            ->orderBy('tanggal_dibuat', 'desc')
-            ->get()
-            ->map(fn ($row) => $this->formatRow($row));
+            ->whereIn('jenis_pengajuan_libur', self::JENIS_CUTI);
+
+        if ($request->filled('status')) {
+            $status = $request->query('status');
+            if (in_array($status, ['Dikirim', 'Disetujui', 'Ditolak'], true)) {
+                $query->where('status', $status);
+            }
+        }
+        if ($request->filled('tahun')) {
+            $tahun = (int) $request->query('tahun');
+            $query->whereYear('tanggal_awal', $tahun);
+        }
+
+        $query->orderBy('tanggal_dibuat', 'desc');
+        $paginator = $query->paginate($perPage);
+
+        $tahunKuota = $request->filled('tahun') ? (int) $request->query('tahun') : (int) date('Y');
+        $kuota = $this->hitungKuotaCuti($nik, $tahunKuota);
+
+        $data = $paginator->getCollection()->map(fn ($row) => $this->formatRow($row))->values()->all();
 
         return response()->json([
             'success' => true,
             'data' => $data,
+            'kuota' => $kuota,
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+            ],
         ]);
     }
 
@@ -76,6 +109,38 @@ class CutiController extends Controller
         }
 
         $nik = Auth::user()->username;
+        $jenis = $request->jenis_pengajuan_libur;
+        $jumlahHari = (int) $request->jumlah_hari;
+        $tahunCuti = (int) Carbon::parse($request->tanggal_awal)->format('Y');
+
+        if ($jenis === 'Tahunan') {
+            if ($jumlahHari > self::MAX_HARI_TAHUNAN_PER_PENGAJUAN) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cuti Tahunan maksimal ' . self::MAX_HARI_TAHUNAN_PER_PENGAJUAN . ' hari per pengajuan.',
+                ], 422);
+            }
+            $sudahDipakai = PengajuanLibur::where('nik', $nik)
+                ->where('jenis_pengajuan_libur', 'Tahunan')
+                ->where('status', 'Disetujui')
+                ->whereYear('tanggal_awal', $tahunCuti)
+                ->count();
+            if ($sudahDipakai >= self::KUOTA_TAHUNAN_PER_TAHUN) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kuota cuti Tahunan tahun ' . $tahunCuti . ' sudah habis (maksimal ' . self::KUOTA_TAHUNAN_PER_TAHUN . 'x per tahun).',
+                ], 422);
+            }
+        }
+        if ($jenis === 'Ambil Libur') {
+            if ($jumlahHari > self::MAX_HARI_AMBIL_LIBUR) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ambil Libur maksimal ' . self::MAX_HARI_AMBIL_LIBUR . ' hari per pengajuan.',
+                ], 422);
+            }
+        }
+
         $payload = $request->only([
             'jenis_pengajuan_libur', 'tanggal_awal', 'tanggal_akhir', 'jumlah_hari',
             'nik_atasan_langsung', 'keterangan', 'alamat',
@@ -163,6 +228,26 @@ class CutiController extends Controller
             'success' => true,
             'message' => 'Pengajuan cuti berhasil dihapus.',
         ]);
+    }
+
+    private function hitungKuotaCuti(string $nik, int $tahun): array
+    {
+        $sudahTahunan = PengajuanLibur::where('nik', $nik)
+            ->where('jenis_pengajuan_libur', 'Tahunan')
+            ->where('status', 'Disetujui')
+            ->whereYear('tanggal_awal', $tahun)
+            ->count();
+        $sisaTahunan = max(0, self::KUOTA_TAHUNAN_PER_TAHUN - $sudahTahunan);
+        return [
+            'tahun' => $tahun,
+            'cuti_tahunan' => [
+                'kuota_per_tahun' => self::KUOTA_TAHUNAN_PER_TAHUN,
+                'sudah_dipakai' => $sudahTahunan,
+                'sisa' => $sisaTahunan,
+                'maks_hari_per_pengajuan' => self::MAX_HARI_TAHUNAN_PER_PENGAJUAN,
+            ],
+            'ambil_libur_maks_hari_per_pengajuan' => self::MAX_HARI_AMBIL_LIBUR,
+        ];
     }
 
     private function formatRow($row)

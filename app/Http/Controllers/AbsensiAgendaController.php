@@ -63,41 +63,27 @@ class AbsensiAgendaController extends Controller
                     ->with('error', 'Agenda tidak ditemukan.');
             }
             
-            // Validasi user terundang
             $userNik = Auth::user()->username;
-            $terundang = is_array($agenda->yang_terundang) 
-                ? $agenda->yang_terundang 
-                : (json_decode($agenda->yang_terundang, true) ?? []);
-            
-            // Cek apakah semua pegawai aktif terundang
-            $semuaNikAktif = Pegawai::where('stts_aktif', 'AKTIF')->pluck('nik')->toArray();
-            $isAll = false;
-            
-            if (is_array($terundang)) {
-                $intersect = array_intersect($semuaNikAktif, $terundang);
-                $isAll = count($intersect) === count($semuaNikAktif) && count($terundang) === count($semuaNikAktif);
-            }
-            
-            if (!in_array('all', $terundang) && !$isAll && !in_array($userNik, $terundang)) {
+            if (!$agenda->userTerundang($userNik)) {
                 return redirect()->route('absensi_agenda.index')
                     ->with('error', 'Anda tidak diundang dalam agenda ini.');
             }
-            
+
             // Validasi waktu agenda
             $now = Carbon::now();
             $mulai = Carbon::parse($agenda->mulai);
             $akhir = $agenda->akhir ? Carbon::parse($agenda->akhir) : null;
             
             // Cek apakah agenda sudah dimulai (boleh scan 15 menit sebelum mulai)
-            if ($now->lt($mulai->subMinutes(15))) {
+            if ($now->lt($mulai->copy()->subMinutes(15))) {
                 return redirect()->route('absensi_agenda.index')
-                    ->with('error', 'Agenda belum dimulai. Waktu mulai: ' . Carbon::parse($agenda->mulai)->format('d M Y H:i'));
+                    ->with('error', 'Agenda belum dimulai. Waktu mulai: ' . $mulai->format('d M Y H:i'));
             }
             
             // Cek apakah agenda sudah berakhir (boleh scan sampai 1 jam setelah akhir)
-            if ($akhir && $now->gt($akhir->addHour())) {
+            if ($akhir && $now->gt($akhir->copy()->addHour())) {
                 return redirect()->route('absensi_agenda.index')
-                    ->with('error', 'Agenda sudah berakhir. Waktu akhir: ' . Carbon::parse($agenda->akhir)->format('d M Y H:i'));
+                    ->with('error', 'Agenda sudah berakhir. Waktu akhir: ' . $akhir->format('d M Y H:i'));
             }
         }
         
@@ -123,97 +109,43 @@ class AbsensiAgendaController extends Controller
     
         $agendaId = $validated['agenda_id'];
         $token = $validated['token'];
-    
-        // 🔒 Validasi token: harus ada & belum expired
-        $agendaToken = AgendaToken::where('agenda_id', $agendaId)
-            ->where('token', $token)
-            ->where('expiry', '>', now())
-            ->first();
-    
-        if (!$agendaToken) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Token tidak valid atau telah kedaluwarsa.'
-            ], 400);
-        }
-    
-        // Pastikan user login
+
         if (!Auth::check()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Pengguna tidak terautentikasi.'
+                'message' => 'Pengguna tidak terautentikasi.',
             ], 401);
         }
-    
+
         $nik = Auth::user()->username;
-    
-        // 🔒 Cek apakah user diundang
         $agenda = Agenda::findOrFail($agendaId);
-        $terundang = is_array($agenda->yang_terundang)
-            ? $agenda->yang_terundang
-            : (json_decode($agenda->yang_terundang, true) ?? []);
-        
-        // Cek apakah semua pegawai aktif terundang
-        $semuaNikAktif = Pegawai::where('stts_aktif', 'AKTIF')->pluck('nik')->toArray();
-        $isAll = false;
-        
-        if (is_array($terundang)) {
-            $intersect = array_intersect($semuaNikAktif, $terundang);
-            $isAll = count($intersect) === count($semuaNikAktif) && count($terundang) === count($semuaNikAktif);
-        }
-        
-        if (!in_array('all', $terundang) && !$isAll && !in_array($nik, $terundang)) {
+
+        $error = AbsensiAgendaService::validateScan($agenda, $nik, $token);
+        if ($error) {
             return response()->json([
                 'success' => false,
-                'message' => 'Anda tidak diundang dalam agenda ini.'
-            ], 403);
+                'message' => $error['message'],
+            ], $error['http']);
         }
-        
-        // 🔒 Validasi waktu agenda
-        $now = Carbon::now();
-        $mulai = Carbon::parse($agenda->mulai);
-        $akhir = $agenda->akhir ? Carbon::parse($agenda->akhir) : null;
-        
-        // Cek apakah agenda sudah dimulai (boleh scan 15 menit sebelum mulai)
-        if ($now->lt($mulai->copy()->subMinutes(15))) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Agenda belum dimulai. Waktu mulai: ' . $mulai->format('d M Y H:i')
-            ], 400);
-        }
-        
-        // Cek apakah agenda sudah berakhir (boleh scan sampai 1 jam setelah akhir)
-        if ($akhir && $now->gt($akhir->copy()->addHour())) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Agenda sudah berakhir. Waktu akhir: ' . Carbon::parse($agenda->akhir)->format('d M Y H:i')
-            ], 400);
-        }
-    
-        // 🔒 Cek absen ganda
-        if (AbsensiAgenda::where('nik', $nik)->where('agenda_id', $agendaId)->exists()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Anda sudah melakukan absensi untuk agenda ini.'
-            ], 409);
-        }
-    
-        // ✅ Simpan absensi
-        AbsensiAgenda::create([
+
+        $absensi = AbsensiAgenda::create([
             'nik' => $nik,
             'agenda_id' => $agendaId,
             'waktu_kehadiran' => now(),
-            'status_kehadiran' => 'hadir', // Default untuk scan QR
-            'token' => $token, // simpan token asli
+            'status_kehadiran' => 'hadir',
+            'token' => $token,
         ]);
-    
-        // ❌ JANGAN HAPUS TOKEN! Biarkan expired otomatis.
-        // $agendaToken->delete(); ← HAPUS BARIS INI!
-    
+
         return response()->json([
             'success' => true,
             'message' => 'Kehadiran berhasil dicatat.',
-        ]);
+            'data' => [
+                'id_absensi_agenda' => $absensi->id_absensi_agenda,
+                'agenda_id' => $agendaId,
+                'judul_agenda' => $agenda->judul,
+                'waktu_kehadiran' => $absensi->waktu_kehadiran->toIso8601String(),
+            ],
+        ], 201);
     }
 
 public function rekapAbsensi(Request $request)

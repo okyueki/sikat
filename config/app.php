@@ -57,6 +57,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | LibreOffice path (untuk konversi DOCX → PDF surat masuk)
+    |--------------------------------------------------------------------------
+    | Linux: /usr/bin/libreoffice | Windows: C:\Program Files\LibreOffice\program\soffice.exe
+    */
+    'libreoffice_path' => env('LIBREOFFICE_PATH', '/usr/bin/libreoffice'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
@@ -169,7 +177,7 @@ return [
          */
         App\Providers\AppServiceProvider::class,
         App\Providers\AuthServiceProvider::class,
-        // App\Providers\BroadcastServiceProvider::class,
+        App\Providers\BroadcastServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
     ],

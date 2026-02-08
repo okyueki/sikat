@@ -27,7 +27,7 @@
                         @csrf
                         @method('PUT')
 
-                        <input type="hidden" name="jumlah_hari" id="jumlah_hari" class="form-control" value="{{ old('jumlah_hari', $pengajuanLibur->jumlah_hari ?? '') }}">
+                        <input type="hidden" name="jumlah_hari" id="jumlah_hari" class="form-control" value="{{ old('jumlah_hari', $cuti->jumlah_hari ?? '') }}">
 
                         <div class="col-12">
                             <div class="form-group mb-3">

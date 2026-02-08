@@ -110,6 +110,31 @@
     </div>
     @endif
 
+    <!-- Ulang Tahun Hari Ini -->
+    @if(isset($pegawaiUlangTahunHariIni) && $pegawaiUlangTahunHariIni->count() > 0)
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card custom-card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-birthday-cake me-2"></i>Ulang Tahun Hari Ini ({{ $pegawaiUlangTahunHariIni->count() }})</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        @foreach($pegawaiUlangTahunHariIni as $p)
+                        <span class="badge bg-light text-dark border border-warning px-3 py-2">
+                            <i class="fas fa-gift me-1"></i>{{ $p->nama }}
+                            @if($p->departemen)
+                                <small class="text-muted">({{ $p->departemen }})</small>
+                            @endif
+                        </span>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <!-- Presensi Table -->
     <div class="row">
         <div class="col-lg-8">

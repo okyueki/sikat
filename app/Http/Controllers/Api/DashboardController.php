@@ -49,18 +49,7 @@ class DashboardController extends Controller
             ->orderBy('mulai', 'asc')
             ->limit(20)
             ->get()
-            ->filter(function ($agenda) use ($nik) {
-                $terundang = is_array($agenda->yang_terundang)
-                    ? $agenda->yang_terundang
-                    : (json_decode($agenda->yang_terundang, true) ?? []);
-                $semuaNikAktif = Pegawai::where('stts_aktif', 'AKTIF')->pluck('nik')->toArray();
-                $isAll = false;
-                if (is_array($terundang)) {
-                    $intersect = array_intersect($semuaNikAktif, $terundang);
-                    $isAll = count($intersect) === count($semuaNikAktif) && count($terundang) === count($semuaNikAktif);
-                }
-                return in_array('all', $terundang) || $isAll || in_array($nik, $terundang);
-            })
+            ->filter(fn ($agenda) => $agenda->userTerundang($nik))
             ->map(function ($agenda) use ($nik) {
                 $agendaId = (int) $agenda->id;
                 $row = DB::selectOne(
@@ -121,10 +110,17 @@ class DashboardController extends Controller
             })
             ->count();
 
+        // Sebagai atasan: pengajuan cuti/ijin yang menunggu persetujuan saya
         $jumlahPengajuanMenunggu = PengajuanLibur::where('nik_atasan_langsung', $nik)
-            ->where('status', '!=', 'Disetujui')
-            ->where('status', '!=', 'Ditolak')
+            ->where('status', 'Dikirim')
             ->count();
+
+        // Sebagai pegawai: pengajuan cuti/ijin saya yang masih menunggu persetujuan atasan
+        $pengajuanCutiIjinSayaMenunggu = PengajuanLibur::where('nik', $nik)
+            ->where('status', 'Dikirim')
+            ->count();
+
+        $totalNotif = $jumlahVerifikasiBelumDibaca + $jumlahDisposisiBelumDibaca + $jumlahPengajuanMenunggu + $pengajuanCutiIjinSayaMenunggu;
 
         return response()->json([
             'success' => true,
@@ -134,9 +130,47 @@ class DashboardController extends Controller
                     'verifikasi_surat_belum_dibaca' => $jumlahVerifikasiBelumDibaca,
                     'disposisi_belum_dibaca' => $jumlahDisposisiBelumDibaca,
                     'pengajuan_menunggu' => $jumlahPengajuanMenunggu,
-                    'total' => $jumlahVerifikasiBelumDibaca + $jumlahDisposisiBelumDibaca + $jumlahPengajuanMenunggu,
+                    'pengajuan_cuti_ijin_saya_menunggu' => $pengajuanCutiIjinSayaMenunggu,
+                    'pengajuan_cuti_ijin_saya_menunggu_pesan' => $pengajuanCutiIjinSayaMenunggu > 0
+                        ? 'Pengajuan cuti/ijin menunggu persetujuan atasan'
+                        : null,
+                    'total' => $totalNotif,
                 ],
             ],
+        ]);
+    }
+
+    /**
+     * GET /api/dashboard/ulang-tahun
+     * Daftar pegawai yang ulang tahun hari ini (pegawai aktif saja).
+     */
+    public function ulangTahunHariIni(Request $request)
+    {
+        $today = Carbon::today();
+
+        $pegawai = Pegawai::where('stts_aktif', 'AKTIF')
+            ->whereNotNull('tgl_lahir')
+            ->whereMonth('tgl_lahir', $today->month)
+            ->whereDay('tgl_lahir', $today->day)
+            ->orderBy('nama')
+            ->get(['id', 'nik', 'nama', 'departemen', 'tgl_lahir']);
+
+        $data = $pegawai->map(function ($p) {
+            return [
+                'id' => $p->id,
+                'nik' => $p->nik,
+                'nama' => $p->nama,
+                'departemen' => $p->departemen ?? null,
+                'tgl_lahir' => $p->tgl_lahir ? Carbon::parse($p->tgl_lahir)->format('Y-m-d') : null,
+                'tgl_lahir_format' => $p->tgl_lahir ? Carbon::parse($p->tgl_lahir)->format('d M Y') : null,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+            'tanggal' => $today->format('Y-m-d'),
+            'tanggal_format' => $today->format('d M Y'),
         ]);
     }
 }

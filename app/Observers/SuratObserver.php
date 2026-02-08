@@ -4,7 +4,10 @@ namespace App\Observers;
 
 use App\Models\Surat;
 use App\Models\TelegramUser;
+use App\Models\User;
 use App\Jobs\SendTelegramNotification;
+use App\Events\SuratMasukNotifikasi;
+use Illuminate\Support\Facades\Cache;
 
 class SuratObserver
 {
@@ -40,12 +43,25 @@ class SuratObserver
     
             \Log::info("Chat ID ditemukan untuk nik {$penerimaNik}: {$telegramUser->chat_id}");
     
+            $pengirimNama = $surat->pegawai ? $surat->pegawai->nama : ($surat->pengirim_external ?? '-');
             $message = "📩 Surat baru dari "
-                . ($surat->pegawai->nama ?? $surat->pengirim_external)
-                . "\nPerihal: {$surat->perihal}";
+                . $pengirimNama
+                . "\nPerihal: " . ($surat->perihal ?? '-');
     
             SendTelegramNotification::dispatch($telegramUser->chat_id, $message);
             \Log::info("Job notifikasi dikirim ke queue untuk chat_id {$telegramUser->chat_id}");
+
+            Cache::forget('surat_notif_' . $penerimaNik);
+            $user = User::where('username', $penerimaNik)->first();
+            if ($user) {
+                event(new SuratMasukNotifikasi(
+                    $user->id,
+                    'verifikasi',
+                    'Surat baru: ' . $surat->perihal,
+                    $surat->id_surat,
+                    $surat->kode_surat
+                ));
+            }
         }
     }
 
