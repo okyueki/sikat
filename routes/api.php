@@ -113,6 +113,20 @@ Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('absensi-agenda
     Route::post('/scan', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'scan']);
 });
 
+// API Budaya Kerja (penilaian budaya kerja pegawai) - butuh token Bearer
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('budayakerja')->group(function () {
+    Route::get('/pegawai', [App\Http\Controllers\Api\BudayaKerjaController::class, 'pegawaiBelumMengisi']);
+    Route::get('/{id}', [App\Http\Controllers\Api\BudayaKerjaController::class, 'show']);
+    Route::post('/', [App\Http\Controllers\Api\BudayaKerjaController::class, 'store']);
+});
+
+// API Penilaian Harian (items_penilaian + penilaian_harian) - butuh token Bearer
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('penilaian-harian')->group(function () {
+    Route::get('/items', [App\Http\Controllers\Api\PenilaianHarianController::class, 'items']);
+    Route::get('/search-pegawai', [App\Http\Controllers\Api\PenilaianHarianController::class, 'searchPegawai']);
+    Route::post('/', [App\Http\Controllers\Api\PenilaianHarianController::class, 'store']);
+});
+
 // API Surat Masuk (read-only: list + detail + notifikasi) - butuh token Bearer
 Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('surat-masuk')->group(function () {
     Route::get('/', [App\Http\Controllers\Api\SuratMasukController::class, 'index']);
