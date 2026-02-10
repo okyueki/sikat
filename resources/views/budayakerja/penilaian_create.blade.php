@@ -45,7 +45,7 @@
                             </div>
                             <div class="form-group mb-3">
                                 <label for="waktu_penilaian" class="form-label">Waktu Penilaian</label>
-                                <select name="waktu_penilaian" id="waktu_penilaian" class="form-control" required>
+                                <select name="waktu_penilaian" id="waktu_penilaian" class="form-control" required data-no-choices="1">
                                     <option value="pagi">Pagi</option>
                                     <option value="sore">Sore</option>
                                 </select>
@@ -87,33 +87,44 @@
 
         if (query.length > 2) {
             loadingSpinner.style.display = 'block';
-            fetch(`/search-pegawai?query=${query}`)
-    .then(response => response.json())
-    .then(data => {
-        list.innerHTML = '';
-        if (data.length > 0) {
-            list.style.display = 'block';
-            data.forEach(pegawai => {
-                const item = document.createElement('a');
-                item.href = "#";
-                item.className = "list-group-item list-group-item-action";
-                item.innerText = `${pegawai.nama} - ${pegawai.departemen} (${pegawai.jbtn})`;
-                item.onclick = function(event) {
-                    event.preventDefault();
-                    selectPegawai(pegawai.id, pegawai.nama, pegawai.departemen, pegawai.jbtn);
-                };
-                list.appendChild(item);
-            });
-        } else {
-            list.style.display = 'none';
-        }
-        loadingSpinner.style.display = 'none';
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        loadingSpinner.style.display = 'none';
-    });
-
+            var searchUrl = '{{ route("penilaian.search_pegawai") }}?query=' + encodeURIComponent(query);
+            fetch(searchUrl, { credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function(response) {
+                    var ct = response.headers.get('content-type');
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    if (!ct || !ct.includes('application/json')) {
+                        throw new Error('Response bukan JSON (mungkin redirect login). Silakan login ulang.');
+                    }
+                    return response.json();
+                })
+                .then(function(data) {
+                    list.innerHTML = '';
+                    if (data && data.length > 0) {
+                        list.style.display = 'block';
+                        data.forEach(function(pegawai) {
+                            var item = document.createElement('a');
+                            item.href = "#";
+                            item.className = "list-group-item list-group-item-action";
+                            item.innerText = (pegawai.nama || '') + ' - ' + (pegawai.departemen || '') + ' (' + (pegawai.jbtn || '') + ')';
+                            item.onclick = function(event) {
+                                event.preventDefault();
+                                selectPegawai(pegawai.id, pegawai.nama, pegawai.departemen, pegawai.jbtn);
+                            };
+                            list.appendChild(item);
+                        });
+                    } else {
+                        list.style.display = 'none';
+                    }
+                    loadingSpinner.style.display = 'none';
+                })
+                .catch(function(error) {
+                    console.error('Error:', error);
+                    list.innerHTML = '';
+                    list.style.display = 'none';
+                    loadingSpinner.style.display = 'none';
+                });
         } else {
             list.innerHTML = '';
             list.style.display = 'none';
@@ -152,7 +163,18 @@ document.addEventListener('DOMContentLoaded', function() {
         checkbox.checked = true; // Semua checkbox "Ya" akan dicentang
     });
 });
-
+</script>
+<script>
+// Inisialisasi Choices untuk #waktu_penilaian dengan allowHTML: true (hilangkan deprecation warning)
+document.addEventListener('DOMContentLoaded', function() {
+    var sel = document.getElementById('waktu_penilaian');
+    if (sel && typeof Choices !== 'undefined' && !sel._choices) {
+        try {
+            var c = new Choices(sel, { allowHTML: true });
+            sel._choices = c;
+        } catch (e) { /* biarkan select native jika gagal */ }
+    }
+});
 </script>
 
 @endsection

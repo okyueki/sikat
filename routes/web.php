@@ -228,6 +228,19 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/search-pegawai', [PenilaianController::class, 'searchPegawai'])
         ->name('penilaian.search_pegawai');
+
+    // JSON pegawai by NIK (untuk halaman web; tidak butuh Bearer token)
+    Route::get('/pegawai/{nik}/json', function (string $nik) {
+        $pegawai = \App\Models\Pegawai::where('nik', $nik)->first();
+        if (!$pegawai) {
+            return response()->json(['message' => 'Pegawai tidak ditemukan!'], 404);
+        }
+        return response()->json([
+            'nama' => $pegawai->nama,
+            'departemen' => $pegawai->departemen,
+            'jabatan' => $pegawai->jbtn,
+        ]);
+    })->name('pegawai.json');
 });
 
 Route::post('/rekapitulasi-bulanan', [PenilaianController::class, 'rekapitulasiBulanan'])

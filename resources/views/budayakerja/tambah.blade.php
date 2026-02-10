@@ -116,7 +116,8 @@
             const choices = new Choices(nikPegawaiDropdown, {
                 placeholderValue: 'Search Pegawai...',
                 searchEnabled: true,
-                shouldSort: false
+                shouldSort: false,
+                allowHTML: true
             });
 
         
@@ -142,10 +143,21 @@
             const nik = this.value;
 
             if (nik) {
-                fetch(`/api/pegawai/${nik}`)
+                const url = `/pegawai/${encodeURIComponent(nik)}/json`;
+                fetch(url, {
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
                     .then(response => {
+                        const ct = response.headers.get('content-type') || '';
                         if (!response.ok) {
-                            throw new Error("Data pegawai tidak ditemukan");
+                            throw new Error("HTTP " + response.status);
+                        }
+                        if (!ct.includes('application/json')) {
+                            throw new Error("Response bukan JSON (mungkin redirect/login).");
                         }
                         return response.json();
                     })
