@@ -38,16 +38,34 @@ class BudayaKerjaController extends Controller
     }
 
     /**
+     * GET /api/budayakerja/shift
+     * Daftar opsi shift yang valid (pagi, sore, malam - huruf kecil).
+     */
+    public function shiftOptions()
+    {
+        return response()->json([
+            'success' => true,
+            'data' => ['pagi', 'sore', 'malam'],
+        ]);
+    }
+
+    /**
      * POST /api/budayakerja
      * Simpan penilaian budaya kerja (atribut sepatu/sabuk/... total_nilai dihitung server-side).
      */
     public function store(Request $request)
     {
+        // Normalisasi shift ke huruf kecil (pagi, sore, malam) sebelum validasi
+        $shiftInput = $request->input('shift');
+        if ($shiftInput !== null) {
+            $request->merge(['shift' => strtolower((string) $shiftInput)]);
+        }
+
         $validator = Validator::make($request->all(), [
             'nik_pegawai' => 'required|string|exists:server_74.pegawai,nik',
             'tanggal' => 'nullable|date',
             'jam' => 'nullable|date_format:H:i:s',
-            'shift' => 'nullable|string|max:50',
+            'shift' => 'nullable|string|in:pagi,sore,malam',
 
             // item penilaian budaya kerja (0/1)
             'sepatu' => 'nullable|in:0,1',
@@ -104,7 +122,7 @@ class BudayaKerjaController extends Controller
             'nama_pegawai' => $pegawai->nama,
             'departemen' => $pegawai->departemen,
             'jabatan' => $pegawai->jbtn,
-            'shift' => $request->input('shift'),
+            'shift' => strtolower((string) ($request->input('shift') ?? 'pagi')), // pagi, sore, malam (huruf kecil)
         ];
 
         foreach ($items as $item) {

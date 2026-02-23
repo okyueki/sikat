@@ -116,6 +116,7 @@ Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('absensi-agenda
 // API Budaya Kerja (penilaian budaya kerja pegawai) - butuh token Bearer
 Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('budayakerja')->group(function () {
     Route::get('/pegawai', [App\Http\Controllers\Api\BudayaKerjaController::class, 'pegawaiBelumMengisi']);
+    Route::get('/shift', [App\Http\Controllers\Api\BudayaKerjaController::class, 'shiftOptions']);
     Route::get('/{id}', [App\Http\Controllers\Api\BudayaKerjaController::class, 'show']);
     Route::post('/', [App\Http\Controllers\Api\BudayaKerjaController::class, 'store']);
 });
