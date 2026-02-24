@@ -4,6 +4,12 @@
 
 @section('content')
 <div class="container-fluid">
+    @if(isset($dashboardErrorMessage) && $dashboardErrorMessage)
+    <div class="alert alert-warning alert-dismissible fade show mb-3" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>{{ $dashboardErrorMessage }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    @endif
     <div class="row justify-content-center">
         <!-- Page Header -->
         <div class="col-12">

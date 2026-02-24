@@ -16,10 +16,15 @@ class RekapPresensi extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'id', 'shift', 'jam_datang', 'jam_pulang', 'status', 
+        'id', 'shift', 'jam_datang', 'jam_pulang', 'status',
         'keterlambatan', 'durasi', 'keterangan', 'photo'
     ];
-    
+
+    protected $casts = [
+        'jam_datang' => 'datetime',
+        'jam_pulang' => 'datetime',
+    ];
+
     public function pegawai()
     {
         return $this->belongsTo(Pegawai::class, 'id', 'id'); // Sesuaikan kolom foreign key di sini

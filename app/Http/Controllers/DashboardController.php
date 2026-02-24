@@ -17,12 +17,60 @@ use App\Models\Dokter;
 use App\Models\JadwalPegawai;
 use App\Models\RekapPresensi;
 use App\Models\AbsensiAgenda;
+use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
     public function index()
-{
-            
+    {
+        $dashboardErrorMessage = null;
+
+        try {
+            return $this->indexData($dashboardErrorMessage);
+        } catch (\Throwable $e) {
+            Log::error('Dashboard index error: ' . $e->getMessage(), [
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            $dashboardErrorMessage = 'Data dashboard sementara tidak lengkap. Periksa koneksi database (utama dan server_74/SIMRS) serta storage/logs/laravel.log.';
+            return $this->indexData($dashboardErrorMessage, true);
+        }
+    }
+
+    /**
+     * Logic dashboard; jika $useFallback true, pakai data kosong agar halaman tetap tampil.
+     */
+    private function indexData(?string &$dashboardErrorMessage, bool $useFallback = false)
+    {
+        if ($useFallback) {
+            $departemen = collect();
+            $jumlahPegawai = collect();
+            $bidang = collect();
+            $jumlahPerBidang = collect();
+            $jumlahPasienHariIni = 0;
+            $pertumbuhanPasien = 0;
+            $jumlahPasienRawatInap = 0;
+            $jumlahPasienIGD = 0;
+            $presensiUser = collect();
+            $presensiMessage = 'Data presensi sementara tidak tersedia.';
+            $totalHari = 0;
+            $agendaTerundang = collect();
+            $jumlahDokter = 0;
+            $timPalingRajin = collect();
+            $timPalingSeringTerlambat = collect();
+            $topTerlambat = collect();
+            $pegawaiUlangTahunHariIni = collect();
+            return view('dashboard.index', compact(
+                'departemen', 'jumlahPegawai', 'bidang',
+                'jumlahPerBidang', 'jumlahPasienHariIni', 'pertumbuhanPasien',
+                'jumlahPasienRawatInap', 'jumlahPasienIGD',
+                'presensiUser', 'presensiMessage', 'totalHari',
+                'agendaTerundang', 'jumlahDokter', 'timPalingRajin', 'timPalingSeringTerlambat',
+                'topTerlambat', 'pegawaiUlangTahunHariIni', 'dashboardErrorMessage'
+            ));
+        }
+
     // Ambil data jumlah pegawai per departemen dengan filter stts_aktif = 'AKTIF'
     $pegawaiPerDepartemen = Pegawai::select('departemen', \DB::raw('count(*) as total'))
         ->where('stts_aktif', 'AKTIF')
@@ -30,8 +78,9 @@ class DashboardController extends Controller
         ->get();
 
     // NIK untuk absensi agenda: pakai dari Pegawai agar konsisten dengan tabel absensi_agenda
-    $pegawai = Pegawai::where('nik', Auth::user()->username)->first();
-    $nik = $pegawai ? (string) $pegawai->nik : (string) Auth::user()->username;
+    $username = Auth::check() ? (Auth::user()->username ?? '') : '';
+    $pegawai = $username ? Pegawai::where('nik', $username)->first() : null;
+    $nik = $pegawai ? (string) $pegawai->nik : (string) $username;
 
     // Pastikan $presensiUser didefinisikan sebagai collection kosong
     $presensiUser = collect();
@@ -340,15 +389,24 @@ class DashboardController extends Controller
         ->orderBy('nama')
         ->get(['id', 'nik', 'nama', 'departemen', 'tgl_lahir']);
 
+    // Terlambat pegawai hari ini (untuk view lama yang pakai $topTerlambat)
+    $topTerlambat = RekapPresensi::with('pegawai')
+        ->whereDate('jam_datang', $today)
+        ->whereNotNull('keterlambatan')
+        ->where('keterlambatan', '!=', '00:00:00')
+        ->orderByRaw('TIME_TO_SEC(keterlambatan) DESC')
+        ->limit(10)
+        ->get();
+
     return view('dashboard.index', compact(
-        'departemen', 'jumlahPegawai', 'bidang', 
+        'departemen', 'jumlahPegawai', 'bidang',
         'jumlahPerBidang', 'jumlahPasienHariIni', 'pertumbuhanPasien',
-        'jumlahPasienRawatInap', 'jumlahPasienIGD', 
+        'jumlahPasienRawatInap', 'jumlahPasienIGD',
         'presensiUser', 'presensiMessage', 'totalHari',
         'agendaTerundang', 'jumlahDokter', 'timPalingRajin', 'timPalingSeringTerlambat',
-        'pegawaiUlangTahunHariIni'
+        'topTerlambat', 'pegawaiUlangTahunHariIni', 'dashboardErrorMessage'
     ));
-}
+    }
     /**
      * Hitung wajib masuk berdasarkan logika kompleks dari sistem lama
      */
