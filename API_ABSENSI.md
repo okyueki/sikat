@@ -4,6 +4,85 @@ API untuk presensi datang/pulang dari aplikasi mobile atau client lain. Autentik
 
 ---
 
+## Testing dengan Postman
+
+### Persiapan
+
+1. **Base URL** — Sesuaikan dengan server Anda, mis. `http://localhost/sikat/public` atau `http://sikat.test` (jika pakai Valet/Herd).
+2. **Pastikan server Laravel berjalan** (XAMPP Apache + MySQL, atau `php artisan serve`).
+
+### Langkah 1: Login (dapat token)
+
+| Field | Nilai |
+|-------|-------|
+| Method | `POST` |
+| URL | `{{base_url}}/api/login` |
+| Headers | `Content-Type: application/json` |
+| Body (raw JSON) | `{"username": "NIK_pegawai", "password": "password_user"}` |
+
+**Contoh Body:**
+```json
+{
+  "username": "278.21.11.2018",
+  "password": "password_anda"
+}
+```
+
+**Response:** Copy nilai `data.token` (mis. `1|abc123xyz...`) untuk dipakai di langkah berikutnya.
+
+### Langkah 2: Set token untuk request berikutnya
+
+Di Postman, buat **Environment** atau set header manual:
+- **Key:** `Authorization`
+- **Value:** `Bearer 1|abc123xyz...` (ganti dengan token dari login)
+
+Atau gunakan **Authorization** tab → Type: **Bearer Token** → paste token (tanpa kata "Bearer").
+
+### Langkah 3: Test endpoint absensi
+
+| Endpoint | Method | Keterangan |
+|----------|--------|-------------|
+| Jadwal hari ini | `GET` `{{base_url}}/api/absensi/jadwal-hari-ini` | Cek shift & jam masuk/pulang |
+| Status hari ini | `GET` `{{base_url}}/api/absensi/status-hari-ini` | Cek status: belum / datang / selesai |
+| Config lokasi | `GET` `{{base_url}}/api/absensi/config` | Titik & radius presensi |
+| Submit presensi | `POST` `{{base_url}}/api/absensi/submit` | Butuh body (lihat di bawah) |
+| Riwayat | `GET` `{{base_url}}/api/absensi/riwayat?bulan=2&tahun=2026` | Riwayat per bulan |
+
+### Langkah 4: Submit presensi (POST /api/absensi/submit)
+
+**Opsi A — JSON dengan base64 image:**
+- Method: `POST`
+- URL: `{{base_url}}/api/absensi/submit`
+- Headers: `Content-Type: application/json`, `Authorization: Bearer {token}`
+- Body (raw JSON):
+```json
+{
+  "image": "data:image/jpeg;base64,/9j/4AAQSkZJRg...",
+  "latitude": -7.4856,
+  "longitude": 112.6527,
+  "is_mock_location": false
+}
+```
+
+**Opsi B — Form-data (file):**
+- Method: `POST`
+- Body: pilih **form-data**
+- Key `image`: type **File**, pilih file JPEG/PNG (max 2MB)
+- Key `latitude`: `-7.4856`
+- Key `longitude`: `112.6527`
+- Key `is_mock_location`: `false` (opsional)
+
+**Untuk base64:** Bisa convert gambar ke base64 di [base64-image.de](https://www.base64-image.de/) atau pakai script. Atau gunakan form-data agar lebih mudah.
+
+### Tips
+
+- **Lokasi:** Pastikan `latitude` dan `longitude` dalam radius yang diizinkan (lihat dari `GET /api/absensi/config`).
+- **Fake GPS:** Jika `is_mock_location: true`, server akan menolak (403).
+- **Rate limit:** Maks 10 submit per menit per IP; jika 429, tunggu sebentar.
+- **Datang vs rekap:** Satu kali submit **pertama** (datang) → data masuk ke **temporary_presensi**. Cek response: jika `"tipe": "datang"` artinya masuk temporary. Jika Anda submit **dua kali**, request kedua dianggap **pulang** → data dipindah ke **rekap_presensi** dan dihapus dari temporary. Jadi kalau Anda lihat data cuma di rekap, kemungkinan submit sudah dua kali. Untuk uji datang saja: submit **sekali**, lalu cek tabel **temporary_presensi** (koneksi **server_74**, lihat `.env` / `config/database.php`).
+
+---
+
 ## Autentikasi
 
 ### Login (dapat token)
@@ -296,6 +375,14 @@ Jadi satu presensi hanya menutup (closing) record tertinggal. Pegawai wajib mela
 
 ---
 
+#### Sudah di rekap hari ini — tidak bisa presensi lagi kecuali jadwal tambahan
+
+Jika pegawai **sudah ada presensi lengkap** (datang + pulang) hari ini di **rekap_presensi**, maka ia **tidak boleh** presensi lagi (response **400**): *"Anda sudah melakukan presensi datang dan pulang hari ini. Tidak dapat presensi lagi kecuali ada jadwal tambahan."*
+
+**Kecuali** pegawai punya **Jadwal Tambahan** (`jadwal_tambahan`) untuk hari ini (kolom `h1`..`h31` sesuai tanggal). Dalam hal itu, presensi berikutnya diperlakukan sebagai **datang untuk shift jadwal tambahan** (shift & jam dari jadwal tambahan). Setelah itu, presensi berikutnya lagi = pulang untuk jadwal tambahan, lalu data pindah ke rekap. Dengan demikian satu hari bisa ada **dua sesi**: satu dari jadwal utama, satu dari jadwal tambahan.
+
+---
+
 #### Satu hari: maksimal 1x datang + 1x pulang
 
 - **Aturan:** Dalam satu hari (tanggal yang sama), satu pegawai hanya bisa melakukan **satu kali presensi datang** dan **satu kali presensi pulang**. Tidak bisa absen datang/pulang lebih dari sekali per hari.
@@ -419,6 +506,22 @@ Jika belum ada record untuk bulan/tahun tersebut, `jadwal` = null dan `jadwal_ha
 
 ---
 
+## API Jadwal Tambahan (untuk presensi kedua)
+
+Pegawai bisa **melihat dan mengubah jadwal tambahan** (`jadwal_tambahan`) per bulan/tahun — sama seperti jadwal pegawai. Jadwal tambahan dipakai saat pegawai **sudah presensi lengkap** hari ini di rekap; jika ada shift di jadwal tambahan untuk hari itu, ia boleh presensi lagi (datang + pulang) untuk shift tambahan tersebut.
+
+| Method | Endpoint | Keterangan |
+|--------|----------|------------|
+| GET | `/api/jadwal-tambahan?bulan=1&tahun=2026` | List/data jadwal tambahan bulan & tahun (jadwal_hari h1–h31 + daftar shift) |
+| GET | `/api/jadwal-tambahan/data?bulan=1&tahun=2026` | Sama seperti GET / (data lengkap untuk edit) |
+| PUT | `/api/jadwal-tambahan` | Update atau buat jadwal tambahan (body: bulan, tahun, h1..h31) |
+
+**GET /api/jadwal-tambahan** — Query: `bulan` (1–12), `tahun`. Default: bulan dan tahun saat ini. Response format sama dengan GET /api/jadwal-pegawai (pegawai, bulan, tahun, jadwal, jadwal_hari, shifts).
+
+**PUT /api/jadwal-tambahan** — Body (JSON): `bulan`, `tahun`, dan `h1`..`h31` (nullable string, nilai = nama shift). Jika record belum ada, dibuat; jika sudah ada, di-update. Hanya jadwal **milik user yang login**.
+
+---
+
 ## Cache & rate limit
 
 - **Cache:** Response **GET /api/absensi/config** di-cache server 10 menit. Data jam shift (JamJaga/JamMasuk) yang dipakai untuk jadwal-hari-ini dan submit juga di-cache 1 jam.
@@ -430,6 +533,7 @@ Jika belum ada record untuk bulan/tahun tersebut, `jadwal` = null dan `jadwal_ha
 
 Dengan token dari login di atas, pegawai juga bisa mengakses:
 - **API Jadwal Pegawai** — lihat & ubah jadwal presensi per bulan (nyambung dengan jadwal-hari-ini absensi), lihat di atas.
+- **API Jadwal Tambahan** — lihat & ubah jadwal tambahan per bulan (untuk presensi kedua jika sudah lengkap di rekap), lihat di atas.
 - **API Cuti & Ijin** — pengajuan cuti/ijin dari aplikasi React: [API_CUTI_IJIN.md](API_CUTI_IJIN.md)
 - **API Profil** — lihat dan ubah profil pegawai (data pribadi, foto, berkas): [API_PROFIL.md](API_PROFIL.md)
 - **API Surat Masuk** — baca daftar dan detail surat masuk (read-only): [API_SURAT_MASUK.md](API_SURAT_MASUK.md)

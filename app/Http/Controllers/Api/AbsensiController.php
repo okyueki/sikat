@@ -16,6 +16,7 @@ use App\Models\RekapPresensi;
 use App\Models\JamJaga;
 use App\Models\JamMasuk;
 use App\Models\JadwalPegawai;
+use App\Models\JadwalTambahan;
 use App\Models\SetKeterlambatan;
 use Carbon\Carbon;
 
@@ -77,14 +78,15 @@ class AbsensiController extends Controller
         }
 
         // Cek dari temporary dulu (presensi via API/web belum diverifikasi)
+        $today = Carbon::today('Asia/Jakarta');
         $presensiHariIni = TemporaryPresensi::where('id', $pegawai->id)
-            ->whereDate('jam_datang', Carbon::today())
+            ->whereDate('jam_datang', $today)
             ->first();
 
         // Jika tidak ada di temporary, cek rekap (sudah pulang & tercatat)
         if (!$presensiHariIni) {
             $presensiHariIni = RekapPresensi::where('id', $pegawai->id)
-                ->whereDate('jam_datang', Carbon::today())
+                ->whereDate('jam_datang', $today)
                 ->first();
         }
 
@@ -218,9 +220,10 @@ class AbsensiController extends Controller
 
         DB::beginTransaction();
         try {
-            // Cek record hari ini
+            $today = Carbon::today('Asia/Jakarta');
+            // Cek record hari ini (pakai timezone WIB agar konsisten dengan jam_datang yang disimpan)
             $temporaryPresensiHariIni = TemporaryPresensi::where('id', $pegawai->id)
-                ->whereDate('jam_datang', Carbon::today())
+                ->whereDate('jam_datang', $today)
                 ->lockForUpdate()
                 ->first();
 
@@ -239,7 +242,7 @@ class AbsensiController extends Controller
                 // Tidak ada record hari ini → cek dulu apakah ada record tertinggal (datang tanpa pulang)
                 $recordTertinggal = TemporaryPresensi::where('id', $pegawai->id)
                     ->whereNull('jam_pulang')
-                    ->where('jam_datang', '<', Carbon::today()->startOfDay())
+                    ->where('jam_datang', '<', $today->copy()->startOfDay())
                     ->lockForUpdate()
                     ->orderBy('jam_datang', 'asc')
                     ->first();
@@ -254,7 +257,33 @@ class AbsensiController extends Controller
                         ?? $jamJaga; // fallback ke jadwal hari ini jika shift lama tidak ditemukan
                     $result = $this->doPresensiPulang($request, $pegawai, $recordTertinggal, $jamJagaTertinggal, true);
                 } else {
-                    $result = $this->doPresensiDatang($request, $pegawai, $jamJaga);
+                    // Sudah presensi lengkap hari ini di rekap? Hanya boleh lagi jika ada jadwal tambahan.
+                    $sudahLengkapHariIni = RekapPresensi::where('id', $pegawai->id)
+                        ->whereDate('jam_datang', $today)
+                        ->whereNotNull('jam_pulang')
+                        ->exists();
+
+                    if ($sudahLengkapHariIni) {
+                        $shiftTambahan = $this->getShiftTambahanHariIni($pegawai->id);
+                        if (empty($shiftTambahan)) {
+                            DB::rollBack();
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'Anda sudah melakukan presensi datang dan pulang hari ini. Tidak dapat presensi lagi kecuali ada jadwal tambahan.',
+                            ], 400);
+                        }
+                        $jamJagaTambahan = $this->getJamJagaForShift($shiftTambahan);
+                        if (!$jamJagaTambahan) {
+                            DB::rollBack();
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'Data jam shift jadwal tambahan tidak ditemukan.',
+                            ], 400);
+                        }
+                        $result = $this->doPresensiDatang($request, $pegawai, $jamJagaTambahan);
+                    } else {
+                        $result = $this->doPresensiDatang($request, $pegawai, $jamJaga);
+                    }
                 }
             }
 
@@ -391,6 +420,32 @@ class AbsensiController extends Controller
         }
 
         return ['shift' => $shiftValue];
+    }
+
+    /** Shift jadwal tambahan hari ini (untuk presensi kedua jika sudah lengkap di rekap). */
+    private function getShiftTambahanHariIni($pegawaiId)
+    {
+        $today = Carbon::today('Asia/Jakarta');
+        $currentMonth = $today->format('m');
+        $currentYear = (int) $today->format('Y');
+        $currentDay = (int) $today->format('j');
+        $dayColumn = 'h' . $currentDay;
+
+        $jadwalTambahan = JadwalTambahan::where('id', $pegawaiId)
+            ->where('bulan', $currentMonth)
+            ->where('tahun', $currentYear)
+            ->first();
+
+        if (!$jadwalTambahan) {
+            return null;
+        }
+
+        $shiftValue = $jadwalTambahan->$dayColumn ?? null;
+        if (empty($shiftValue) || trim((string) $shiftValue) === '') {
+            return null;
+        }
+
+        return trim($shiftValue);
     }
 
     private function calculateDistance($lat1, $lon1, $lat2, $lon2)

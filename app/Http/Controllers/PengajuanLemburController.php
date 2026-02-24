@@ -64,14 +64,13 @@ class PengajuanLemburController extends Controller
 
     public function store(Request $request)
     {
-        $validator =  Validator::make($request->all(), [
+        $validator = Validator::make($request->all(), [
             'keterangan' => 'required',
             'tanggal_awal' => 'required|date',
-            'tanggal_akhir' => 'required|date',
+            'tanggal_akhir' => 'required|date|after_or_equal:tanggal_awal',
             'jam_awal' => 'required',
             'jam_akhir' => 'required',
             'nik_atasan_langsung' => 'required',
-            'tanggal_dibuat' => Carbon::now(),
         ]);
 
         if ($validator->fails()) {
@@ -99,7 +98,7 @@ class PengajuanLemburController extends Controller
         $request->validate([
             'keterangan' => 'required',
             'tanggal_awal' => 'required|date',
-            'tanggal_akhir' => 'required|date',
+            'tanggal_akhir' => 'required|date|after_or_equal:tanggal_awal',
             'jam_awal' => 'required',
             'jam_akhir' => 'required',
             'nik_atasan_langsung' => 'required',
@@ -150,21 +149,28 @@ class PengajuanLemburController extends Controller
         $query->whereBetween('pengajuan_lembur.tanggal_awal', [$request->start_date, $request->end_date]);
     }
 
-    // Ambil data dan kelompokkan berdasarkan NIK
-   $rekap = $query->get()->groupBy('nik')->map(function ($items) {
-    $totalSeconds = $items->sum(function ($item) {
-        return strtotime($item->jam_akhir) - strtotime($item->jam_awal);
-    });
+    // Ambil data dan kelompokkan berdasarkan NIK. Hitung total jam (termasuk lembur overnight).
+    $rekap = $query->get()->groupBy('nik')->map(function ($items) {
+        $totalSeconds = $items->sum(function ($item) {
+            $awal = strtotime($item->jam_awal);
+            $akhir = strtotime($item->jam_akhir);
+            $selisih = $akhir - $awal;
+            // Lembur melewati tengah malam (mis. 21:00–07:00) → selisih negatif, tambah 24 jam
+            if ($selisih < 0) {
+                $selisih += 24 * 3600;
+            }
+            return $selisih;
+        });
 
-    $hours = floor($totalSeconds / 3600);
-    $minutes = ($totalSeconds % 3600) / 60;
+        $hours = floor($totalSeconds / 3600);
+        $minutes = (int) round(($totalSeconds % 3600) / 60);
 
-    return [
-        'nik'        => $items->first()->nik,
-        'nama'       => optional($items->first()->pegawai)->nama,
-        'total_jam'  => sprintf('%d Jam %d Menit', $hours, $minutes),
-    ];
-})->values();
+        return [
+            'nik'        => $items->first()->nik,
+            'nama'       => optional($items->first()->pegawai)->nama,
+            'total_jam'  => sprintf('%d Jam %d Menit', $hours, $minutes),
+        ];
+    })->values();
 
     return DataTables::of($rekap)->make(true);
 }

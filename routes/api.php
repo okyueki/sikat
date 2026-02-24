@@ -104,6 +104,13 @@ Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('jadwal-pegawai
     Route::put('/', [App\Http\Controllers\Api\JadwalPegawaiController::class, 'update']);
 });
 
+// API Jadwal Tambahan (CRUD jadwal tambahan - untuk presensi kedua jika sudah lengkap di rekap)
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('jadwal-tambahan')->group(function () {
+    Route::get('/', [App\Http\Controllers\Api\JadwalTambahanController::class, 'index']);
+    Route::get('/data', [App\Http\Controllers\Api\JadwalTambahanController::class, 'data']);
+    Route::put('/', [App\Http\Controllers\Api\JadwalTambahanController::class, 'update']);
+});
+
 // API Absensi Agenda (scan barcode/QR untuk kehadiran rapat) - butuh token Bearer
 Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('absensi-agenda')->group(function () {
     Route::get('/agenda/{id}/rekap', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'rekap']);

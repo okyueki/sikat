@@ -68,16 +68,15 @@ class VerifikasiPengajuanLemburController extends Controller
         }
 
         // Find the record by ID
-        $cuti = pengajuanlembur::findOrFail($id);
+        $pengajuan = PengajuanLembur::findOrFail($id);
 
         // Update the record with request data
-        $cuti->status = $request->input('status');
-        $cuti->catatan = $request->input('catatan');
-        $cuti->tanggal_verifikasi = Carbon::now(); // Set the current datetime
+        $pengajuan->status = $request->input('status');
+        $pengajuan->catatan = $request->input('catatan');
+        $pengajuan->tanggal_verifikasi = Carbon::now();
 
-        // Save the updated record
-        $cuti->save();
+        $pengajuan->save();
 
-        return redirect()->route('verifikasi_pengajuan_lembur.index')->with('success', 'Cuti updated successfully.');
+        return redirect()->route('verifikasi_pengajuan_lembur.index')->with('success', 'Pengajuan lembur berhasil diverifikasi.');
     }
 }
