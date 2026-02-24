@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Pegawai;
+use App\Models\TemporaryPresensi;
 use App\Models\RekapPresensi;
 use App\Models\JamJaga;
 use App\Models\JamMasuk;
@@ -75,9 +76,17 @@ class AbsensiController extends Controller
             return $pegawai;
         }
 
-        $presensiHariIni = RekapPresensi::where('id', $pegawai->id)
+        // Cek dari temporary dulu (presensi via API/web belum diverifikasi)
+        $presensiHariIni = TemporaryPresensi::where('id', $pegawai->id)
             ->whereDate('jam_datang', Carbon::today())
             ->first();
+
+        // Jika tidak ada di temporary, cek rekap (sudah pulang & tercatat)
+        if (!$presensiHariIni) {
+            $presensiHariIni = RekapPresensi::where('id', $pegawai->id)
+                ->whereDate('jam_datang', Carbon::today())
+                ->first();
+        }
 
         $status = 'belum';
         $jam_datang = null;
@@ -209,12 +218,13 @@ class AbsensiController extends Controller
 
         DB::beginTransaction();
         try {
-            $rekapPresensi = RekapPresensi::where('id', $pegawai->id)
+            // Cek record hari ini
+            $temporaryPresensiHariIni = TemporaryPresensi::where('id', $pegawai->id)
                 ->whereDate('jam_datang', Carbon::today())
                 ->lockForUpdate()
                 ->first();
 
-            if ($rekapPresensi && $rekapPresensi->jam_pulang) {
+            if ($temporaryPresensiHariIni && $temporaryPresensiHariIni->jam_pulang) {
                 DB::rollBack();
                 return response()->json([
                     'success' => false,
@@ -222,10 +232,30 @@ class AbsensiController extends Controller
                 ], 400);
             }
 
-            if ($rekapPresensi && !$rekapPresensi->jam_pulang) {
-                $result = $this->doPresensiPulang($request, $pegawai, $rekapPresensi);
+            if ($temporaryPresensiHariIni && !$temporaryPresensiHariIni->jam_pulang) {
+                // Ada record hari ini, belum pulang → presensi pulang
+                $result = $this->doPresensiPulang($request, $pegawai, $temporaryPresensiHariIni, $jamJaga, false);
             } else {
-                $result = $this->doPresensiDatang($request, $pegawai, $jamJaga);
+                // Tidak ada record hari ini → cek dulu apakah ada record tertinggal (datang tanpa pulang)
+                $recordTertinggal = TemporaryPresensi::where('id', $pegawai->id)
+                    ->whereNull('jam_pulang')
+                    ->where('jam_datang', '<', Carbon::today()->startOfDay())
+                    ->lockForUpdate()
+                    ->orderBy('jam_datang', 'asc')
+                    ->first();
+
+                if ($recordTertinggal) {
+                    // Tutup record tertinggal (closing) — hanya pulang. Pegawai wajib presensi lagi untuk datang hari ini.
+                    Log::info('Record presensi tertinggal ditemukan, closing (pulang)', [
+                        'pegawai_id' => $pegawai->id,
+                        'jam_datang_tertinggal' => $recordTertinggal->jam_datang?->toDateTimeString(),
+                    ]);
+                    $jamJagaTertinggal = $this->getJamJagaForShift($recordTertinggal->shift)
+                        ?? $jamJaga; // fallback ke jadwal hari ini jika shift lama tidak ditemukan
+                    $result = $this->doPresensiPulang($request, $pegawai, $recordTertinggal, $jamJagaTertinggal, true);
+                } else {
+                    $result = $this->doPresensiDatang($request, $pegawai, $jamJaga);
+                }
             }
 
             DB::commit();
@@ -320,6 +350,24 @@ class AbsensiController extends Controller
         return $list->firstWhere('shift', $shift);
     }
 
+    /** Ambil jam jaga (jam_masuk, jam_pulang) untuk shift tertentu. */
+    private function getJamJagaForShift(string $shift)
+    {
+        $jamJaga = $this->getJamJagaFromCache(trim($shift));
+        if ($jamJaga) {
+            return $jamJaga;
+        }
+        $jamMasukModel = $this->getJamMasukFromCache(trim($shift));
+        if ($jamMasukModel) {
+            return (object) [
+                'shift' => $jamMasukModel->shift,
+                'jam_masuk' => $jamMasukModel->jam_masuk,
+                'jam_pulang' => $jamMasukModel->jam_pulang,
+            ];
+        }
+        return null;
+    }
+
     private function getShiftHariIni($pegawaiId)
     {
         $today = Carbon::today('Asia/Jakarta');
@@ -369,14 +417,13 @@ class AbsensiController extends Controller
         $jamMasukShift = Carbon::parse($jamJaga->jam_masuk, 'Asia/Jakarta');
         $keterlambatanData = $this->calculateKeterlambatan($jamMasukShift, $now);
 
-        RekapPresensi::create([
+        TemporaryPresensi::create([
             'id' => $pegawai->id,
             'shift' => $jamJaga->shift,
             'jam_datang' => $now,
             'status' => $keterlambatanData['status'],
             'keterlambatan' => $keterlambatanData['keterlambatan'],
             'photo' => $photoPath,
-            'keterangan' => '',
         ]);
 
         Log::info('Presensi datang via API', [
@@ -398,35 +445,62 @@ class AbsensiController extends Controller
         ];
     }
 
-    private function doPresensiPulang(Request $request, $pegawai, $rekapPresensi)
+    private function doPresensiPulang(Request $request, $pegawai, $temporaryPresensi, $jamJaga, bool $isClosing = false)
     {
-        $jamDatang = Carbon::parse($rekapPresensi->jam_datang);
+        $jamDatang = Carbon::parse($temporaryPresensi->jam_datang);
         $jamPulang = Carbon::now('Asia/Jakarta');
+        $jamPulangJadwal = Carbon::parse($jamJaga->jam_pulang, 'Asia/Jakarta');
 
         if ($jamPulang->lessThanOrEqualTo($jamDatang)) {
             throw new \Exception('Jam pulang tidak valid.');
         }
 
         $durasi = $jamPulang->diff($jamDatang)->format('%H:%I:%S');
-        $rekapPresensi->update([
+
+        // Update temporary dengan jam_pulang & durasi
+        $temporaryPresensi->update([
             'jam_pulang' => $jamPulang,
             'durasi' => $durasi,
         ]);
+
+        // PSW = Pulang Sebelum Waktunya: tambah " & PSW" jika pulang sebelum jam_pulang jadwal
+        $status = $this->appendPswIfPulangSebelumWaktu($temporaryPresensi->status, $jamPulang, $jamPulangJadwal);
+
+        // Copy ke rekap_presensi (untuk riwayat & laporan)
+        RekapPresensi::create([
+            'id' => $pegawai->id,
+            'shift' => $temporaryPresensi->shift,
+            'jam_datang' => $temporaryPresensi->jam_datang,
+            'jam_pulang' => $jamPulang,
+            'status' => $status,
+            'keterlambatan' => $temporaryPresensi->keterlambatan,
+            'durasi' => $durasi,
+            'keterangan' => '',
+            'photo' => $temporaryPresensi->photo,
+        ]);
+
+        // Hapus dari temporary (sudah pindah ke rekap)
+        $temporaryPresensi->delete();
 
         Log::info('Presensi pulang via API', [
             'pegawai_id' => $pegawai->id,
             'jam_pulang' => $jamPulang->toDateTimeString(),
             'durasi' => $durasi,
+            'status' => $status,
         ]);
 
         return [
             'success' => true,
-            'message' => 'Presensi pulang berhasil dicatat.',
+            'message' => $isClosing
+                ? 'Presensi pulang (closing) berhasil dicatat. Silakan lakukan presensi datang untuk hari ini.'
+                : 'Presensi pulang berhasil dicatat.',
             'data' => [
                 'tipe' => 'pulang',
+                'is_closing' => $isClosing,
                 'jam_datang' => $jamDatang->toIso8601String(),
                 'jam_pulang' => $jamPulang->toIso8601String(),
                 'durasi' => $durasi,
+                'status' => $status,
             ],
         ];
     }
@@ -478,6 +552,17 @@ class AbsensiController extends Controller
         }
 
         throw new \Exception('Gambar presensi wajib diunggah.');
+    }
+
+    /**
+     * PSW = Pulang Sebelum Waktunya: tambah " & PSW" ke status jika pulang sebelum jam_pulang jadwal.
+     */
+    private function appendPswIfPulangSebelumWaktu(string $status, Carbon $jamPulangAktual, Carbon $jamPulangJadwal): string
+    {
+        if ($jamPulangAktual->lessThan($jamPulangJadwal) && strpos($status, 'PSW') === false) {
+            return $status . ' & PSW';
+        }
+        return $status;
     }
 
     private function calculateKeterlambatan($jamMasukShift, $now)
