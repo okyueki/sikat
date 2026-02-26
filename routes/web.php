@@ -87,6 +87,12 @@ Route::get('/logout', [LogoutController::class, 'logout'])->name('logout');
 
 Auth::routes(['register' => true]);
 
+Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('auth');
+Route::group(['middleware' => ['auth', 'checkLevel:Kabag']], function () {
+Route::resource('sifat_surat', SifatSuratController::class);
+Route::resource('klasifikasi_surat', KlasifikasiSuratController::class);
+});
+
 /**
  * Mobile UI (Blade)
  * Catatan: kita buat scope khusus /mobile supaya tidak mengganggu halaman admin.
@@ -110,13 +116,6 @@ Route::prefix('mobile')->name('mobile.')->group(function () {
         Route::get('/histori', fn () => view('mobileui.blank', ['title' => 'Histori', 'active' => '']))->name('histori');
         Route::get('/lokasi', fn () => view('mobileui.blank', ['title' => 'Lokasi', 'active' => '']))->name('lokasi');
     });
-});
-
-Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('auth');
-
-Route::group(['middleware' => ['auth', 'checkLevel:Kabag']], function () {
-Route::resource('sifat_surat', SifatSuratController::class);
-Route::resource('klasifikasi_surat', KlasifikasiSuratController::class);
 });
 
 // User management (super admin/admin)

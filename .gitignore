@@ -2,6 +2,9 @@
 /storage/app/public/temp_surat/*
 /public/storage/uploads/*
 /public/storage/temp_surat/*
+public/pages/upload/
+public/presensi/
+storage/app/public/qr_codes/
 storage.zip
 .srikandi.zip
 /vendor/
