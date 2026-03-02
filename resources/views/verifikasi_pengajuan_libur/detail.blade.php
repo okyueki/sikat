@@ -117,10 +117,17 @@
                             
                             <div class="tab-pane" id="lampiran" role="tabpanel">
                         @if(!empty($pengajuanlibur->foto))
-                            <img src="{{ asset('$pengajuanlibur->foto'); }}" />
-                            <p class="text-center mt-3">
-                                <a href="{{ $surat->file_lampiran }}" class="btn btn-primary" download>Download PDF</a>
-                            </p>
+                            <img src="{{ asset('storage/'.$pengajuanlibur->foto) }}" class="img-fluid"/>
+                        
+                            @if(!empty($pengajuanlibur->file_lampiran))
+                                <p class="text-center mt-3">
+                                    <a href="{{ asset($pengajuanlibur->file_lampiran) }}"
+                                       class="btn btn-primary"
+                                       download>
+                                       Download PDF
+                                    </a>
+                                </p>
+                            @endif
                         @else
                             <h4 class="text-center">Tidak Ada Lampiran</h4>
                         @endif
