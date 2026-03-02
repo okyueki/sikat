@@ -1,0 +1,68 @@
+@extends('layouts.pages-layouts')
+
+@section('pageTitle', isset($pageTitle) ? $pageTitle . $title : $title)
+
+@section('content')
+<div class="row">
+    <div class="col-xl-12">
+        <div class="card custom-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">{{ $title }}</h5>
+                <a href="{{ route('surat_edaran.create') }}" class="btn btn-success btn-sm">Tambah Surat Edaran</a>
+            </div>
+            <div class="card-body">
+                @if (session('success'))
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        {{ session('success') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                @endif
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Judul Surat</th>
+                                <th>Nomor</th>
+                                <th>Tanggal</th>
+                                <th>Yang menyetujui</th>
+                                <th width="220">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($items as $item)
+                                <tr>
+                                    <td>{{ $items->firstItem() + $loop->index }}</td>
+                                    <td>{{ $item->judul_surat }}</td>
+                                    <td>{{ $item->nomor_surat ?? '-' }}</td>
+                                    <td>{{ $item->tanggal ? $item->tanggal->format('d-m-Y') : '-' }}</td>
+                                    <td>{{ $item->penandatangan ? $item->penandatangan->nama : '-' }}</td>
+                                    <td>
+                                        <a href="{{ route('surat_edaran.show', $item) }}" class="btn btn-primary btn-sm">Detail</a>
+                                        <a href="{{ route('surat_edaran.tandaTangani', $item) }}" class="btn btn-info btn-sm">Tanda tangani</a>
+                                        <a href="{{ route('surat_edaran.edit', $item) }}" class="btn btn-warning btn-sm">Edit</a>
+                                        <form action="{{ route('surat_edaran.destroy', $item) }}" method="POST" class="d-inline" onsubmit="return confirm('Yakin hapus?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">Belum ada data Surat Edaran.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                @if ($items->hasPages())
+                    <div class="d-flex justify-content-end mt-2">
+                        {{ $items->links() }}
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+@endsection

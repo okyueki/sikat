@@ -16,6 +16,9 @@ use App\Http\Controllers\{
     StrukturOrganisasiController,
     SuratKeluarController,
     SuratMasukController,
+    SuratEdaranController,
+    MasterTandaTanganController,
+    MasterStempelController,
     SuratController,
     TemplateSuratController,
     InventarisJenisController,
@@ -262,6 +265,16 @@ Route::put('/surat_masuk/verifikasidisposisiProses/{id}', [SuratMasukController:
 Route::get('/surat_masuk/tindaklanjut/{encryptedKodeSurat}', [SuratMasukController::class, 'tindaklanjut'])->name('surat_masuk.tindaklanjut')->middleware('auth');
 Route::post('/surat_masuk/tindaklanjut/proses/{id_surat}', [SuratMasukController::class, 'tindaklanjutProses'])->name('surat_masuk.tindaklanjutProses')->middleware('auth');
 Route::get('/surat_masuk/show/{filename}', [SuratMasukController::class, 'show'])->name('surat_masuk.show');
+
+// Surat Edaran (menu baru – tidak mengubah surat_masuk/surat_keluar)
+Route::get('/surat_edaran/{surat_edaran}/pdf', [SuratEdaranController::class, 'streamPdf'])->name('surat_edaran.streamPdf')->middleware('auth');
+Route::get('/surat_edaran/{surat_edaran}/tanda-tangani', [SuratEdaranController::class, 'tandaTangani'])->name('surat_edaran.tandaTangani')->middleware('auth');
+Route::post('/surat_edaran/{surat_edaran}/save-signature', [SuratEdaranController::class, 'saveSignatureAndPlacements'])->name('surat_edaran.saveSignature')->middleware('auth');
+Route::get('/surat_edaran/{surat_edaran}/generate-signed-pdf', [SuratEdaranController::class, 'generateSignedPdf'])->name('surat_edaran.generateSignedPdf')->middleware('auth');
+Route::post('/master-tanda-tangan', [MasterTandaTanganController::class, 'store'])->name('master_tanda_tangan.store')->middleware('auth');
+Route::get('/master-stempel', [MasterStempelController::class, 'edit'])->name('master_stempel.edit')->middleware('auth');
+Route::put('/master-stempel', [MasterStempelController::class, 'update'])->name('master_stempel.update')->middleware('auth');
+Route::resource('surat_edaran', SuratEdaranController::class)->middleware('auth');
 
 Route::resource('tickets', TicketController::class);
 Route::put('/ticket/{id}/status', [ResponKerjaController::class, 'updateStatus'])->name('ticket.updateStatus');
