@@ -1,8 +1,4 @@
-@extends('layouts.pages-layouts')
 
-@section('pageTitle', 'Barcode Inventaris')
-
-@section('content')
 <style>
     /* Styling untuk memastikan ukuran 7x4 cm */
     .barcode-page {
@@ -111,4 +107,3 @@
         </div>
     </div>
 </div>
-@endsection
