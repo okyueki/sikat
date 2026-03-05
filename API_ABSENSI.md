@@ -140,6 +140,8 @@ GET /api/absensi/jadwal-hari-ini
 Authorization: Bearer {token}
 ```
 
+Mengembalikan shift dan jam masuk/pulang **efektif** hari ini. Untuk **shift malam** (mis. 21:00–07:00) yang dijadwalkan di **hari pulang** (besok) di `jadwal_pegawai`: jika saat ini sudah ≥ jam masuk shift (mis. sudah 21:00), backend menganggap shift itu "dimulai hari ini" dan mengembalikannya. Dengan demikian presensi datang jam 21:00 akan tampil jadwalnya dan bisa submit.
+
 **Response (200):**
 ```json
 {

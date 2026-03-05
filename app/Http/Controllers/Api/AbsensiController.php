@@ -397,9 +397,16 @@ class AbsensiController extends Controller
         return null;
     }
 
+    /**
+     * Ambil shift efektif "hari ini" untuk pegawai.
+     * Mendukung shift malam (21:00–07:00) yang dijadwalkan di hari PULANG (besok):
+     * jika hari ini tidak ada shift tapi besok ada shift dengan jam_masuk > jam_pulang
+     * dan sekarang sudah >= jam_masuk, dianggap shift itu "dimulai hari ini" dan dikembalikan.
+     */
     private function getShiftHariIni($pegawaiId)
     {
         $today = Carbon::today('Asia/Jakarta');
+        $now = Carbon::now('Asia/Jakarta');
         $currentMonth = $today->format('m');
         $currentYear = $today->format('Y');
         $currentDay = (int) $today->format('j');
@@ -415,11 +422,57 @@ class AbsensiController extends Controller
         }
 
         $shiftValue = $jadwalPegawai->$dayColumn ?? null;
-        if (empty($shiftValue) || trim($shiftValue) === '') {
+        if (!empty($shiftValue) && trim($shiftValue) !== '') {
+            return ['shift' => trim($shiftValue)];
+        }
+
+        // Shift malam: jadwal sering diisi di hari PULANG (besok). Cek shift besok yang melewati tengah malam.
+        $tomorrow = $today->copy()->addDay();
+        $tomorrowMonth = $tomorrow->format('m');
+        $tomorrowYear = $tomorrow->format('Y');
+        $tomorrowDay = (int) $tomorrow->format('j');
+        $tomorrowColumn = 'h' . $tomorrowDay;
+
+        $jadwalBesok = JadwalPegawai::where('id', $pegawaiId)
+            ->where('bulan', $tomorrowMonth)
+            ->where('tahun', $tomorrowYear)
+            ->first();
+
+        if (!$jadwalBesok) {
             return null;
         }
 
-        return ['shift' => $shiftValue];
+        $shiftBesok = $jadwalBesok->$tomorrowColumn ?? null;
+        if (empty($shiftBesok) || trim($shiftBesok) === '') {
+            return null;
+        }
+
+        $jamJagaBesok = $this->getJamJagaFromCache(trim($shiftBesok));
+        if (!$jamJagaBesok) {
+            $jamJagaBesok = $this->getJamMasukFromCache(trim($shiftBesok));
+        }
+        if (!$jamJagaBesok) {
+            return null;
+        }
+
+        $jamMasuk = $jamJagaBesok->jam_masuk ?? null;
+        $jamPulang = $jamJagaBesok->jam_pulang ?? null;
+        if (!$jamMasuk || !$jamPulang) {
+            return null;
+        }
+
+        $jamMasukCarbon = Carbon::parse($jamMasuk, 'Asia/Jakarta');
+        $jamPulangCarbon = Carbon::parse($jamPulang, 'Asia/Jakarta');
+        // Shift malam: jam_masuk > jam_pulang (mis. 21:00 > 07:00)
+        if ($jamMasukCarbon->gt($jamPulangCarbon)) {
+            $nowTime = $now->format('H:i');
+            $jamMasukTime = $jamMasukCarbon->format('H:i');
+            if ($nowTime >= $jamMasukTime) {
+                return ['shift' => trim($shiftBesok)];
+            }
+        }
+
+        return null;
     }
 
     /** Shift jadwal tambahan hari ini (untuk presensi kedua jika sudah lengkap di rekap). */
