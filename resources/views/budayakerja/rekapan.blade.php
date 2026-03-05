@@ -45,43 +45,41 @@
     </div>
 
     <!-- Statistik Overview -->
+    @php
+        $totalPenilaianBulan = $rekapanPegawai->sum('total_penilaian');
+        $totalNilaiBulan = $rekapanPegawai->sum('total_nilai');
+        $rataRataUmum = $totalPenilaianBulan > 0 ? round($totalNilaiBulan / $totalPenilaianBulan, 2) : 0;
+    @endphp
     <div class="row g-3 mb-4">
         <div class="col-md-3">
-            <div class="card bg-success-gradient text-white">
+            <div class="card bg-success text-white">
                 <div class="card-body">
                     <h6 class="text-white-50 mb-2">Total Penilaian</h6>
-                    <h3 class="mb-0">{{ $rankingTertinggi->sum('total_penilaian') + $rankingTerendah->sum('total_penilaian') }}</h3>
+                    <h3 class="mb-0">{{ $totalPenilaianBulan }}</h3>
                     <small class="text-white-50">Penilaian Bulan Ini</small>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-info-gradient text-white">
+            <div class="card bg-info text-white">
                 <div class="card-body">
                     <h6 class="text-white-50 mb-2">Rata-rata Nilai</h6>
-                    <h3 class="mb-0">
-                        @php
-                            $totalNilai = $rankingTertinggi->sum('total_nilai') + $rankingTerendah->sum('total_nilai');
-                            $totalPenilaian = $rankingTertinggi->sum('total_penilaian') + $rankingTerendah->sum('total_penilaian');
-                            $rataRata = $totalPenilaian > 0 ? round($totalNilai / $totalPenilaian, 2) : 0;
-                        @endphp
-                        {{ $rataRata }}/11
-                    </h3>
+                    <h3 class="mb-0">{{ $rataRataUmum }}/11</h3>
                     <small class="text-white-50">Dari Total 11 Item</small>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-warning-gradient text-white">
+            <div class="card bg-warning text-dark">
                 <div class="card-body">
-                    <h6 class="text-white-50 mb-2">Pegawai Terbaik</h6>
+                    <h6 class="opacity-75 mb-2">Pegawai Terbaik</h6>
                     <h3 class="mb-0">{{ $rankingTertinggi->first()['nama'] ?? '-' }}</h3>
-                    <small class="text-white-50">Nilai: {{ $rankingTertinggi->first()['rata_rata_nilai'] ?? 0 }}/11</small>
+                    <small class="opacity-75">Nilai: {{ $rankingTertinggi->first()['rata_rata_nilai'] ?? 0 }}/11</small>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-danger-gradient text-white">
+            <div class="card bg-danger text-white">
                 <div class="card-body">
                     <h6 class="text-white-50 mb-2">Perlu Perhatian</h6>
                     <h3 class="mb-0">{{ $rankingTerendah->first()['nama'] ?? '-' }}</h3>
@@ -408,6 +406,60 @@
         </div>
     </div>
     @endif
+
+    <!-- Tabel Rekapan Semua Pegawai -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users me-2"></i>Rekapan Semua Pegawai ({{ $rekapanPegawai->count() }} pegawai)
+                    </h5>
+                    <small class="text-white-50">Bulan {{ \Carbon\Carbon::create($tahun, $bulan, 1)->translatedFormat('F Y') }}</small>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover table-sm">
+                            <thead>
+                                <tr>
+                                    <th width="40">No</th>
+                                    <th>NIK</th>
+                                    <th>Nama</th>
+                                    <th>Departemen</th>
+                                    <th class="text-center">Jumlah Penilaian</th>
+                                    <th class="text-center">Total Nilai</th>
+                                    <th class="text-center">Rata-rata</th>
+                                    <th class="text-center">Tertinggi</th>
+                                    <th class="text-center">Terendah</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($rekapanPegawai as $index => $row)
+                                <tr class="{{ $row['total_penilaian'] == 0 ? 'table-warning' : '' }}">
+                                    <td>{{ $index + 1 }}</td>
+                                    <td>{{ $row['nik'] }}</td>
+                                    <td><strong>{{ $row['nama'] }}</strong></td>
+                                    <td><small>{{ $row['departemen'] ?? '-' }}</small></td>
+                                    <td class="text-center">
+                                        <span class="badge bg-{{ $row['total_penilaian'] > 0 ? 'info' : 'secondary' }}">{{ $row['total_penilaian'] }}</span>
+                                    </td>
+                                    <td class="text-center">{{ $row['total_nilai'] }}</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-{{ $row['rata_rata_nilai'] >= 10 ? 'success' : ($row['rata_rata_nilai'] >= 8 ? 'warning' : 'danger') }}">
+                                            {{ $row['rata_rata_nilai'] }}/11
+                                        </span>
+                                    </td>
+                                    <td class="text-center">{{ $row['nilai_tertinggi'] }}</td>
+                                    <td class="text-center">{{ $row['nilai_terendah'] }}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Detail Item Tidak Sesuai per Pegawai (Top 10 Terendah) -->
     <div class="row g-3">

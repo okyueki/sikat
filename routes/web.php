@@ -368,6 +368,15 @@ Route::get('/databudayakerja', [BudayaKerjaController::class, 'getData'])->name(
 Route::get('/budayakerja/rekapan', [BudayaKerjaController::class, 'rekapan'])
     ->name('budayakerja.rekapan')
     ->middleware(['auth', 'checkAccess:rekap.view']);
+Route::get('/budayakerja/rekap-pegawai', [BudayaKerjaController::class, 'rekapSemuaPegawai'])
+    ->name('budayakerja.rekap_pegawai')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
+Route::get('/budayakerja/rekap-pegawai/export', [BudayaKerjaController::class, 'exportRekapPegawai'])
+    ->name('budayakerja.rekap_pegawai_export')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
+Route::get('/budayakerja/rekap-pegawai/detail/{nik}', [BudayaKerjaController::class, 'rekapPegawaiDetail'])
+    ->name('budayakerja.rekap_pegawai_detail')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
 Route::resource('budayakerja', BudayaKerjaController::class);
 
 Route::get('/absensi_agenda', [AbsensiAgendaController::class, 'index'])->name('absensi_agenda.index');

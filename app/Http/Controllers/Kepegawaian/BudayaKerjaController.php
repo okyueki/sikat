@@ -3,16 +3,43 @@
 namespace App\Http\Controllers\Kepegawaian;
 
 use App\Http\Controllers\Controller;
+use App\Models\Agenda;
+use App\Models\AbsensiAgenda;
 use App\Models\BudayaKerja;
 use App\Models\Pegawai;
+use App\Models\RekapPresensi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Yajra\DataTables\DataTables;
 
 class BudayaKerjaController extends Controller
 {
+    /** Maksimal pelanggaran (poin hilang) dalam periode agar masih status Warning; lebih dari ini = Tidak tertib. */
+    private const MAX_PELANGGARAN_WARNING = 3;
+
+    /**
+     * Hitung total pelanggaran dan status: Tertib (0), Warning (1-3), Tidak tertib (>3), Belum dinilai.
+     * Rumus: total_pelanggaran = (jumlah_penilaian * 11) - total_nilai (setiap item tidak sesuai = 1 poin hilang).
+     */
+    private static function hitungStatusTertib(int $totalPenilaian, float $totalNilai): array
+    {
+        if ($totalPenilaian <= 0) {
+            return ['total_pelanggaran' => 0, 'status_tertib' => 'Belum dinilai'];
+        }
+        $totalPelanggaran = (int) (($totalPenilaian * 11) - $totalNilai);
+        if ($totalPelanggaran <= 0) {
+            $status = 'Tertib';
+        } elseif ($totalPelanggaran <= self::MAX_PELANGGARAN_WARNING) {
+            $status = 'Warning';
+        } else {
+            $status = 'Tidak tertib';
+        }
+        return ['total_pelanggaran' => $totalPelanggaran, 'status_tertib' => $status];
+    }
+
     public function create()
     {
         $user = Auth::user();
@@ -354,11 +381,530 @@ class BudayaKerjaController extends Controller
         }
         
         $trendData = array_reverse($trendData); // Urutkan dari bulan tertua ke terbaru
+
+        // Rekapan semua pegawai (untuk tabel lengkap di halaman ini), urut rata-rata descending
+        $rekapanPegawai = collect($rekapanPegawai)
+            ->sortByDesc('rata_rata_nilai')
+            ->values();
         
         return view('budayakerja.rekapan', compact(
             'bulan', 'tahun', 'rankingTertinggi', 'rankingTerendah', 
             'statistikItem', 'statistikDepartemen', 'trendData', 'itemLabels',
-            'pegawaiBelumDinilai'
+            'pegawaiBelumDinilai', 'rekapanPegawai'
+        ));
+    }
+
+    /**
+     * Rekap semua pegawai dengan filter rentang tanggal (bukan per bulan).
+     * Menunjukkan:
+     * - berapa pegawai sudah dinilai / belum dinilai
+     * - berapa pegawai tertib / tidak tertib (berdasarkan rata-rata nilai)
+     */
+    public function rekapSemuaPegawai(Request $request)
+    {
+        // Rentang tanggal (default: bulan ini)
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $departemen = $request->input('departemen');
+
+        if (! $startDate || ! $endDate) {
+            $start = Carbon::now()->startOfMonth();
+            $end = Carbon::now()->endOfMonth();
+            $startDate = $start->toDateString();
+            $endDate = $end->toDateString();
+        } else {
+            $start = Carbon::parse($startDate)->startOfDay();
+            $end = Carbon::parse($endDate)->endOfDay();
+            $startDate = $start->toDateString();
+            $endDate = $end->toDateString();
+        }
+
+        // Ambil semua pegawai aktif (kecuali MIT/MITRA), optional filter departemen
+        $queryPegawai = Pegawai::where('stts_aktif', 'AKTIF')
+            ->where(function ($query) {
+                $query->where('stts_kerja', '!=', 'MIT')
+                    ->where('stts_kerja', '!=', 'MITRA');
+            })
+            ->when($departemen, function ($q) use ($departemen) {
+                $q->where('departemen', $departemen);
+            });
+        $semuaPegawaiAktif = (clone $queryPegawai)
+            ->select('id', 'nik', 'nama', 'departemen', 'jbtn as jabatan', 'stts_kerja')
+            ->get()
+            ->keyBy('nik');
+
+        // Inisialisasi rekapan per pegawai
+        $rekapanPegawai = [];
+        foreach ($semuaPegawaiAktif as $pegawai) {
+            $rekapanPegawai[$pegawai->nik] = [
+                'pegawai_id' => $pegawai->id,
+                'nik' => $pegawai->nik,
+                'nama' => $pegawai->nama,
+                'departemen' => $pegawai->departemen,
+                'jabatan' => $pegawai->jabatan,
+                'total_penilaian' => 0,
+                'total_nilai' => 0,
+                'rata_rata_nilai' => 0,
+                'nilai_tertinggi' => 0,
+                'nilai_terendah' => 11,
+                'status_tertib' => 'Belum dinilai',
+                'jumlah_hadir' => 0,
+                'jumlah_tepat_waktu' => 0,
+                'jumlah_terlambat' => 0,
+                'jumlah_diundang_agenda' => 0,
+                'jumlah_hadir_agenda' => 0,
+                'jumlah_ijin_agenda' => 0,
+                'jumlah_cuti_agenda' => 0,
+                'jumlah_tidak_hadir_agenda' => 0,
+            ];
+        }
+
+        // Ambil data penilaian dalam rentang tanggal
+        $dataBudayaKerja = BudayaKerja::whereBetween('tanggal', [$startDate, $endDate])->get();
+
+        foreach ($dataBudayaKerja as $data) {
+            $nik = $data->nik_pegawai;
+            if (! isset($rekapanPegawai[$nik])) {
+                continue;
+            }
+
+            $rekapanPegawai[$nik]['total_penilaian']++;
+            $rekapanPegawai[$nik]['total_nilai'] += $data->total_nilai;
+
+            if ($data->total_nilai > $rekapanPegawai[$nik]['nilai_tertinggi']) {
+                $rekapanPegawai[$nik]['nilai_tertinggi'] = $data->total_nilai;
+            }
+            if ($data->total_nilai < $rekapanPegawai[$nik]['nilai_terendah']) {
+                $rekapanPegawai[$nik]['nilai_terendah'] = $data->total_nilai;
+            }
+        }
+
+        // Data kehadiran (presensi) dalam rentang tanggal
+        $pegawaiIds = collect($rekapanPegawai)->pluck('pegawai_id')->unique()->filter()->values()->toArray();
+        $presensiData = [];
+        if (! empty($pegawaiIds)) {
+            $presensiData = RekapPresensi::whereIn('id', $pegawaiIds)
+                ->whereDate('jam_datang', '>=', $startDate)
+                ->whereDate('jam_datang', '<=', $endDate)
+                ->get()
+                ->groupBy('id');
+        }
+        $statusTepatWaktu = ['Tepat Waktu', 'Tepat Waktu & PSW'];
+        foreach ($rekapanPegawai as $nik => &$row) {
+            $rows = $presensiData->get($row['pegawai_id'] ?? 0, collect());
+            $row['jumlah_hadir'] = $rows->count();
+            $row['jumlah_tepat_waktu'] = $rows->whereIn('status', $statusTepatWaktu)->count();
+            $row['jumlah_terlambat'] = $row['jumlah_hadir'] - $row['jumlah_tepat_waktu'];
+        }
+        unset($row);
+
+        // Statistik undangan agenda (event) dalam rentang tanggal: diundang, hadir, ijin, cuti, tidak hadir
+        $listNik = array_keys($rekapanPegawai);
+        $agendaIdsInRange = Agenda::whereDate('mulai', '>=', $startDate)
+            ->whereDate('mulai', '<=', $endDate)
+            ->pluck('id')
+            ->toArray();
+
+        $diundangPerNik = array_fill_keys($listNik, 0);
+        $hadirAgendaPerNik = array_fill_keys($listNik, 0);
+        $ijinAgendaPerNik = array_fill_keys($listNik, 0);
+        $cutiAgendaPerNik = array_fill_keys($listNik, 0);
+        $tidakHadirAgendaPerNik = array_fill_keys($listNik, 0);
+
+        if (! empty($agendaIdsInRange)) {
+            $agendas = Agenda::whereIn('id', $agendaIdsInRange)->get(['id', 'yang_terundang']);
+            foreach ($agendas as $agenda) {
+                $terundang = $agenda->yang_terundang;
+                if (is_string($terundang)) {
+                    $terundang = json_decode($terundang, true) ?? [];
+                }
+                $isAll = is_array($terundang) && in_array('all', $terundang);
+                foreach ($listNik as $nik) {
+                    if ($isAll || (is_array($terundang) && in_array($nik, $terundang))) {
+                        $diundangPerNik[$nik] = ($diundangPerNik[$nik] ?? 0) + 1;
+                    }
+                }
+            }
+
+            $absensiAgendaRows = AbsensiAgenda::whereIn('agenda_id', $agendaIdsInRange)
+                ->whereIn('nik', $listNik)
+                ->get(['nik', 'status_kehadiran']);
+
+            foreach ($absensiAgendaRows as $row) {
+                $nik = $row->nik;
+                if (! isset($hadirAgendaPerNik[$nik])) {
+                    continue;
+                }
+                switch ($row->status_kehadiran) {
+                    case 'hadir':
+                        $hadirAgendaPerNik[$nik]++;
+                        break;
+                    case 'ijin':
+                        $ijinAgendaPerNik[$nik]++;
+                        break;
+                    case 'cuti':
+                        $cutiAgendaPerNik[$nik]++;
+                        break;
+                    case 'tidak_hadir':
+                        $tidakHadirAgendaPerNik[$nik]++;
+                        break;
+                }
+            }
+        }
+
+        foreach ($rekapanPegawai as $nik => &$row) {
+            $row['jumlah_diundang_agenda'] = $diundangPerNik[$nik] ?? 0;
+            $row['jumlah_hadir_agenda'] = $hadirAgendaPerNik[$nik] ?? 0;
+            $row['jumlah_ijin_agenda'] = $ijinAgendaPerNik[$nik] ?? 0;
+            $row['jumlah_cuti_agenda'] = $cutiAgendaPerNik[$nik] ?? 0;
+            $row['jumlah_tidak_hadir_agenda'] = $tidakHadirAgendaPerNik[$nik] ?? 0;
+        }
+        unset($row);
+
+        // Hitung rata-rata, total pelanggaran, dan status: Tertib / Warning / Tidak tertib
+        foreach ($rekapanPegawai as $nik => &$row) {
+            if ($row['total_penilaian'] > 0) {
+                $row['rata_rata_nilai'] = round($row['total_nilai'] / $row['total_penilaian'], 2);
+                $hitung = self::hitungStatusTertib($row['total_penilaian'], $row['total_nilai']);
+                $row['total_pelanggaran'] = $hitung['total_pelanggaran'];
+                $row['status_tertib'] = $hitung['status_tertib'];
+            } else {
+                $row['rata_rata_nilai'] = 0;
+                $row['total_pelanggaran'] = 0;
+                $row['status_tertib'] = 'Belum dinilai';
+                $row['nilai_tertinggi'] = 0;
+                $row['nilai_terendah'] = 0;
+            }
+        }
+        unset($row);
+
+        // Daftar departemen untuk dropdown = unique dari data yang tampil di tabel (agar pasti sama)
+        $departemenList = collect($rekapanPegawai)->pluck('departemen')->unique()->filter()->sort()->values();
+
+        $rekapanPegawai = collect($rekapanPegawai)->sortBy('nama')->values();
+
+        // Statistik ringkas
+        $jumlahPegawaiTotal = $rekapanPegawai->count();
+        $jumlahPegawaiDinilai = $rekapanPegawai->where('total_penilaian', '>', 0)->count();
+        $jumlahPegawaiBelumDinilai = $rekapanPegawai->where('total_penilaian', 0)->count();
+        $jumlahPegawaiTertib = $rekapanPegawai->where('status_tertib', 'Tertib')->count();
+        $jumlahPegawaiWarning = $rekapanPegawai->where('status_tertib', 'Warning')->count();
+        $jumlahPegawaiTidakTertib = $rekapanPegawai->where('status_tertib', 'Tidak tertib')->count();
+
+        return view('budayakerja.rekap_semua_pegawai', compact(
+            'startDate',
+            'endDate',
+            'rekapanPegawai',
+            'jumlahPegawaiTotal',
+            'jumlahPegawaiDinilai',
+            'jumlahPegawaiBelumDinilai',
+            'jumlahPegawaiTertib',
+            'jumlahPegawaiWarning',
+            'jumlahPegawaiTidakTertib'
+        ));
+    }
+
+    /**
+     * Export rekap semua pegawai ke Excel (CSV) untuk periode yang dipilih.
+     */
+    public function exportRekapPegawai(Request $request): StreamedResponse
+    {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+
+        if (! $startDate || ! $endDate) {
+            $start = Carbon::now()->startOfMonth();
+            $end = Carbon::now()->endOfMonth();
+            $startDate = $start->toDateString();
+            $endDate = $end->toDateString();
+        } else {
+            $startDate = Carbon::parse($startDate)->toDateString();
+            $endDate = Carbon::parse($endDate)->toDateString();
+        }
+        $departemen = $request->input('departemen');
+
+        $queryPegawai = Pegawai::where('stts_aktif', 'AKTIF')
+            ->where(function ($query) {
+                $query->where('stts_kerja', '!=', 'MIT')
+                    ->where('stts_kerja', '!=', 'MITRA');
+            })
+            ->when($departemen, function ($q) use ($departemen) {
+                $q->where('departemen', $departemen);
+            });
+        $semuaPegawaiAktif = (clone $queryPegawai)
+            ->select('id', 'nik', 'nama', 'departemen', 'jbtn as jabatan', 'stts_kerja')
+            ->get()
+            ->keyBy('nik');
+
+        $rekapanPegawai = [];
+        foreach ($semuaPegawaiAktif as $pegawai) {
+            $rekapanPegawai[$pegawai->nik] = [
+                'pegawai_id' => $pegawai->id,
+                'nik' => $pegawai->nik,
+                'nama' => $pegawai->nama,
+                'departemen' => $pegawai->departemen,
+                'jabatan' => $pegawai->jabatan,
+                'total_penilaian' => 0,
+                'total_nilai' => 0,
+                'rata_rata_nilai' => 0,
+                'nilai_tertinggi' => 0,
+                'nilai_terendah' => 11,
+                'status_tertib' => 'Belum dinilai',
+                'jumlah_hadir' => 0,
+                'jumlah_tepat_waktu' => 0,
+                'jumlah_terlambat' => 0,
+                'jumlah_diundang_agenda' => 0,
+                'jumlah_hadir_agenda' => 0,
+                'jumlah_ijin_agenda' => 0,
+                'jumlah_cuti_agenda' => 0,
+                'jumlah_tidak_hadir_agenda' => 0,
+            ];
+        }
+
+        $dataBudayaKerja = BudayaKerja::whereBetween('tanggal', [$startDate, $endDate])->get();
+        foreach ($dataBudayaKerja as $data) {
+            $nik = $data->nik_pegawai;
+            if (! isset($rekapanPegawai[$nik])) {
+                continue;
+            }
+            $rekapanPegawai[$nik]['total_penilaian']++;
+            $rekapanPegawai[$nik]['total_nilai'] += $data->total_nilai;
+            if ($data->total_nilai > $rekapanPegawai[$nik]['nilai_tertinggi']) {
+                $rekapanPegawai[$nik]['nilai_tertinggi'] = $data->total_nilai;
+            }
+            if ($data->total_nilai < $rekapanPegawai[$nik]['nilai_terendah']) {
+                $rekapanPegawai[$nik]['nilai_terendah'] = $data->total_nilai;
+            }
+        }
+
+        $pegawaiIds = collect($rekapanPegawai)->pluck('pegawai_id')->unique()->filter()->values()->toArray();
+        $presensiData = [];
+        if (! empty($pegawaiIds)) {
+            $presensiData = RekapPresensi::whereIn('id', $pegawaiIds)
+                ->whereDate('jam_datang', '>=', $startDate)
+                ->whereDate('jam_datang', '<=', $endDate)
+                ->get()
+                ->groupBy('id');
+        }
+        $statusTepatWaktu = ['Tepat Waktu', 'Tepat Waktu & PSW'];
+        foreach ($rekapanPegawai as $nik => &$row) {
+            $rows = $presensiData->get($row['pegawai_id'] ?? 0, collect());
+            $row['jumlah_hadir'] = $rows->count();
+            $row['jumlah_tepat_waktu'] = $rows->whereIn('status', $statusTepatWaktu)->count();
+            $row['jumlah_terlambat'] = $row['jumlah_hadir'] - $row['jumlah_tepat_waktu'];
+        }
+        unset($row);
+
+        $listNikExport = array_keys($rekapanPegawai);
+        $agendaIdsInRangeExport = Agenda::whereDate('mulai', '>=', $startDate)
+            ->whereDate('mulai', '<=', $endDate)
+            ->pluck('id')
+            ->toArray();
+        $diundangPerNikE = array_fill_keys($listNikExport, 0);
+        $hadirAgendaPerNikE = array_fill_keys($listNikExport, 0);
+        $ijinAgendaPerNikE = array_fill_keys($listNikExport, 0);
+        $cutiAgendaPerNikE = array_fill_keys($listNikExport, 0);
+        $tidakHadirAgendaPerNikE = array_fill_keys($listNikExport, 0);
+        if (! empty($agendaIdsInRangeExport)) {
+            $agendasExport = Agenda::whereIn('id', $agendaIdsInRangeExport)->get(['id', 'yang_terundang']);
+            foreach ($agendasExport as $agenda) {
+                $terundang = $agenda->yang_terundang;
+                if (is_string($terundang)) {
+                    $terundang = json_decode($terundang, true) ?? [];
+                }
+                $isAll = is_array($terundang) && in_array('all', $terundang);
+                foreach ($listNikExport as $nik) {
+                    if ($isAll || (is_array($terundang) && in_array($nik, $terundang))) {
+                        $diundangPerNikE[$nik] = ($diundangPerNikE[$nik] ?? 0) + 1;
+                    }
+                }
+            }
+            $absensiAgendaRowsExport = AbsensiAgenda::whereIn('agenda_id', $agendaIdsInRangeExport)
+                ->whereIn('nik', $listNikExport)
+                ->get(['nik', 'status_kehadiran']);
+            foreach ($absensiAgendaRowsExport as $r) {
+                $nik = $r->nik;
+                if (! isset($hadirAgendaPerNikE[$nik])) {
+                    continue;
+                }
+                switch ($r->status_kehadiran) {
+                    case 'hadir': $hadirAgendaPerNikE[$nik]++; break;
+                    case 'ijin': $ijinAgendaPerNikE[$nik]++; break;
+                    case 'cuti': $cutiAgendaPerNikE[$nik]++; break;
+                    case 'tidak_hadir': $tidakHadirAgendaPerNikE[$nik]++; break;
+                }
+            }
+        }
+        foreach ($rekapanPegawai as $nik => &$row) {
+            $row['jumlah_diundang_agenda'] = $diundangPerNikE[$nik] ?? 0;
+            $row['jumlah_hadir_agenda'] = $hadirAgendaPerNikE[$nik] ?? 0;
+            $row['jumlah_ijin_agenda'] = $ijinAgendaPerNikE[$nik] ?? 0;
+            $row['jumlah_cuti_agenda'] = $cutiAgendaPerNikE[$nik] ?? 0;
+            $row['jumlah_tidak_hadir_agenda'] = $tidakHadirAgendaPerNikE[$nik] ?? 0;
+        }
+        unset($row);
+
+        foreach ($rekapanPegawai as $nik => &$row) {
+            if ($row['total_penilaian'] > 0) {
+                $row['rata_rata_nilai'] = round($row['total_nilai'] / $row['total_penilaian'], 2);
+                $hitung = self::hitungStatusTertib($row['total_penilaian'], $row['total_nilai']);
+                $row['total_pelanggaran'] = $hitung['total_pelanggaran'];
+                $row['status_tertib'] = $hitung['status_tertib'];
+            } else {
+                $row['rata_rata_nilai'] = 0;
+                $row['total_pelanggaran'] = 0;
+                $row['status_tertib'] = 'Belum dinilai';
+                $row['nilai_tertinggi'] = 0;
+                $row['nilai_terendah'] = 0;
+            }
+        }
+        unset($row);
+
+        $rekapanPegawai = collect($rekapanPegawai)->sortBy('nama')->values();
+
+        $filename = 'rekap_budaya_kerja_' . $startDate . '_' . $endDate . '.csv';
+
+        return new StreamedResponse(function () use ($rekapanPegawai) {
+            $handle = fopen('php://output', 'w');
+            // BOM UTF-8 agar Excel membuka dengan benar
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+            fputcsv($handle, [
+                'No',
+                'NIK',
+                'Nama',
+                'Departemen',
+                'Jabatan',
+                'Jumlah Penilaian',
+                'Total Nilai',
+                'Total Pelanggaran',
+                'Rata-rata',
+                'Nilai Tertinggi',
+                'Nilai Terendah',
+                'Status',
+                'Hadir',
+                'Tepat Waktu',
+                'Terlambat',
+                'Diundang Agenda',
+                'Hadir Agenda',
+                'Ijin Agenda',
+                'Cuti Agenda',
+                'Tidak Hadir Agenda',
+            ], ';');
+
+            foreach ($rekapanPegawai as $index => $row) {
+                fputcsv($handle, [
+                    $index + 1,
+                    $row['nik'],
+                    $row['nama'],
+                    $row['departemen'] ?? '',
+                    $row['jabatan'] ?? '',
+                    $row['total_penilaian'],
+                    $row['total_nilai'],
+                    $row['total_pelanggaran'] ?? 0,
+                    $row['rata_rata_nilai'],
+                    $row['nilai_tertinggi'],
+                    $row['nilai_terendah'],
+                    $row['status_tertib'],
+                    $row['jumlah_hadir'] ?? 0,
+                    $row['jumlah_tepat_waktu'] ?? 0,
+                    $row['jumlah_terlambat'] ?? 0,
+                    $row['jumlah_diundang_agenda'] ?? 0,
+                    $row['jumlah_hadir_agenda'] ?? 0,
+                    $row['jumlah_ijin_agenda'] ?? 0,
+                    $row['jumlah_cuti_agenda'] ?? 0,
+                    $row['jumlah_tidak_hadir_agenda'] ?? 0,
+                ], ';');
+            }
+            fclose($handle);
+        }, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
+     * Breakdown penilaian per pegawai dalam rentang tanggal (dipanggil saat klik nama di rekap semua pegawai).
+     */
+    public function rekapPegawaiDetail(Request $request, string $nik)
+    {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $departemen = $request->input('departemen');
+
+        if (! $startDate || ! $endDate) {
+            $start = Carbon::now()->startOfMonth();
+            $end = Carbon::now()->endOfMonth();
+            $startDate = $start->toDateString();
+            $endDate = $end->toDateString();
+        }
+
+        $pegawai = Pegawai::where('nik', $nik)->first();
+        if (! $pegawai) {
+            abort(404, 'Pegawai tidak ditemukan.');
+        }
+
+        $listPenilaian = BudayaKerja::with('atasan')
+            ->where('nik_pegawai', $nik)
+            ->whereBetween('tanggal', [$startDate, $endDate])
+            ->orderBy('tanggal')
+            ->orderBy('jam')
+            ->get();
+
+        $items = ['sepatu', 'sabuk', 'make_up', 'minyak_wangi', 'jilbab', 'kuku', 'baju', 'celana', 'name_tag', 'perhiasan', 'kaos_kaki'];
+        $itemLabels = [
+            'sepatu' => 'Sepatu',
+            'sabuk' => 'Sabuk',
+            'make_up' => 'Make Up',
+            'minyak_wangi' => 'Minyak Wangi',
+            'jilbab' => 'Jilbab',
+            'kuku' => 'Kuku',
+            'baju' => 'Baju',
+            'celana' => 'Celana',
+            'name_tag' => 'Name Tag',
+            'perhiasan' => 'Perhiasan',
+            'kaos_kaki' => 'Kaos Kaki',
+        ];
+
+        $totalPenilaian = $listPenilaian->count();
+        $totalNilai = $listPenilaian->sum('total_nilai');
+        $rataRata = $totalPenilaian > 0 ? round($totalNilai / $totalPenilaian, 2) : 0;
+        $nilaiTertinggi = $totalPenilaian > 0 ? $listPenilaian->max('total_nilai') : 0;
+        $nilaiTerendah = $totalPenilaian > 0 ? $listPenilaian->min('total_nilai') : 0;
+        $hitung = self::hitungStatusTertib($totalPenilaian, $totalNilai);
+        $totalPelanggaran = $hitung['total_pelanggaran'];
+        $statusTertib = $hitung['status_tertib'];
+
+        // Data kehadiran (presensi) pegawai dalam periode yang sama
+        $listPresensi = RekapPresensi::where('id', $pegawai->id)
+            ->whereDate('jam_datang', '>=', $startDate)
+            ->whereDate('jam_datang', '<=', $endDate)
+            ->orderBy('jam_datang')
+            ->get();
+        $statusTepatWaktu = ['Tepat Waktu', 'Tepat Waktu & PSW'];
+        $jumlahHadir = $listPresensi->count();
+        $jumlahTepatWaktu = $listPresensi->whereIn('status', $statusTepatWaktu)->count();
+        $jumlahTerlambat = $jumlahHadir - $jumlahTepatWaktu;
+
+        return view('budayakerja.rekap_pegawai_detail', compact(
+            'pegawai',
+            'listPenilaian',
+            'listPresensi',
+            'jumlahHadir',
+            'jumlahTepatWaktu',
+            'jumlahTerlambat',
+            'itemLabels',
+            'items',
+            'startDate',
+            'endDate',
+            'departemen',
+            'totalPenilaian',
+            'totalNilai',
+            'totalPelanggaran',
+            'rataRata',
+            'nilaiTertinggi',
+            'nilaiTerendah',
+            'statusTertib'
         ));
     }
 }

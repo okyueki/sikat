@@ -37,7 +37,7 @@
                             </div>
                             <div class="mb-3">
                                 <label for="nik_penandatangan" class="form-label">Yang menyetujui (penandatangan)</label>
-                                <select name="nik_penandatangan" id="nik_penandatangan" class="form-select">
+                                <select name="nik_penandatangan" id="nik_penandatangan" class="form-select select2-penandatangan" style="width: 100%;">
                                     <option value="">-- Pilih pegawai --</option>
                                     @foreach ($pegawai as $p)
                                         <option value="{{ $p->nik }}" {{ old('nik_penandatangan') == $p->nik ? 'selected' : '' }}>{{ $p->nama }} ({{ $p->nik }})</option>
@@ -66,3 +66,15 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+$(function() {
+    $('#nik_penandatangan').select2({
+        placeholder: '-- Pilih pegawai --',
+        allowClear: true,
+        width: '100%'
+    });
+});
+</script>
+@endpush
