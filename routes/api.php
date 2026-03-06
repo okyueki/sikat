@@ -154,3 +154,10 @@ Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('profil')->grou
     Route::put('/berkas/masa-berlaku', [App\Http\Controllers\Api\ProfilController::class, 'updateMasaBerlaku']);
     Route::put('/berkas', [App\Http\Controllers\Api\ProfilController::class, 'updateBerkas']);
 });
+
+// API FCM: daftar/hapus device token + test (untuk uji di dev)
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('notifications')->group(function () {
+    Route::post('/register-device', [App\Http\Controllers\Api\FcmDeviceController::class, 'registerDevice']);
+    Route::delete('/register-device', [App\Http\Controllers\Api\FcmDeviceController::class, 'unregisterDevice']);
+    Route::post('/test', [App\Http\Controllers\Api\FcmDeviceController::class, 'sendTest']);
+});

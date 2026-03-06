@@ -100,12 +100,49 @@ class AbsensiController extends Controller
             $status = $presensiHariIni->jam_pulang ? 'selesai' : 'datang';
         }
 
+        // Record tertinggal: ada presensi datang di hari sebelumnya tanpa pulang (user wajib tau)
+        $recordTertinggal = null;
+        $tertinggal = TemporaryPresensi::where('id', $pegawai->id)
+            ->whereNull('jam_pulang')
+            ->where('jam_datang', '<', $today->copy()->startOfDay())
+            ->orderBy('jam_datang', 'desc')
+            ->first();
+        if ($tertinggal) {
+            $recordTertinggal = [
+                'ada' => true,
+                'jam_datang' => $tertinggal->jam_datang ? Carbon::parse($tertinggal->jam_datang)->toIso8601String() : null,
+                'tanggal' => $tertinggal->jam_datang ? Carbon::parse($tertinggal->jam_datang)->format('Y-m-d') : null,
+                'shift' => $tertinggal->shift ?? null,
+            ];
+        }
+
+        // Presensi belum pulang: satu baris di temporary_presensi (jam_pulang null), tanpa filter tanggal.
+        // Front end pakai ini untuk tampilkan "Jam datang: 06:58:55" — kalau ada di temporary, tampilkan.
+        $presensiBelumPulang = null;
+        $openTemporary = TemporaryPresensi::where('id', $pegawai->id)
+            ->whereNull('jam_pulang')
+            ->orderBy('jam_datang', 'desc')
+            ->first();
+        if ($openTemporary && $openTemporary->jam_datang) {
+            $dt = Carbon::parse($openTemporary->jam_datang, 'Asia/Jakarta');
+            $presensiBelumPulang = [
+                'jam_datang' => $dt->toIso8601String(),
+                'jam_datang_time' => $dt->format('H:i:s'),
+                'tanggal' => $dt->format('Y-m-d'),
+                'shift' => $openTemporary->shift ?? null,
+                'status' => $openTemporary->status ?? null,
+                'keterlambatan' => $openTemporary->keterlambatan ?? null,
+            ];
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
                 'status' => $status,
                 'jam_datang' => $jam_datang,
                 'jam_pulang' => $jam_pulang,
+                'record_tertinggal' => $recordTertinggal,
+                'presensi_belum_pulang' => $presensiBelumPulang,
             ],
         ]);
     }
