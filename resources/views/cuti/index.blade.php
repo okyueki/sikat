@@ -50,13 +50,17 @@
             $('#cuti-table').DataTable({
                 processing: true,
                 serverSide: true,
-                ajax: '/cuti',
+                ajax: {
+                    url: '{{ route("cuti.index") }}',
+                    error: function(xhr, error, thrown) {
+                        console.error('DataTables Ajax Error:', xhr.responseText);
+                        alert('Error loading data: ' + xhr.status + ' - ' + thrown);
+                    }
+                },
                 columns: [
-                    { data: null, searchable: false, orderable: false, render: function (data, type, row, meta) {
-                        return meta.row + 1;
-                    }},
+                    { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false, orderable: false },
                     { data: 'jenis_pengajuan_libur', name: 'jenis_pengajuan_libur' },
-                    { data: 'nama_pegawai', name: 'nama_pegawai' },
+                    { data: 'nama_pegawai', name: 'nama_pegawai', searchable: false, orderable: false },
                     { data: 'tanggal_awal', name: 'tanggal_awal' },
                     { data: 'tanggal_akhir', name: 'tanggal_akhir' },
                     { data: 'jumlah_hari', name: 'jumlah_hari' },

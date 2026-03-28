@@ -25,6 +25,7 @@
                                 <th>Judul Surat</th>
                                 <th>Nomor</th>
                                 <th>Tanggal</th>
+                                <th>Status</th>
                                 <th>Yang menyetujui</th>
                                 <th width="220">Aksi</th>
                             </tr>
@@ -36,21 +37,43 @@
                                     <td>{{ $item->judul_surat }}</td>
                                     <td>{{ $item->nomor_surat ?? '-' }}</td>
                                     <td>{{ $item->tanggal ? $item->tanggal->format('d-m-Y') : '-' }}</td>
+                                    <td>
+                                        @if($item->tanggal_ditandatangani)
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge bg-success me-2"><i class="fe fe-check-circle"></i> Sah</span>
+                                                <small class="text-muted">{{ $item->tanggal_ditandatangani->format('d-m-Y H:i') }}</small>
+                                            </div>
+                                        @else
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge bg-warning text-dark me-2"><i class="fe fe-clock"></i> Draft</span>
+                                                <small class="text-muted">Belum ditandatangani</small>
+                                            </div>
+                                        @endif
+                                    </td>
                                     <td>{{ $item->penandatangan ? $item->penandatangan->nama : '-' }}</td>
                                     <td>
                                         <a href="{{ route('surat_edaran.show', $item) }}" class="btn btn-primary btn-sm">Detail</a>
-                                        <a href="{{ route('surat_edaran.tandaTangani', $item) }}" class="btn btn-info btn-sm">Tanda tangani</a>
-                                        <a href="{{ route('surat_edaran.edit', $item) }}" class="btn btn-warning btn-sm">Edit</a>
-                                        <form action="{{ route('surat_edaran.destroy', $item) }}" method="POST" class="d-inline" onsubmit="return confirm('Yakin hapus?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
-                                        </form>
+                                        @if($item->tanggal_ditandatangani)
+                                            <a href="{{ route('surat_edaran.show', $item) }}" class="btn btn-info btn-sm">Lihat TTD</a>
+                                            <form action="{{ route('surat_edaran.destroy', $item) }}" method="POST" class="d-inline" onsubmit="return confirm('Yakin hapus dokumen ini?{{ $item->tanggal_ditandatangani ? " Dokumen yang sudah ditandatangani akan dihapus permanen." : "" }}');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+                                            </form>
+                                        @else
+                                            <a href="{{ route('surat_edaran.tandaTangani', $item) }}" class="btn btn-info btn-sm">Tanda tangani</a>
+                                            <a href="{{ route('surat_edaran.edit', $item) }}" class="btn btn-warning btn-sm">Edit</a>
+                                            <form action="{{ route('surat_edaran.destroy', $item) }}" method="POST" class="d-inline" onsubmit="return confirm('Yakin hapus draft dokumen ini?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-danger btn-sm">Hapus Draft</button>
+                                            </form>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted">Belum ada data Surat Edaran.</td>
+                                    <td colspan="7" class="text-center text-muted">Belum ada data Surat Edaran.</td>
                                 </tr>
                             @endforelse
                         </tbody>

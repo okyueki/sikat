@@ -1,0 +1,39 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class MasjidToken extends Model
+{
+    protected $table = 'masjid_tokens';
+
+    protected $fillable = [
+        'token',
+        'valid_until',
+    ];
+
+    protected $casts = [
+        'valid_until' => 'datetime',
+    ];
+
+    /**
+     * Cek apakah token valid (ada dan belum kedaluwarsa).
+     */
+    public static function isValid(string $token): bool
+    {
+        return static::where('token', $token)
+            ->where('valid_until', '>', now())
+            ->exists();
+    }
+
+    /**
+     * Ambil record token yang valid (untuk audit).
+     */
+    public static function findValid(string $token): ?self
+    {
+        return static::where('token', $token)
+            ->where('valid_until', '>', now())
+            ->first();
+    }
+}

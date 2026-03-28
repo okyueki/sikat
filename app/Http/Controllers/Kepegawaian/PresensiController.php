@@ -117,17 +117,19 @@ public function store(Request $request)
         return back()->withErrors(['error' => 'Shift tidak ditemukan!']);
     }
 
-    // Cek apakah pegawai sudah melakukan presensi datang hari ini
+    // Cek apakah pegawai sudah melakukan presensi datang hari ini (pakai WIB agar konsisten)
+    $todayWib = Carbon::today('Asia/Jakarta');
     $presensi = TemporaryPresensi::where('id', $pegawai->id)
-        ->whereDate('jam_datang', Carbon::today())
+        ->whereDate('jam_datang', $todayWib)
         ->first();
 
     if ($presensi) {
         // Jika sudah ada presensi datang, catat presensi pulang
+        $nowWib = Carbon::now('Asia/Jakarta');
         $presensi->update([
-            'jam_pulang' => now(),
+            'jam_pulang' => $nowWib,
             'status' => 'Selesai',
-            'durasi' => now()->diff($presensi->jam_datang)->format('%H:%I:%S'),
+            'durasi' => $nowWib->diff(Carbon::parse($presensi->jam_datang, 'Asia/Jakarta'))->format('%H:%I:%S'),
         ]);
 
         return redirect()->back()->with('success', 'Presensi pulang berhasil dicatat.');
@@ -136,23 +138,23 @@ public function store(Request $request)
 
         // Proses gambar dari kamera
         $imageData = $request->image;
-        $fileName = now()->format('YmdHis') . $pegawai->id . '.jpeg';
+        $nowWib = Carbon::now('Asia/Jakarta');
+        $fileName = $nowWib->format('YmdHis') . $pegawai->id . '.jpeg';
         $filePath = public_path('presensi/' . $fileName);
 
         list(, $imageData) = explode(';base64,', $imageData);
         $imageData = base64_decode($imageData);
         file_put_contents($filePath, $imageData);
 
-        // Hitung keterlambatan (asumsi sederhana: hitung berdasarkan jam_masuk shift)
-        $now = Carbon::now();
-        $jamMasukShift = Carbon::parse($jamJaga->jam_masuk);
-        $keterlambatan = $now->greaterThan($jamMasukShift) ? $now->diff($jamMasukShift)->format('%H:%I:%S') : '00:00:00';
+        // Hitung keterlambatan: bandingkan jam masuk shift (hari ini WIB) dengan now (WIB)
+        $jamMasukShift = $this->parseJamMasukHariIniWib($jamJaga->jam_masuk);
+        $keterlambatan = $nowWib->greaterThan($jamMasukShift) ? $nowWib->diff($jamMasukShift)->format('%H:%I:%S') : '00:00:00';
 
         // Simpan ke temporary presensi
         TemporaryPresensi::create([
             'id' => $pegawai->id,
             'shift' => $jamJaga->shift,
-            'jam_datang' => now(),
+            'jam_datang' => $nowWib,
             'status' => $keterlambatan === '00:00:00' ? 'Tepat Waktu' : 'Terlambat',
             'keterlambatan' => $keterlambatan,
             'photo' => $fileName,
@@ -188,17 +190,19 @@ public function presensiDatang(Request $request)
         return back()->withErrors(['error' => 'Shift tidak ditemukan!']);
     }
     
-    // Cek apakah pegawai sudah melakukan presensi datang hari ini
+    // Cek apakah pegawai sudah melakukan presensi datang hari ini (WIB)
+    $todayWib = Carbon::today('Asia/Jakarta');
     $presensi = TemporaryPresensi::where('id', $pegawai->id)
-        ->whereDate('jam_datang', Carbon::today())
+        ->whereDate('jam_datang', $todayWib)
         ->first();
 
     if ($presensi) {
         // Jika sudah ada, ini berarti pegawai sedang melakukan presensi pulang
+        $nowWib = Carbon::now('Asia/Jakarta');
         $presensi->update([
-            'jam_pulang' => now(),
+            'jam_pulang' => $nowWib,
             'status' => 'Selesai',
-            'durasi' => now()->diff($presensi->jam_datang)->format('%H:%I:%S'),
+            'durasi' => $nowWib->diff(Carbon::parse($presensi->jam_datang, 'Asia/Jakarta'))->format('%H:%I:%S'),
         ]);
 
         return redirect()->back()->with('success', 'Presensi pulang berhasil dicatat.');
@@ -207,7 +211,7 @@ public function presensiDatang(Request $request)
         TemporaryPresensi::create([
             'id' => $pegawai->id,
             'shift' => $jamJaga->shift,
-            'jam_datang' => now(),
+            'jam_datang' => Carbon::now('Asia/Jakarta'),
             'status' => 'Tepat Waktu',
             'keterlambatan' => '00:00:00', // Set default keterlambatan ke '00:00:00'
             'photo' => $request->photo ?? 'default.jpg', // Set nilai default photo jika null
@@ -215,6 +219,23 @@ public function presensiDatang(Request $request)
 
         return redirect()->back()->with('success', 'Presensi datang berhasil dicatat.');
     }
-}
+    }
 
+    /**
+     * Parse jam_masuk (time/datetime dari DB) sebagai hari ini di Jakarta.
+     * Agar perbandingan keterlambatan tidak salah karena timezone.
+     */
+    private function parseJamMasukHariIniWib($jamMasuk): Carbon
+    {
+        $today = Carbon::today('Asia/Jakarta');
+        if ($jamMasuk instanceof \DateTimeInterface) {
+            $timeStr = Carbon::parse($jamMasuk)->format('H:i:s');
+        } else {
+            $timeStr = trim((string) $jamMasuk);
+            if (preg_match('/^(\d{1,2}:\d{2})(:\d{2})?/', $timeStr, $m)) {
+                $timeStr = strlen($m[1]) === 5 ? $m[1] . ':00' : $m[1] . (isset($m[2]) ? $m[2] : ':00');
+            }
+        }
+        return $today->copy()->setTimeFromTimeString($timeStr);
+    }
 }

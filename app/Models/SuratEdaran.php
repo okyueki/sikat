@@ -20,6 +20,7 @@ class SuratEdaran extends Model
         'file_pdf',
         'file_pdf_signed',
         'signature_detail',
+        'created_by_username',
         'tanggal_ditandatangani',
     ];
 

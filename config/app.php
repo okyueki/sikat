@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'Sikat'),
 
     /*
     |--------------------------------------------------------------------------
@@ -52,7 +52,7 @@ return [
     |
     */
 
-    'url' => env('APP_URL', 'http://rsasitifatimah.my.id:6600/'),
+    'url' => env('APP_URL', 'https://sikat.rsaisyiyahsitifatimah.com/'),
     'asset_url' => env('ASSET_URL', null),
 
     /*
@@ -65,6 +65,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Minimum Mobile App Version (Force Update)
+    |--------------------------------------------------------------------------
+    | Versi minimum aplikasi mobile yang diizinkan. Jika versi app user
+    | lebih rendah, akan dipaksa update via Play Store.
+    | Format: "1.0.0" atau null untuk disable force update.
+    |
+    */
+    'min_mobile_version' => env('MIN_MOBILE_VERSION', null),
+    'play_store_url' => env('PLAY_STORE_URL', 'https://play.google.com/store/apps/details?id=com.sikat.mobile'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
@@ -74,7 +86,7 @@ return [
     |
     */
 
-    'timezone' => 'Asia/Jakarta',
+    'timezone' => env('APP_TIMEZONE', 'Asia/Jakarta'),
 
     /*
     |--------------------------------------------------------------------------
@@ -87,7 +99,7 @@ return [
     |
     */
 
-    'locale' => 'en',
+    'locale' => 'id',
 
     /*
     |--------------------------------------------------------------------------

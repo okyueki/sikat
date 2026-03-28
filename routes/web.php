@@ -29,6 +29,7 @@ use App\Http\Controllers\{
     AgendaController,
     TicketController,
     AIController,
+    AuditTrailController,
     Profil\ProfilController,
     Auth\LogoutController
 };
@@ -124,6 +125,7 @@ Route::prefix('mobile')->name('mobile.')->group(function () {
 // User management (super admin/admin)
 Route::resource('users', UserController::class)->middleware(['auth', 'checkAccess:users.manage']);
 Route::resource('cuti', CutiController::class)->middleware('auth');
+Route::get('/cuti/test', [CutiController::class, 'test'])->middleware('auth');
 Route::resource('ijin', IjinController::class)->middleware('auth');
 Route::resource('struktur_organisasi', StrukturOrganisasiController::class)->middleware('auth');
 Route::get('/struktur_organisasi/{id}', [StrukturOrganisasiController::class, 'show'])->name('struktur_organisasi.show')->middleware('auth');
@@ -271,6 +273,7 @@ Route::get('/surat_edaran/{surat_edaran}/pdf', [SuratEdaranController::class, 's
 Route::get('/surat_edaran/{surat_edaran}/tanda-tangani', [SuratEdaranController::class, 'tandaTangani'])->name('surat_edaran.tandaTangani')->middleware('auth');
 Route::post('/surat_edaran/{surat_edaran}/save-signature', [SuratEdaranController::class, 'saveSignatureAndPlacements'])->name('surat_edaran.saveSignature')->middleware('auth');
 Route::get('/surat_edaran/{surat_edaran}/generate-signed-pdf', [SuratEdaranController::class, 'generateSignedPdf'])->name('surat_edaran.generateSignedPdf')->middleware('auth');
+Route::get('/surat_edaran/{surat_edaran}/verifikasi', [SuratEdaranController::class, 'verifyAuthenticity'])->name('surat_edaran.verify');
 Route::post('/master-tanda-tangan', [MasterTandaTanganController::class, 'store'])->name('master_tanda_tangan.store')->middleware('auth');
 Route::get('/master-stempel', [MasterStempelController::class, 'edit'])->name('master_stempel.edit')->middleware('auth');
 Route::put('/master-stempel', [MasterStempelController::class, 'update'])->name('master_stempel.update')->middleware('auth');
@@ -396,8 +399,34 @@ Route::get('/absensi-agenda/export-pdf', [AbsensiAgendaController::class, 'expor
     ->name('absensi-agenda.export-pdf')
     ->middleware('auth');
 
+Route::get('/masjid-token', [App\Http\Controllers\MasjidTokenController::class, 'index'])->name('masjid_token.index')->middleware('auth');
+Route::post('/masjid-token', [App\Http\Controllers\MasjidTokenController::class, 'store'])->name('masjid_token.store')->middleware('auth');
+Route::get('/rekap-absensi-sholat', [App\Http\Controllers\AbsensiSholatRekapController::class, 'index'])->name('rekap_absensi_sholat.index')->middleware('auth');
+
 Route::resource('jadwalbudayakerja', JadwalBudayaKerjaController::class)->except('show')->middleware('auth');
+Route::get('/jadwalbudayakerja/generator', [JadwalBudayaKerjaController::class, 'generatorForm'])
+    ->name('jadwalbudayakerja.generator')
+    ->middleware('auth');
+Route::post('/jadwalbudayakerja/generator/master', [JadwalBudayaKerjaController::class, 'simpanMasterGenerator'])
+    ->name('jadwalbudayakerja.generator.master')
+    ->middleware('auth');
+Route::delete('/jadwalbudayakerja/generator/master/{memberId}', [JadwalBudayaKerjaController::class, 'hapusMasterGenerator'])
+    ->name('jadwalbudayakerja.generator.master.delete')
+    ->middleware('auth');
+Route::post('/jadwalbudayakerja/generator/run', [JadwalBudayaKerjaController::class, 'generateBulanan'])
+    ->name('jadwalbudayakerja.generator.run')
+    ->middleware('auth');
 Route::get('jadwalbudayakerja/kirimotomatis', [JadwalBudayaKerjaController::class,'kirimOtomatis'])->name('jadwalbudayakerja.kirimotomatis');
+Route::get('/jadwalbudayakerja/kirimmanual/{shift?}', [JadwalBudayaKerjaController::class, 'kirimManual'])->name('jadwalbudayakerja.kirimmanual');
+Route::get('/jadwalbudayakerja/cekstatus/{logId?}', [JadwalBudayaKerjaController::class, 'cekStatusWhatsapp'])->name('jadwalbudayakerja.cekstatus');
+Route::get('/jadwalbudayakerja/logs', [JadwalBudayaKerjaController::class, 'logWhatsapp'])->name('jadwalbudayakerja.logs');
+
+// Qontak Webhook endpoints (no auth required for callbacks)
+Route::post('/webhook/qontak/status', [App\Http\Controllers\QontakWebhookController::class, 'handleStatusUpdate'])->name('webhook.qontak.status');
+Route::post('/webhook/qontak/failed', [App\Http\Controllers\QontakWebhookController::class, 'handleFailed'])->name('webhook.qontak.failed');
+Route::post('/webhook/qontak/delivered', [App\Http\Controllers\QontakWebhookController::class, 'handleDelivered'])->name('webhook.qontak.delivered');
+Route::post('/webhook/qontak/read', [App\Http\Controllers\QontakWebhookController::class, 'handleRead'])->name('webhook.qontak.read');
+Route::get('/webhook/qontak/health', [App\Http\Controllers\QontakWebhookController::class, 'healthCheck'])->name('webhook.qontak.health');
 Route::get('/jadwalbudayakerja/kalender', [JadwalBudayaKerjaController::class, 'kalender'])->name('jadwalbudayakerja.kalender');
 Route::get('/jadwalbudayakerja/events', [JadwalBudayaKerjaController::class, 'getEvents'])->name('jadwalbudayakerja.events');
 Route::get('/jadwalbudayakerja/kirimhariini', [JadwalBudayaKerjaController::class, 'kirimHariIni']);
@@ -462,3 +491,11 @@ Route::prefix('ai')->middleware('auth')->group(function () {
 
 Route::get('/ranap-dokter', [RanapDokterController::class, 'index'])->name('ranap_dokter.index');
 Route::resource('telegram-users', TelegramUserController::class);
+
+// Audit Trail Routes
+Route::prefix('audit-trail')->group(function () {
+    Route::get('/', [AuditTrailController::class, 'index'])->name('audit-trail.index');
+    Route::get('/filter', [AuditTrailController::class, 'filter'])->name('audit-trail.filter');
+    Route::get('/export', [AuditTrailController::class, 'export'])->name('audit-trail.export');
+    Route::post('/cleanup', [AuditTrailController::class, 'cleanup'])->name('audit-trail.cleanup');
+});

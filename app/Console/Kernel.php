@@ -18,8 +18,7 @@ class Kernel extends ConsoleKernel
         // $schedule->command('inspire')->hourly();
          $schedule->command('storage:temp_surat:clear')->hourly();
          
-         // Kirim notifikasi jadwal budaya kerja setiap jam
-         // Command akan cek jadwal yang akan datang dan kirim notifikasi 6 jam sebelum jadwal
+         // Jadwal budaya kerja: scheduler tiap jam; command hanya mengirim di jam slot (mis. 21:00 / 09:00), sekali per slot + dedupe WA
          $schedule->command('jadwal:notify')->hourly();
     }
 

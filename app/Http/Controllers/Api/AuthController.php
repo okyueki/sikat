@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use App\Models\AuditTrail;
 
 class AuthController extends Controller
 {
@@ -31,6 +32,13 @@ class AuthController extends Controller
         $user->tokens()->where('name', 'presensi-api')->delete();
         $token = $user->createToken('presensi-api')->plainTextToken;
 
+        // Audit trail untuk login
+        AuditTrail::log('login', 'api', "User {$user->name} ({$user->username}) berhasil login via API", $user->id, null, [
+            'username' => $user->username,
+            'ip' => $request->ip(),
+            'user_agent' => $request->header('User-Agent'),
+        ], 'users');
+
         return response()->json([
             'success' => true,
             'message' => 'Login berhasil.',
@@ -52,7 +60,15 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $user = $request->user();
+        $user->currentAccessToken()->delete();
+
+        // Audit trail untuk logout
+        AuditTrail::log('logout', 'api', "User {$user->name} ({$user->username}) berhasil logout via API", $user->id, null, [
+            'username' => $user->username,
+            'ip' => $request->ip(),
+            'user_agent' => $request->header('User-Agent'),
+        ], 'users');
 
         return response()->json([
             'success' => true,

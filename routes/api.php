@@ -47,6 +47,9 @@ Route::middleware(['auth:sanctum', 'throttle:api-auth'])->group(function () {
 Route::get('/booking-operasi', [BookingOperasiController::class, 'index']);
 Route::post('/telegram/webhook', [TelegramController::class, 'handleWebhook']);
 
+// API App Version (tanpa auth - untuk force update check)
+Route::get('/app/version', [App\Http\Controllers\Api\AppController::class, 'version']);
+
 // Login/Logout API (untuk mobile / token)
 Route::post('/login', [App\Http\Controllers\Api\AuthController::class, 'login']);
 
@@ -62,6 +65,14 @@ Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('absensi')->gro
     Route::get('/config', [App\Http\Controllers\Api\AbsensiController::class, 'config']);
     Route::get('/riwayat', [App\Http\Controllers\Api\AbsensiController::class, 'riwayat']);
     Route::post('/submit', [App\Http\Controllers\Api\AbsensiController::class, 'submit']);
+});
+
+// API Absensi Sholat (QR + geolocation masjid) - config dari config/masjid.php
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('absensi-sholat')->group(function () {
+    Route::get('/config', [App\Http\Controllers\Api\AbsensiSholatController::class, 'config']);
+    Route::get('/riwayat', [App\Http\Controllers\Api\AbsensiSholatController::class, 'riwayat']);
+    Route::get('/rekap-bulanan', [App\Http\Controllers\Api\AbsensiSholatController::class, 'rekapBulanan']);
+    Route::post('/scan', [App\Http\Controllers\Api\AbsensiSholatController::class, 'scan']);
 });
 
 Route::middleware(['auth:sanctum', 'throttle:api-auth'])->post('/logout', [App\Http\Controllers\Api\AuthController::class, 'logout']);

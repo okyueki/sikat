@@ -7,6 +7,7 @@ use App\Models\SuratEdaran;
 use setasign\Fpdi\Tcpdf\Fpdi;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Response;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class SuratEdaranPdfService
 {
@@ -25,6 +26,8 @@ class SuratEdaranPdfService
         }
 
         $pdf = new Fpdi();
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
         $pageCount = $pdf->setSourceFile($path);
 
         $signatureDetail = $surat->signature_detail ?? [];
@@ -70,14 +73,20 @@ class SuratEdaranPdfService
 
                 if ($p->field_type === 'stempel') {
                     if ($stempelPath && file_exists($stempelPath)) {
-                        $pdf->Image($stempelPath, $x, $y, $w, $h, '', '', '', false, 300);
+                        // Samakan dengan tampilan draft: beri dasar putih agar konten PDF di belakang tidak "tembus".
+                        $pdf->SetFillColor(255, 255, 255);
+                        $pdf->Rect($x, $y, $w, $h, 'F');
+                        $pdf->Image($stempelPath, $x, $y, $w, $h, 'PNG', '', '', false, 300);
                     }
                     continue;
                 }
 
                 // Handle image signature
                 if ($p->field_type === 'signature' && $signatureType === 'image' && $signatureImgFullPath) {
-                    $pdf->Image($signatureImgFullPath, $x, $y, $w, $h, '', '', '', false, 300);
+                    // Samakan dengan tampilan draft: beri dasar putih agar konten PDF di belakang tidak "tembus".
+                    $pdf->SetFillColor(255, 255, 255);
+                    $pdf->Rect($x, $y, $w, $h, 'F');
+                    $pdf->Image($signatureImgFullPath, $x, $y, $w, $h, 'PNG', '', '', false, 300);
                     continue;
                 }
 
@@ -116,6 +125,98 @@ class SuratEdaranPdfService
                     $pdf->SetFont('times', 'I', 10);
                 }
                 $pdf->Cell($w, $h, $value, 0, 0, 'L', false, '', 0, false, 'T', 'T');
+            }
+
+            // Tambahkan QR verifikasi pada halaman terakhir untuk dokumen yang sudah sah
+            if ($pageNo === $pageCount && $surat->tanggal_ditandatangani) {
+                try {
+                    $verifyUrl = route('surat_edaran.verify', $surat);
+                    $tempDir = 'temp_surat';
+                    if (!Storage::disk('public')->exists($tempDir)) {
+                        Storage::disk('public')->makeDirectory($tempDir);
+                    }
+
+                    $qrRelativePath = $tempDir . '/qr_surat_edaran_' . $surat->id . '.png';
+                    $qrFullPath = Storage::disk('public')->path($qrRelativePath);
+                    QrCode::format('png')->size(220)->margin(1)->generate($verifyUrl, $qrFullPath);
+
+                    if (file_exists($qrFullPath)) {
+                        $qrSizeMm = 22.0;
+                        $marginMm = 8.0;
+                        $qrPosition = $masterStempel?->qr_position ?? 'bottom_right';
+                        $safePadding = 0.8;
+                        $qrBoxW = $qrSizeMm + ($safePadding * 2);
+                        $qrBoxH = $qrSizeMm + ($safePadding * 2);
+
+                        $cornerToCoord = function (string $corner) use ($size, $qrSizeMm, $marginMm): array {
+                            $x = max(2.0, (float) $size['width'] - $qrSizeMm - $marginMm);
+                            $y = max(2.0, (float) $size['height'] - $qrSizeMm - $marginMm);
+                            if ($corner === 'bottom_left') {
+                                $x = $marginMm;
+                            }
+
+                            return [$x, $y];
+                        };
+
+                        $overlap = function (array $a, array $b): bool {
+                            return !(
+                                $a['x'] + $a['w'] <= $b['x'] ||
+                                $b['x'] + $b['w'] <= $a['x'] ||
+                                $a['y'] + $a['h'] <= $b['y'] ||
+                                $b['y'] + $b['h'] <= $a['y']
+                            );
+                        };
+
+                        $placementBoxes = [];
+                        foreach ($placements as $placement) {
+                            $placementBoxes[] = [
+                                'x' => (float) $placement->x,
+                                'y' => (float) $placement->y,
+                                'w' => $placement->width ? (float) $placement->width : 40.0,
+                                'h' => $placement->height ? (float) $placement->height : 8.0,
+                            ];
+                        }
+
+                        // Mode aman: hanya area bawah agar tidak mengganggu konten utama dokumen.
+                        $allowedBottomCorners = ['bottom_right', 'bottom_left'];
+                        $preferred = in_array($qrPosition, $allowedBottomCorners, true) ? $qrPosition : 'bottom_right';
+                        $prioritizedCorners = array_values(array_unique(array_merge([$preferred], $allowedBottomCorners)));
+
+                        $chosenQr = null;
+                        foreach ($prioritizedCorners as $corner) {
+                            [$candidateX, $candidateY] = $cornerToCoord($corner);
+                            $candidateQrBox = [
+                                'x' => max(1.0, $candidateX - $safePadding),
+                                'y' => max(1.0, $candidateY - $safePadding),
+                                'w' => $qrBoxW,
+                                'h' => $qrBoxH,
+                            ];
+
+                            $isCollision = false;
+                            foreach ($placementBoxes as $box) {
+                                if ($overlap($candidateQrBox, $box)) {
+                                    $isCollision = true;
+                                    break;
+                                }
+                            }
+
+                            if (! $isCollision) {
+                                $chosenQr = [$candidateX, $candidateY];
+                                break;
+                            }
+                        }
+
+                        if ($chosenQr) {
+                            [$xQr, $yQr] = $chosenQr;
+                            $pdf->Image($qrFullPath, $xQr, $yQr, $qrSizeMm, $qrSizeMm, 'PNG', '', '', false, 300);
+                        }
+
+                        Storage::disk('public')->delete($qrRelativePath);
+                    }
+                } catch (\Throwable $e) {
+                    // QR verifikasi bersifat tambahan, jangan gagalkan proses PDF jika terjadi error.
+                    report($e);
+                }
             }
         }
 

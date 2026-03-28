@@ -19,6 +19,9 @@
 .draggable-field:active { cursor: grabbing; }
 .drag-handle { color: #6c757d; font-size: 1rem; user-select: none; }
 .placement-box { position: absolute; border: 2px solid #0d6efd; border-radius: 4px; background: rgba(255,255,255,0.9); padding: 4px 8px; cursor: move; min-width: 40px; min-height: 20px; box-sizing: border-box; }
+.placement-box.image-placement { padding: 0; background: #fff; }
+.placement-box.image-placement .placement-stempel-img,
+.placement-box.image-placement .placement-signature-img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
 .placement-box .placement-remove { position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; border-radius: 50%; background: #dc3545; color: #fff; border: none; cursor: pointer; font-size: 12px; line-height: 1; display: flex; align-items: center; justify-content: center; z-index: 2; }
 .placement-box .placement-text { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .placement-resize-handle { position: absolute; width: 10px; height: 10px; background: #0d6efd; border: 1px solid #fff; border-radius: 2px; cursor: nwse-resize; z-index: 1; }
@@ -240,6 +243,9 @@
                 <button type="button" id="btn-reset" class="btn btn-outline-secondary btn-sm w-100 mt-2" title="Hapus semua kotak isian dari dokumen">
                     <i class="fe fe-refresh-cw me-1"></i> Reset semua posisi
                 </button>
+                <button type="button" id="btn-delete-draft" class="btn btn-outline-danger btn-sm w-100 mt-2" title="Hapus dokumen draft">
+                    <i class="fe fe-trash-2 me-1"></i> Hapus Draft
+                </button>
             </div>
         </div>
     </div>
@@ -334,10 +340,17 @@
                     </div>
                     <div class="mb-3" id="signature-image-preview-container" style="display:none;">
                         <label class="form-label small text-muted">Preview</label>
-                        <div>
+                        <div class="signature-preview-wrapper">
                             <img id="signature-image-preview" class="signature-image-preview" src="" alt="Preview">
+                            <button type="button" class="btn-crop-overlay" onclick="openSignatureCropModal()">
+                                <i class="fe fe-crop"></i> Crop
+                            </button>
                         </div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="openSignatureCropModal()">
+                            <i class="fe fe-crop me-1"></i>Crop Gambar
+                        </button>
                     </div>
+                    <input type="hidden" id="cropped_signature_image" value="">
                     <div class="alert alert-info small py-2">
                         <i class="fe fe-info me-1"></i> Tips: Gunakan gambar tanda tangan dengan latar belakang transparan agar terlihat natural di dokumen.
                     </div>
@@ -371,9 +384,51 @@
     </div>
 </div>
 
+<!-- Modal: Crop Signature Image -->
+<div class="modal fade" id="cropSignatureModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Crop Gambar Tanda Tangan</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="crop-container">
+                    <img id="signature-crop-image" src="" alt="Crop">
+                </div>
+                <div class="crop-toolbar mt-3">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="signatureCropper.rotate(-90)">
+                        <i class="fe fe-rotate-ccw"></i> Rotate Left
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="signatureCropper.rotate(90)">
+                        <i class="fe fe-rotate-cw"></i> Rotate Right
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="signatureCropper.reset()">
+                        <i class="fe fe-refresh-cw"></i> Reset
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="signatureCropper.setAspectRatio(1)">
+                        <i class="fe fe-square"></i> 1:1
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="signatureCropper.setAspectRatio(NaN)">
+                        <i class="fe fe-maximize"></i> Free
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" onclick="applySignatureCrop()">
+                    <i class="fe fe-check me-1"></i>Terapkan Crop
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <input type="hidden" id="save-url" value="{{ route('surat_edaran.saveSignature', $surat_edaran) }}">
 <input type="hidden" id="csrf-token" value="{{ csrf_token() }}">
 <input type="hidden" id="redirect-url" value="{{ route('surat_edaran.show', $surat_edaran) }}">
+<input type="hidden" id="delete-url" value="{{ route('surat_edaran.destroy', $surat_edaran) }}">
+<input type="hidden" id="index-url" value="{{ route('surat_edaran.index') }}">
 @endsection
 
 @push('scripts')
@@ -555,7 +610,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (sigType === 'image') {
             // Validasi: harus ada gambar
-            var imgUrl = uploadedImageUrl || document.getElementById('signature_image_url').value;
+            var croppedImage = document.getElementById('cropped_signature_image').value;
+            var imgUrl = croppedImage || uploadedImageUrl || document.getElementById('signature_image_url').value;
             if (!imgUrl) {
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({ icon: 'warning', title: 'Gambar Belum Dipilih', text: 'Silakan upload gambar tanda tangan terlebih dahulu.' });
@@ -726,8 +782,29 @@ document.addEventListener('DOMContentLoaded', function() {
         if (v) v.classList.remove('visible');
     }
 
-    function pxToMm(px) { return px / (MM_TO_PX * scale); }
-    function mmToPx(mm) { return mm * MM_TO_PX * scale; }
+    // Improved coordinate conversion functions with higher precision
+    function pxToMm(px) { 
+        return px / (MM_TO_PX * scale); 
+    }
+    function mmToPx(mm) { 
+        return mm * MM_TO_PX * scale; 
+    }
+    
+    // Get precise coordinates accounting for scroll and zoom
+    function getDropCoordinates(e, element) {
+        var rect = element.getBoundingClientRect();
+        
+        // Posisi relatif ke halaman PDF (tanpa menambah scroll lagi).
+        // getBoundingClientRect() pada layer yang di-scroll sudah membawa offset scroll.
+        var xPx = (e.clientX - rect.left);
+        var yPx = (e.clientY - rect.top);
+        
+        // Convert to mm with higher precision (2 decimal places)
+        var xMm = Math.round(pxToMm(xPx) * 100) / 100;
+        var yMm = Math.round(pxToMm(yPx) * 100) / 100;
+        
+        return { x: xMm, y: yMm };
+    }
 
     function getSignatureStyle() {
         var font = document.getElementById('font_style').value || '1';
@@ -760,12 +837,14 @@ document.addEventListener('DOMContentLoaded', function() {
             var colorStyle = (p.field_type === 'signature' || p.field_type === 'inisial') ? ('color:' + (p.color || style.color)) : '';
             var content = '';
             if (p.field_type === 'stempel' && stempelUrl) {
-                content = '<img src="' + stempelUrl + '" alt="Stempel" class="placement-stempel-img" style="width:100%;height:100%;object-fit:contain;pointer-events:none;" onerror="this.style.display=\'none\';this.parentNode.querySelector(\'.stempel-fallback\')&&(this.parentNode.querySelector(\'.stempel-fallback\').style.display=\'block\');this.insertAdjacentHTML(\'afterend\',\'<span class=stempel-fallback style=font-size:11px;color:#dc3545>Stempel error</span>\');">';
+                box.classList.add('image-placement');
+                content = '<img src="' + stempelUrl + '" alt="Stempel" class="placement-stempel-img" onerror="this.style.display=\'none\';this.parentNode.querySelector(\'.stempel-fallback\')&&(this.parentNode.querySelector(\'.stempel-fallback\').style.display=\'block\');this.insertAdjacentHTML(\'afterend\',\'<span class=stempel-fallback style=font-size:11px;color:#dc3545>Stempel error</span>\');">';
             } else if (p.field_type === 'stempel' && !stempelUrl) {
                 content = '<span class="placement-text" style="font-size:11px;color:#6c757d;">Stempel (belum diatur)</span>';
             } else if (p.field_type === 'signature' && style.type === 'image' && style.imageUrl) {
+                box.classList.add('image-placement');
                 // Image signature
-                content = '<img src="' + style.imageUrl + '" alt="TTD" style="width:100%;height:100%;object-fit:contain;pointer-events:none;">';
+                content = '<img src="' + style.imageUrl + '" alt="TTD" class="placement-signature-img">';
             } else {
                 content = '<span class="placement-text' + fontClass + '" style="' + colorStyle + '">' + (p.field_type === 'stempel' ? 'Stempel' : (text || LABELS[p.field_type])) + '</span>';
             }
@@ -784,7 +863,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (i < 0) return;
                     var pl = placements[i];
                     var corner = handle.dataset.corner;
-                    resizing = { index: i, corner: corner, startX: e.clientX, startY: e.clientY, startW: pl.width || 40, startH: pl.height || 20, startLeft: pl.x, startTop: pl.y };
+                    
+                    // Get precise initial position in mm directly
+                    var layerRect = placementBoxes.getBoundingClientRect();
+                    var mouseX = e.clientX - layerRect.left;
+                    var mouseY = e.clientY - layerRect.top;
+                    
+                    resizing = { 
+                        index: i, 
+                        corner: corner, 
+                        startMmX: pxToMm(mouseX), 
+                        startMmY: pxToMm(mouseY), 
+                        startW: pl.width || 40, 
+                        startH: pl.height || 20, 
+                        startLeft: pl.x, 
+                        startTop: pl.y 
+                    };
                 });
             });
             if (p.field_type === 'teks') {
@@ -874,11 +968,12 @@ document.addEventListener('DOMContentLoaded', function() {
         var fieldType = e.dataTransfer.getData('fieldType');
         var displayValue = e.dataTransfer.getData('displayValue');
         if (!fieldType) return;
-        var rect = dropZone.getBoundingClientRect();
-        var xPx = e.clientX - rect.left;
-        var yPx = e.clientY - rect.top;
-        var xMm = Math.round(pxToMm(xPx) * 10) / 10;
-        var yMm = Math.round(pxToMm(yPx) * 10) / 10;
+        
+        // Use improved coordinate calculation
+        var coords = getDropCoordinates(e, dropZone);
+        var xMm = coords.x;
+        var yMm = coords.y;
+        
         var w = 40, h = 8;
         if (fieldType === 'signature' || fieldType === 'inisial') h = 10;
         if (fieldType === 'teks') {
@@ -926,7 +1021,18 @@ document.addEventListener('DOMContentLoaded', function() {
         selectedPlacementIndex = idx;
         renderPlacementBoxes();
         
-        selectedBox = { index: idx, startX: e.clientX, startY: e.clientY, startLeft: p.x, startTop: p.y };
+        // Get precise initial position in mm directly
+        var layerRect = placementBoxes.getBoundingClientRect();
+        var mouseX = e.clientX - layerRect.left;
+        var mouseY = e.clientY - layerRect.top;
+        
+        selectedBox = { 
+            index: idx, 
+            startMmX: pxToMm(mouseX), 
+            startMmY: pxToMm(mouseY), 
+            startLeft: p.x, 
+            startTop: p.y 
+        };
         e.preventDefault();
     });
     
@@ -938,11 +1044,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     document.addEventListener('mousemove', function(e) {
-        var dxMm = (e.clientX - (resizing ? resizing.startX : (selectedBox ? selectedBox.startX : 0))) / (MM_TO_PX * scale);
-        var dyMm = (e.clientY - (resizing ? resizing.startY : (selectedBox ? selectedBox.startY : 0))) / (MM_TO_PX * scale);
+        if (!resizing && !selectedBox) return;
+        
+        var layerRect = placementBoxes.getBoundingClientRect();
+        
+        // Posisi mouse relatif langsung ke layer PDF.
+        var mouseX = e.clientX - layerRect.left;
+        var mouseY = e.clientY - layerRect.top;
+        var mouseMmX = pxToMm(mouseX);
+        var mouseMmY = pxToMm(mouseY);
+        
         if (resizing) {
             var p = placements[resizing.index];
-            var minMm = 8;
+            var minMm = 5; // Reduced minimum size for better precision
+            
+            // Calculate delta directly in mm
+            var dxMm = mouseMmX - resizing.startMmX;
+            var dyMm = mouseMmY - resizing.startMmY;
+            
             var w = resizing.startW, h = resizing.startH, x = resizing.startLeft, y = resizing.startTop;
             switch (resizing.corner) {
                 case 'se': w = Math.max(minMm, resizing.startW + dxMm); h = Math.max(minMm, resizing.startH + dyMm); break;
@@ -950,17 +1069,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 case 'ne': w = Math.max(minMm, resizing.startW + dxMm); h = Math.max(minMm, resizing.startH - dyMm); y = resizing.startTop + dyMm; break;
                 case 'nw': w = Math.max(minMm, resizing.startW - dxMm); h = Math.max(minMm, resizing.startH - dyMm); x = resizing.startLeft + dxMm; y = resizing.startTop + dyMm; break;
             }
-            p.width = snapToGrid(Math.round(w * 10) / 10);
-            p.height = snapToGrid(Math.round(h * 10) / 10);
-            p.x = snapToGrid(Math.round(x * 10) / 10);
-            p.y = snapToGrid(Math.round(y * 10) / 10);
+            p.width = snapToGrid(Math.round(w * 100) / 100);
+            p.height = snapToGrid(Math.round(h * 100) / 100);
+            p.x = snapToGrid(Math.round(x * 100) / 100);
+            p.y = snapToGrid(Math.round(y * 100) / 100);
             renderPlacementBoxes();
             return;
         }
         if (!selectedBox) return;
+        
         var p = placements[selectedBox.index];
-        var newX = snapToGrid(Math.round((selectedBox.startLeft + dxMm) * 10) / 10);
-        var newY = snapToGrid(Math.round((selectedBox.startTop + dyMm) * 10) / 10);
+        // Calculate delta directly in mm - much more precise
+        var dxMm = mouseMmX - selectedBox.startMmX;
+        var dyMm = mouseMmY - selectedBox.startMmY;
+        
+        var newX = snapToGrid(Math.round((selectedBox.startLeft + dxMm) * 100) / 100);
+        var newY = snapToGrid(Math.round((selectedBox.startTop + dyMm) * 100) / 100);
         
         // Check for alignment with other placements
         var aligned = checkAlignment(selectedBox.index, newX, newY, p.width || 40, p.height || 20);
@@ -1048,7 +1172,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Fungsi submit tanda tangan
-    function submitSignature() {
+    function submitSignature(finalizeDocument) {
         var btn = document.getElementById('btn-save');
         btn.disabled = true;
         document.getElementById('btn-tandatangani').disabled = true;
@@ -1072,6 +1196,8 @@ document.addEventListener('DOMContentLoaded', function() {
             color: document.getElementById('color').value,
             signature_type: document.getElementById('signature_type').value || 'text',
             signature_image_url: document.getElementById('signature_image_url').value || '',
+            cropped_signature_image: document.getElementById('cropped_signature_image').value || '',
+            finalize: !!finalizeDocument,
             placements: placements.map(function(p, i) {
                 return { field_type: p.field_type, page: p.page, x: p.x, y: p.y, width: p.width || 40, height: p.height || 8, value: p.value, options: {} };
             })
@@ -1084,7 +1210,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }).then(function(r) { return r.json(); }).then(function(data) {
             if (data.success) {
                 isDirty = false; // Clear dirty flag before redirect
-                if (typeof Swal !== 'undefined') {
+                if (finalizeDocument && typeof Swal !== 'undefined') {
                     Swal.fire({
                         icon: 'success',
                         title: 'Dokumen Berhasil Ditandatangani!',
@@ -1095,10 +1221,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     }).then(function(result) {
                         window.location.href = document.getElementById('redirect-url').value;
                     });
-                } else {
+                } else if (finalizeDocument) {
                     isDirty = false;
                     alert('Dokumen berhasil ditandatangani!');
                     window.location.href = document.getElementById('redirect-url').value;
+                } else {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Draft Tersimpan',
+                            text: data.message || 'Posisi tanda tangan berhasil disimpan.',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                    }
+                    btn.disabled = false;
+                    document.getElementById('btn-tandatangani').disabled = false;
                 }
             } else {
                 if (typeof Swal !== 'undefined') {
@@ -1140,20 +1278,73 @@ document.addEventListener('DOMContentLoaded', function() {
                 reverseButtons: true
             }).then(function(result) {
                 if (result.isConfirmed) {
-                    submitSignature();
+                    submitSignature(true);
                 }
             });
         } else {
             if (confirm('Tanda tangani dokumen atas nama "' + namaLengkap + '"? Dokumen akan menjadi SAH.')) {
-                submitSignature();
+                submitSignature(true);
             }
         }
     });
 
     // Button "Simpan posisi" (hanya simpan tanpa konfirmasi untuk draft)
     document.getElementById('btn-save').addEventListener('click', function() {
-        if (!validateBeforeSign()) return;
-        submitSignature();
+        submitSignature(false);
+    });
+
+    // Button "Hapus Draft"
+    document.getElementById('btn-delete-draft').addEventListener('click', function() {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Hapus Dokumen Draft?',
+                text: 'Dokumen draft ini akan dihapus secara permanen dan tidak dapat dikembalikan.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Ya, Hapus',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const payload = new URLSearchParams();
+                    payload.append('_token', document.getElementById('csrf-token').value);
+                    payload.append('_method', 'DELETE');
+
+                    fetch(document.getElementById('delete-url').value, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: payload.toString()
+                    }).then(function() {
+                        window.location.href = document.getElementById('index-url').value;
+                    }).catch(function() {
+                        Swal.fire({ icon: 'error', title: 'Gagal', text: 'Tidak bisa menghapus draft. Coba lagi.' });
+                    });
+                }
+            });
+        } else {
+            if (confirm('Yakin hapus dokumen draft ini?')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = document.getElementById('delete-url').value;
+                const token = document.createElement('input');
+                token.type = 'hidden';
+                token.name = '_token';
+                token.value = document.getElementById('csrf-token').value;
+                const method = document.createElement('input');
+                method.type = 'hidden';
+                method.name = '_method';
+                method.value = 'DELETE';
+                form.appendChild(token);
+                form.appendChild(method);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
     });
 
     // Button "Reset semua posisi"
@@ -1274,5 +1465,135 @@ document.addEventListener('DOMContentLoaded', function() {
 
     updateBadgeCount();
 });
+
+// Signature Image Crop Functionality
+let signatureCropper = null;
+
+function openSignatureCropModal() {
+    const imgSrc = document.getElementById('signature-image-preview').src;
+    if (!imgSrc || imgSrc === '') {
+        alert('Silakan upload gambar terlebih dahulu');
+        return;
+    }
+    
+    document.getElementById('signature-crop-image').src = imgSrc;
+    
+    const modal = new bootstrap.Modal(document.getElementById('cropSignatureModal'));
+    modal.show();
+    
+    // Initialize cropper after modal is shown
+    setTimeout(() => {
+        const image = document.getElementById('signature-crop-image');
+        if (signatureCropper) signatureCropper.destroy();
+        signatureCropper = new Cropper(image, {
+            aspectRatio: NaN,
+            viewMode: 1,
+            autoCropArea: 0.8,
+            responsive: true,
+            background: false,
+        });
+    }, 200);
+}
+
+function applySignatureCrop() {
+    if (!signatureCropper) return;
+    
+    const canvas = signatureCropper.getCroppedCanvas({
+        maxWidth: 1024,
+        maxHeight: 1024,
+        fillColor: 'transparent',
+    });
+    
+    // Convert to PNG with transparency
+    const croppedDataUrl = canvas.toDataURL('image/png');
+    
+    // Update preview
+    document.getElementById('signature-image-preview').src = croppedDataUrl;
+    
+    // Store in hidden input and uploadedImageUrl for form submission
+    document.getElementById('cropped_signature_image').value = croppedDataUrl;
+    uploadedImageUrl = croppedDataUrl;
+    
+    // Clear the file input since we're using cropped data
+    document.getElementById('modal_file_ttd').value = '';
+    
+    bootstrap.Modal.getInstance(document.getElementById('cropSignatureModal')).hide();
+}
 </script>
+
+<!-- Cropper.js CDN -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+
+<style>
+/* Signature Preview with Crop Overlay */
+.signature-preview-wrapper {
+    position: relative;
+    display: inline-block;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.signature-preview-wrapper img {
+    max-width: 100%;
+    max-height: 200px;
+    display: block;
+    border-radius: 4px;
+}
+
+.btn-crop-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(13, 110, 253, 0.9);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+    font-size: 14px;
+}
+
+.signature-preview-wrapper:hover .btn-crop-overlay {
+    opacity: 1;
+}
+
+/* Crop Modal Styles */
+.crop-container {
+    max-height: 400px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.crop-container img {
+    max-width: 100%;
+    display: block;
+}
+
+.crop-toolbar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* Cropper.js custom styles */
+.cropper-view-box,
+.cropper-face {
+    border-radius: 0;
+}
+
+.cropper-point {
+    background-color: #0d6efd;
+}
+
+.cropper-line {
+    background-color: #0d6efd;
+}
+</style>
 @endpush

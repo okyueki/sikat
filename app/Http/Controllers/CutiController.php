@@ -15,19 +15,29 @@ class CutiController extends Controller
     public function index(Request $request)
     {
         $title = 'Cuti';
-        $nik=Auth::user()->username;
-        if ($request->ajax()) {
-            $data = PengajuanLibur::with('pegawai')->where('nik', $nik)
-                ->whereIn('jenis_pengajuan_libur', ['Tahunan', 'Melahirkan', 'Ambil Libur', 'Menikah'])
-                ->orderBy('tanggal_dibuat', 'desc')
-                ->get();
-            return DataTables::of($data)
-                ->addIndexColumn()
-                ->addColumn('nama_pegawai', function($row) {
-                    // Mengakses nama pegawai dari relasi
-                    return $row->pegawai ? $row->pegawai->nama : '-';
-                })
-                ->addColumn('action', function($row){
+        
+        // Debug: Test if user is authenticated
+        if (!Auth::check()) {
+            if ($request->ajax()) {
+                return response()->json(['error' => 'User not authenticated'], 401);
+            }
+            return redirect()->route('login');
+        }
+        
+        try {
+            if ($request->ajax()) {
+                \Log::info('Ajax request received for cuti index');
+                $nik = Auth::user()->username;
+                \Log::info('User NIK: ' . $nik);
+                
+                $data = PengajuanLibur::where('nik', $nik)
+                    ->whereIn('jenis_pengajuan_libur', ['Tahunan', 'Melahirkan', 'Ambil Libur', 'Menikah']);
+                
+                \Log::info('Query built for NIK: ' . $nik);
+                
+                return DataTables::of($data)
+                    ->addIndexColumn()
+                    ->addColumn('action', function($row){
                     if ($row->status == 'Dikirim') {
                     $btn = '
                         <a href="'.route('cuti.edit', $row->id_pengajuan_libur).'" class="btn btn-info waves-effect waves-light"><i class="far fa-edit"></i></a>
@@ -41,11 +51,27 @@ class CutiController extends Controller
                     }
                     return $btn;
                 })
+                ->editColumn('nama_pegawai', function($row) {
+                    $pegawai = Pegawai::where('nik', $row->nik)->first();
+                    return $pegawai ? $pegawai->nama : '-';
+                })
                 ->rawColumns(['action'])
                 ->make(true);
+            }
+        
+            return view('cuti.index', compact('title'));
+        } catch (\Exception $e) {
+            \Log::error('Error in cuti index: ' . $e->getMessage());
+            if ($request->ajax()) {
+                return response()->json(['error' => $e->getMessage()], 500);
+            }
+            return view('cuti.index', compact('title'))->with('error', 'Terjadi kesalahan saat memuat data');
         }
+    }
     
-        return view('cuti.index', compact('title'));
+    public function test()
+    {
+        return response()->json(['message' => 'Cuti controller working', 'user' => Auth::user()?->username]);
     }
 
     public function create()

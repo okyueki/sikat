@@ -41,4 +41,10 @@ return [
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
     ],
 
+    'qontak' => [
+        'client_id' => env('QONTAK_CLIENT_ID'),
+        'client_secret' => env('QONTAK_CLIENT_SECRET'),
+        'channel_id' => env('QONTAK_CHANNEL_ID'),
+    ],
+
 ];

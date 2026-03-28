@@ -70,8 +70,10 @@
 
 <script>
    $(document).ready(function() {
-    // Set default dates to today's date
-    var today = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+    // Set default dates to today's date (tanggal lokal, BUKAN UTC)
+    // toISOString() pakai UTC → sebelum jam 07 WIB tanggal jadi kemarin. Pakai tanggal lokal:
+    var d = new Date();
+    var today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     $('#start_date').val(today);
     $('#end_date').val(today);
 

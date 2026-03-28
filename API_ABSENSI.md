@@ -81,6 +81,12 @@ Atau gunakan **Authorization** tab → Type: **Bearer Token** → paste token (t
 - **Rate limit:** Maks 10 submit per menit per IP; jika 429, tunggu sebentar.
 - **Datang vs rekap:** Satu kali submit **pertama** (datang) → data masuk ke **temporary_presensi**. Cek response: jika `"tipe": "datang"` artinya masuk temporary. Jika Anda submit **dua kali**, request kedua dianggap **pulang** → data dipindah ke **rekap_presensi** dan dihapus dari temporary. Jadi kalau Anda lihat data cuma di rekap, kemungkinan submit sudah dua kali. Untuk uji datang saja: submit **sekali**, lalu cek tabel **temporary_presensi** (koneksi **server_74**, lihat `.env` / `config/database.php`).
 
+### Timezone (WIB) dan keterlambatan
+
+- Semua perhitungan **jam datang**, **keterlambatan**, dan **jam masuk shift** memakai **Asia/Jakarta (WIB)**.
+- Server membandingkan **waktu submit** (WIB) dengan **jam_masuk** shift (dipakai sebagai “hari ini” 07:00 WIB untuk shift pagi). Jika submit jam 06:27 WIB dan shift pagi 07:00 → **Tepat Waktu**; jika submit 07:15 WIB → Terlambat.
+- Pastikan **config `app.timezone`** di server (atau `APP_TIMEZONE` di `.env`) konsisten. Disarankan **Asia/Jakarta**. Jika server pakai UTC tanpa aturan eksplisit, bisa muncul kasus “masuk 06:27 tapi tercatat terlambat”.
+
 ---
 
 ## Autentikasi
@@ -303,6 +309,32 @@ Terjadi jika ada record datang tanpa pulang dari hari sebelumnya; satu presensi 
 }
 ```
 
+**Response error tidak ada jadwal shift (400):**
+```json
+{
+  "success": false,
+  "message": "Tidak ada jadwal shift hari ini."
+}
+```
+
+Ini muncul hanya saat pegawai akan **presensi datang** (belum ada `temporary_presensi` terbuka hari ini dan tidak ada record tertinggal). **Presensi pulang** (sudah ada datang, belum pulang — termasuk **closing** record hari sebelumnya) **tidak** membutuhkan jadwal shift hari ini; jam shift diambil dari **shift yang tercatat di record** (mis. hari libur tetap bisa pulang).
+
+Selain itu, backend menolak karena **tidak menemukan shift** untuk pegawai tersebut pada **tanggal hari ini (WIB)** untuk **datang baru**.
+
+**Yang dicek backend:**
+
+1. Ada baris **`jadwal_pegawai`** dengan `id` = **id pegawai** (bukan NIK), `tahun` = tahun ini, `bulan` = bulan ini (mendukung format `03` atau `3`).
+2. Kolom **`h1` … `h31`** untuk **hari ini** (mis. tanggal 13 → kolom **`h13`**) berisi **kode shift** (tidak kosong), mis. `Pagi`, `Pagi2`.
+3. Untuk **shift malam** (jam masuk > jam pulang, mis. 21:00–07:00): jika hari ini kosong, dicek jadwal **besok**; shift dipakai hanya jika jam sekarang (WIB) sudah ≥ jam masuk shift malam.
+
+**Jika masih error ini, cek di SIMRS / admin:**
+
+- Sudah ada jadwal pegawai untuk **bulan & tahun berjalan**?
+- Sel **hari ini** (`h13` untuk tanggal 13) sudah diisi shift?
+- Kode shift sama persis dengan yang ada di tabel **`jam_masuk`** (kolom `shift`)?
+
+**Di app:** panggil dulu **`GET /api/absensi/jadwal-hari-ini`**. Jika `jadwal_ada: false`, submit akan gagal dengan pesan di atas sampai jadwal diperbaiki.
+
 ---
 
 #### Alur presensi (POST /api/absensi/submit)
@@ -326,11 +358,10 @@ Urutan yang dilakukan backend saat user memanggil **POST /api/absensi/submit**:
    - Jika jarak > radius → response **400**.  
    - Tidak baca tabel; pakai config (bisa dari `.env`).
 
-5. **Jadwal & jam shift hari ini**  
-   - **Tabel dibaca:** `jadwal_pegawai` (filter `id` = pegawai, `bulan` = bulan ini 2 digit, `tahun` = tahun ini; kolom `h1`..`h31` untuk shift per hari).  
-   - Dari nilai shift hari ini → cari jam masuk/pulang:  
-     - **Tabel dibaca:** `jam_jaga` (by `shift`); jika tidak ketemu → **`jam_masuk`** (by `shift`).  
-   - Jika tidak ada jadwal shift hari ini → response **400** (Tidak ada jadwal shift hari ini).
+5. **Jadwal & jam shift**  
+   - **Presensi pulang** (ada baris `temporary_presensi` belum `jam_pulang`): jam shift dari **`shift` di baris itu** (`jam_jaga` / `jam_masuk`), **tanpa** cek jadwal hari ini — pegawai boleh libur hari ini tetap bisa pulang / closing.  
+   - **Presensi datang baru:** **Tabel dibaca:** `jadwal_pegawai` (id pegawai, tahun, bulan `03`/`3`, kolom `h1`..`h31`). Lalu **`jam_masuk`** by shift.  
+   - Jika datang baru dan tidak ada jadwal / sel hari ini kosong (dan tidak memenuhi shift malam) → **400** `Tidak ada jadwal shift hari ini`.
 
 6. **Transaksi DB (presensi)** — alur lewat `temporary_presensi`  
    - **Tabel dibaca:** `temporary_presensi` — cari baris pegawai ini dengan `whereDate(jam_datang, hari_ini)`, pakai `lockForUpdate()`.  
@@ -352,7 +383,7 @@ Urutan yang dilakukan backend saat user memanggil **POST /api/absensi/submit**:
 | `users`               | Auth (token → user)               | Baca           |
 | `pegawai`             | User → pegawai (NIK)              | Baca           |
 | `jadwal_pegawai`      | Shift hari ini (h1..h31)          | Baca           |
-| `jam_jaga` / `jam_masuk` | Jam masuk & jam pulang per shift | Baca           |
+| `jam_masuk`             | Jam masuk & jam pulang per shift | Baca           |
 | `temporary_presensi`  | Datang → insert; pulang → update lalu copy ke rekap | Baca + tulis + hapus |
 | `rekap_presensi`      | Riwayat final (setelah pulang)    | Tulis          |
 | `set_keterlambatan`   | Status datang (tepat/terlambat)   | Baca           |
@@ -526,7 +557,7 @@ Pegawai bisa **melihat dan mengubah jadwal tambahan** (`jadwal_tambahan`) per bu
 
 ## Cache & rate limit
 
-- **Cache:** Response **GET /api/absensi/config** di-cache server 10 menit. Data jam shift (JamJaga/JamMasuk) yang dipakai untuk jadwal-hari-ini dan submit juga di-cache 1 jam.
+- **Cache:** Response **GET /api/absensi/config** di-cache server 10 menit. Data jam shift dari tabel **jam_masuk** yang dipakai untuk jadwal-hari-ini dan submit juga di-cache 1 jam.
 - **Rate limit:** Semua endpoint API yang memakai Bearer token (termasuk absensi) dibatasi **90 request per menit per user**. Jika melebihi, server mengembalikan **HTTP 429** (Too Many Requests). Client sebaiknya tidak memanggil API secara berulang dalam waktu singkat; gunakan header `Retry-After` (jika ada) untuk tahu kapan boleh request lagi.
 
 ---

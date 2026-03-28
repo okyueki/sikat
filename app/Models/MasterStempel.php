@@ -13,6 +13,7 @@ class MasterStempel extends Model
         'nama',
         'file_path',
         'keterangan',
+        'qr_position',
     ];
 
     /**

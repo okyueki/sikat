@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PengajuanLibur;
 use App\Models\Pegawai;
+use App\Models\AuditTrail;
 use Illuminate\Http\Request;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Storage;
@@ -75,7 +76,7 @@ class IjinController extends Controller
             $filePath = $file->storeAs('uploads/ijin_files', $fileName, 'public');
         }
 
-        PengajuanLibur::create([
+        $pengajuan = PengajuanLibur::create([
             'jenis_pengajuan_libur' => 'Ijin',
             'nik' => Auth::user()->username,
             'tanggal_awal' => $request->tanggal_awal,
@@ -86,6 +87,14 @@ class IjinController extends Controller
             'foto' => $filePath,
             'tanggal_dibuat' => Carbon::now(),
         ]);
+
+        // Audit trail
+        AuditTrail::logCreate('ijin', 'pengajuan_libur', $pengajuan->id_pengajuan_libur, [
+            'tanggal_awal' => $request->tanggal_awal,
+            'tanggal_akhir' => $request->tanggal_akhir,
+            'jumlah_hari' => $request->jumlah_hari,
+            'keterangan' => $request->keterangan,
+        ], 'Pengajuan ijin baru dibuat');
 
         return redirect()->route('ijin.index')->with('success', 'Pengajuan Ijin berhasil disimpan.');
     }
@@ -133,6 +142,9 @@ class IjinController extends Controller
             $filePath = $file->storeAs('uploads/ijin_files', $fileName, 'public');
         }
 
+        // Simpan old values untuk audit
+        $oldValues = $pengajuanLibur->toArray();
+
         $pengajuanLibur->update([
             'tanggal_awal' => $request->tanggal_awal,
             'tanggal_akhir' => $request->tanggal_akhir,
@@ -141,6 +153,19 @@ class IjinController extends Controller
             'nik_atasan_langsung' => $request->nik_atasan_langsung,
             'foto' => $filePath,
         ]);
+
+        // Audit trail
+        AuditTrail::logUpdate('ijin', 'pengajuan_libur', $pengajuanLibur->id_pengajuan_libur, [
+            'tanggal_awal' => $oldValues['tanggal_awal'],
+            'tanggal_akhir' => $oldValues['tanggal_akhir'],
+            'jumlah_hari' => $oldValues['jumlah_hari'],
+            'keterangan' => $oldValues['keterangan'],
+        ], [
+            'tanggal_awal' => $request->tanggal_awal,
+            'tanggal_akhir' => $request->tanggal_akhir,
+            'jumlah_hari' => $request->jumlah_hari,
+            'keterangan' => $request->keterangan,
+        ], 'Pengajuan ijin diupdate');
 
         return redirect()->route('ijin.index')->with('success', 'Pengajuan Ijin berhasil diupdate.');
     }
@@ -157,7 +182,15 @@ class IjinController extends Controller
         if ($pengajuanLibur->foto && Storage::disk('public')->exists($pengajuanLibur->foto)) {
             Storage::disk('public')->delete($pengajuanLibur->foto);
         }
+
+        // Simpan data untuk audit sebelum delete
+        $oldData = $pengajuanLibur->toArray();
+        $recordId = $pengajuanLibur->id_pengajuan_libur;
+
         $pengajuanLibur->delete();
+
+        // Audit trail
+        AuditTrail::logDelete('ijin', 'pengajuan_libur', $recordId, $oldData, 'Pengajuan ijin dihapus');
         return redirect()->route('ijin.index')->with('success', 'Pengajuan Ijin berhasil dihapus.');
     }
 }
