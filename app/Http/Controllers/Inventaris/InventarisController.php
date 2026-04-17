@@ -9,6 +9,7 @@ use App\Models\InventarisRuang;
 use Yajra\DataTables\DataTables;
 use Illuminate\Http\Request;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class InventarisController extends Controller
@@ -132,6 +133,98 @@ public function index(Request $request)
     $ruang = InventarisRuang::all(); // Ambil semua data ruang
     return view('inventaris.index_inventaris', compact('ruang'));
 }
+
+    /**
+     * Data paginasi untuk tampilan galeri kotak (thumbnail foto inventaris).
+     */
+    public function gridData(Request $request)
+    {
+        $perPage = (int) $request->input('per_page', 12);
+        $perPage = min(max($perPage, 6), 48);
+
+        $latestPhoto = InventarisGambar::query()
+            ->select('no_inventaris', DB::raw('MAX(photo) as photo'))
+            ->groupBy('no_inventaris');
+
+        $query = Inventaris::query()
+            ->leftJoinSub($latestPhoto, 'ig', function ($join) {
+                $join->on('inventaris.no_inventaris', '=', 'ig.no_inventaris');
+            })
+            ->leftJoin('inventaris_barang', 'inventaris.kode_barang', '=', 'inventaris_barang.kode_barang')
+            ->leftJoin('inventaris_ruang', 'inventaris.id_ruang', '=', 'inventaris_ruang.id_ruang')
+            ->select(
+                'inventaris.no_inventaris',
+                'inventaris.kode_barang',
+                'inventaris.status_barang',
+                'inventaris_barang.nama_barang',
+                'inventaris_ruang.nama_ruang',
+                'ig.photo as thumb_photo'
+            );
+
+        if ($request->filled('ruang')) {
+            $query->where('inventaris.id_ruang', $request->ruang);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('inventaris.no_inventaris', 'like', '%'.$search.'%')
+                    ->orWhere('inventaris.kode_barang', 'like', '%'.$search.'%')
+                    ->orWhere('inventaris_barang.nama_barang', 'like', '%'.$search.'%')
+                    ->orWhere('inventaris_ruang.nama_ruang', 'like', '%'.$search.'%');
+            });
+        }
+
+        $paginator = $query->orderBy('inventaris.no_inventaris', 'desc')->paginate($perPage);
+
+        $data = $paginator->getCollection()->map(function ($row) {
+            $status = $row->status_barang ?? '-';
+            $badgeClass = 'bg-secondary';
+            switch (strtolower((string) $status)) {
+                case 'ada':
+                    $badgeClass = 'bg-success';
+                    break;
+                case 'rusak':
+                    $badgeClass = 'bg-danger';
+                    break;
+                case 'hilang':
+                    $badgeClass = 'bg-warning text-dark';
+                    break;
+                case 'perbaikan':
+                    $badgeClass = 'bg-info';
+                    break;
+                case 'dipinjam':
+                    $badgeClass = 'bg-primary';
+                    break;
+            }
+
+            $thumbUrl = $row->thumb_photo ? getInventarisPhotoUrl($row->thumb_photo) : null;
+
+            return [
+                'no_inventaris' => $row->no_inventaris,
+                'nama_barang' => $row->nama_barang ?? '-',
+                'nama_ruang' => $row->nama_ruang ?? '-',
+                'status_barang' => $status,
+                'badge_class' => $badgeClass,
+                'thumb_url' => $thumbUrl,
+                'urls' => [
+                    'show' => route('inventaris.show', $row->no_inventaris),
+                    'edit' => route('inventaris.edit', $row->no_inventaris),
+                    'barcode' => route('inventaris.barcode', $row->no_inventaris),
+                    'destroy' => route('inventaris.destroy', $row->no_inventaris),
+                ],
+            ];
+        });
+
+        return response()->json([
+            'data' => $data->values()->all(),
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+        ]);
+    }
+
     // Method create()
     public function create()
     {
@@ -144,7 +237,10 @@ public function index(Request $request)
         $nextNumber = $latestInventaris ? ((int)substr($latestInventaris->no_inventaris, 3)) + 1 : 1;
         $noInventaris = 'INV' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
 
-        return view('inventaris.create_inventaris', compact('barang', 'noInventaris', 'ruang'));
+        $inventaris = new Inventaris();
+        $inventaris->no_inventaris = $noInventaris;
+
+        return view('inventaris.create_inventaris', compact('barang', 'noInventaris', 'ruang', 'inventaris'));
     }
 
     // Method store()
@@ -227,7 +323,7 @@ public function index(Request $request)
     // Method edit() - Gabungkan dua method edit() menjadi satu
     public function edit($no_inventaris)
 {
-    $inventaris = Inventaris::findOrFail($no_inventaris);
+    $inventaris = Inventaris::with(['barang.produsen', 'barang.merk'])->findOrFail($no_inventaris);
     $barang = InventarisBarang::all();
     $ruang = InventarisRuang::all();
 
@@ -356,6 +452,27 @@ public function index(Request $request)
 
         return view('inventaris.show_inventaris', compact('inventaris'));
     }
+
+    /**
+     * JSON produsen & merk untuk kode barang (form inventaris, mendukung kode dengan karakter khusus lewat query).
+     */
+    public function barangInfo(Request $request)
+    {
+        $request->validate([
+            'kode_barang' => 'required|string|max:255',
+        ]);
+
+        $item = InventarisBarang::with(['produsen', 'merk'])->find($request->kode_barang);
+        if (! $item) {
+            return response()->json(['message' => 'Barang tidak ditemukan'], 404);
+        }
+
+        return response()->json([
+            'produsen' => optional($item->produsen)->nama_produsen ?? 'Tidak Diketahui',
+            'merk' => optional($item->merk)->nama_merk ?? 'Tidak Diketahui',
+        ]);
+    }
+
     public function generateBarcode($no_inventaris)
 {
     // Fetch the Inventaris data based on 'no_inventaris'

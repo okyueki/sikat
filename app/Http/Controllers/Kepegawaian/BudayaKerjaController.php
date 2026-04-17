@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Agenda;
 use App\Models\AbsensiAgenda;
 use App\Models\BudayaKerja;
+use App\Models\JadwalBudayaKerja;
 use App\Models\Pegawai;
 use App\Models\RekapPresensi;
 use Illuminate\Http\Request;
@@ -115,6 +116,9 @@ class BudayaKerjaController extends Controller
     ];
 
     return DataTables::of($query)
+        ->addColumn('select', function ($item) {
+            return '<input type="checkbox" class="row-select form-check-input" value="' . e($item->id) . '">';
+        })
         ->addColumn('keterangan', function ($item) use ($attributeLabels) {
             $itemsWithZero = [];
 
@@ -143,6 +147,7 @@ class BudayaKerjaController extends Controller
                 </form>
             ';
         })
+        ->rawColumns(['select', 'action'])
         ->make(true);
 }
     
@@ -161,6 +166,34 @@ class BudayaKerjaController extends Controller
             // Tampilkan pesan error jika terjadi masalah
             return redirect()->route('budayakerja.index')->with('error', 'Terjadi kesalahan saat menghapus data.');
         }
+    }
+
+    public function bulkDestroy(Request $request)
+    {
+        $ids = $request->input('ids', []);
+
+        if (! is_array($ids) || empty($ids)) {
+            return redirect()->route('budayakerja.index')
+                ->with('error', 'Tidak ada data yang dipilih untuk dihapus.');
+        }
+
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        $ids = array_filter($ids, static fn ($id) => $id > 0);
+
+        if (empty($ids)) {
+            return redirect()->route('budayakerja.index')
+                ->with('error', 'Data pilihan tidak valid.');
+        }
+
+        $deletedCount = BudayaKerja::whereIn('id', $ids)->delete();
+
+        if ($deletedCount > 0) {
+            return redirect()->route('budayakerja.index')
+                ->with('success', $deletedCount . ' data berhasil dihapus.');
+        }
+
+        return redirect()->route('budayakerja.index')
+            ->with('error', 'Tidak ada data yang berhasil dihapus.');
     }
 
     public function show($id)
@@ -905,6 +938,129 @@ class BudayaKerjaController extends Controller
             'nilaiTertinggi',
             'nilaiTerendah',
             'statusTertib'
+        ));
+    }
+
+    /**
+     * Rekap kinerja petugas penilai:
+     * - berapa kali terjadwal
+     * - berapa kali benar-benar menilai
+     * - detail siapa saja yang dinilai oleh petugas terpilih
+     */
+    public function rekapPetugas(Request $request)
+    {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $selectedPetugas = (string) $request->input('petugas', '');
+
+        if (! $startDate || ! $endDate) {
+            $start = Carbon::now()->startOfMonth();
+            $end = Carbon::now()->endOfMonth();
+            $startDate = $start->toDateString();
+            $endDate = $end->toDateString();
+        } else {
+            $start = Carbon::parse($startDate)->startOfDay();
+            $end = Carbon::parse($endDate)->endOfDay();
+            $startDate = $start->toDateString();
+            $endDate = $end->toDateString();
+        }
+
+        // Daftar petugas yang dijadwalkan pada rentang tanggal.
+        $jadwalByPetugas = JadwalBudayaKerja::query()
+            ->whereBetween('tanggal_bertugas', [$startDate, $endDate])
+            ->select('nik', DB::raw('COUNT(*) as total_jadwal'))
+            ->groupBy('nik')
+            ->get()
+            ->keyBy('nik');
+
+        $petugasNiks = $jadwalByPetugas->keys()->values();
+        $pegawaiMap = Pegawai::whereIn('nik', $petugasNiks)
+            ->select('nik', 'nama', 'departemen', 'jbtn')
+            ->get()
+            ->keyBy('nik');
+
+        // Jumlah aktivitas menilai dari tabel budaya_kerja.
+        $dinilaiByPetugas = BudayaKerja::query()
+            ->whereBetween('tanggal', [$startDate, $endDate])
+            ->whereIn('petugas', $petugasNiks)
+            ->select('petugas', DB::raw('COUNT(*) as total_menilai'), DB::raw('COUNT(DISTINCT nik_pegawai) as pegawai_unik'))
+            ->groupBy('petugas')
+            ->get()
+            ->keyBy('petugas');
+
+        $rekapPetugas = $petugasNiks->map(function ($nik) use ($jadwalByPetugas, $dinilaiByPetugas, $pegawaiMap) {
+            $jadwal = (int) optional($jadwalByPetugas->get($nik))->total_jadwal;
+            $menilai = (int) optional($dinilaiByPetugas->get($nik))->total_menilai;
+            $unik = (int) optional($dinilaiByPetugas->get($nik))->pegawai_unik;
+            $persen = $jadwal > 0 ? round(($menilai / $jadwal) * 100, 1) : 0;
+            $pegawai = $pegawaiMap->get($nik);
+
+            return [
+                'nik' => $nik,
+                'nama' => $pegawai->nama ?? $nik,
+                'departemen' => $pegawai->departemen ?? '-',
+                'jabatan' => $pegawai->jbtn ?? '-',
+                'total_jadwal' => $jadwal,
+                'total_menilai' => $menilai,
+                'pegawai_unik' => $unik,
+                'persentase_realisasi' => $persen,
+                'selisih' => $menilai - $jadwal,
+            ];
+        })->sortByDesc('total_menilai')->values();
+
+        if ($selectedPetugas === '' && $rekapPetugas->isNotEmpty()) {
+            $selectedPetugas = (string) $rekapPetugas->first()['nik'];
+        }
+
+        $detailPenilaian = collect();
+        if ($selectedPetugas !== '') {
+            $detailPenilaian = BudayaKerja::query()
+                ->whereRaw('TRIM(petugas) = ?', [$selectedPetugas])
+                ->whereBetween('tanggal', [$startDate, $endDate])
+                ->orderByDesc('tanggal')
+                ->orderByDesc('jam')
+                ->get([
+                    'id',
+                    'tanggal',
+                    'jam',
+                    'nik_pegawai',
+                    'nama_pegawai',
+                    'departemen',
+                    'shift',
+                    'total_nilai',
+                ]);
+        }
+
+        $detailPegawaiDinilai = $detailPenilaian
+            ->groupBy('nik_pegawai')
+            ->map(function ($rows) {
+                $first = $rows->first();
+                return [
+                    'nik_pegawai' => $first->nik_pegawai,
+                    'nama_pegawai' => $first->nama_pegawai,
+                    'departemen' => $first->departemen,
+                    'jumlah_dinilai' => $rows->count(),
+                ];
+            })
+            ->values()
+            ->sortByDesc('jumlah_dinilai')
+            ->values();
+
+        $summary = [
+            'total_petugas_terjadwal' => $rekapPetugas->count(),
+            'total_jadwal' => $rekapPetugas->sum('total_jadwal'),
+            'total_menilai' => $rekapPetugas->sum('total_menilai'),
+            'total_pegawai_dinilai' => $detailPenilaian->pluck('nik_pegawai')->unique()->count(),
+        ];
+
+        return view('budayakerja.rekap_petugas', compact(
+            'startDate',
+            'endDate',
+            'selectedPetugas',
+            'rekapPetugas',
+            'detailPenilaian',
+            'detailPegawaiDinilai',
+            'summary'
         ));
     }
 }

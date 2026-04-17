@@ -65,6 +65,11 @@
                                 {{ session('success') }}
                             </div>
                         @endif
+                        @if(session('error'))
+                            <div class="alert alert-danger">
+                                {{ session('error') }}
+                            </div>
+                        @endif
 
                         <!-- Filter Section -->
                         <div class="row mb-3">
@@ -108,10 +113,16 @@
                         <a href="{{ route('jadwalbudayakerja.create') }}" class="btn btn-primary mb-3">
                             <i class="fa fa-plus"></i> Tambah Jadwal
                         </a>
+                        <button id="btn-bulk-delete" class="btn btn-danger mb-3 ms-2" disabled>
+                            <i class="fa fa-trash"></i> Hapus Terpilih (<span id="selected-count">0</span>)
+                        </button>
 
                         <table class="table table-bordered table-striped" id="jadwal-table">
                             <thead class="table-dark">
                                 <tr>
+                                    <th style="width: 40px;">
+                                        <input type="checkbox" id="select-all" class="form-check-input" title="Tandai semua baris di halaman ini">
+                                    </th>
                                     <th>No</th>
                                     <th>Nama</th>
                                     <th>Tanggal Bertugas</th>
@@ -145,6 +156,7 @@
                 }
             },
             columns: [
+                { data: 'select', name: 'select', orderable: false, searchable: false },
                 { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false },
                 { data: 'nama', name: 'nama' },
                 { data: 'tanggal_bertugas', name: 'tanggal_bertugas' },
@@ -169,8 +181,64 @@
             }
         });
 
+        let selectedIds = new Set();
+
+        function updateSelectedUi() {
+            const count = selectedIds.size;
+            $('#selected-count').text(count);
+            $('#btn-bulk-delete').prop('disabled', count === 0);
+        }
+
+        function syncRowCheckboxes() {
+            let checkedOnPage = 0;
+            const $rows = $('.row-select');
+
+            $rows.each(function() {
+                const id = parseInt($(this).val(), 10);
+                const checked = selectedIds.has(id);
+                $(this).prop('checked', checked);
+                if (checked) checkedOnPage++;
+            });
+
+            const totalOnPage = $rows.length;
+            const allChecked = totalOnPage > 0 && checkedOnPage === totalOnPage;
+            $('#select-all').prop('checked', allChecked);
+            $('#select-all').prop('indeterminate', checkedOnPage > 0 && checkedOnPage < totalOnPage);
+        }
+
+        table.on('draw', function() {
+            syncRowCheckboxes();
+            updateSelectedUi();
+        });
+
+        $(document).on('change', '.row-select', function() {
+            const id = parseInt($(this).val(), 10);
+            if ($(this).is(':checked')) {
+                selectedIds.add(id);
+            } else {
+                selectedIds.delete(id);
+            }
+            syncRowCheckboxes();
+            updateSelectedUi();
+        });
+
+        $('#select-all').on('change', function() {
+            const checked = $(this).is(':checked');
+            $('.row-select').each(function() {
+                const id = parseInt($(this).val(), 10);
+                if (checked) {
+                    selectedIds.add(id);
+                } else {
+                    selectedIds.delete(id);
+                }
+            });
+            syncRowCheckboxes();
+            updateSelectedUi();
+        });
+
         // Filter button click
         $('#btn-filter').on('click', function() {
+            $('#select-all').prop('checked', false).prop('indeterminate', false);
             table.ajax.reload();
         });
 
@@ -179,6 +247,9 @@
             $('#filter-bulan').val('{{ $currentMonth }}');
             $('#filter-tahun').val('{{ $currentYear }}');
             $('#filter-shift').val('');
+            selectedIds.clear();
+            updateSelectedUi();
+            $('#select-all').prop('checked', false).prop('indeterminate', false);
             table.ajax.reload();
         });
 
@@ -194,6 +265,45 @@
             if (shift) exportUrl += '&shift=' + shift;
             
             window.open(exportUrl, '_blank');
+        });
+
+        $('#btn-bulk-delete').on('click', function() {
+            if (selectedIds.size === 0) {
+                return;
+            }
+
+            Swal.fire({
+                title: "Hapus data terpilih?",
+                text: `Total ${selectedIds.size} data akan dihapus permanen.`,
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonColor: "#d33",
+                cancelButtonColor: "#3085d6",
+                confirmButtonText: "Ya, hapus semua!",
+                cancelButtonText: "Batal"
+            }).then((result) => {
+                if (!result.isConfirmed) return;
+
+                $.ajax({
+                    url: "{{ route('jadwalbudayakerja.bulk-destroy') }}",
+                    type: 'POST',
+                    data: {
+                        _token: "{{ csrf_token() }}",
+                        ids: Array.from(selectedIds)
+                    },
+                    success: function(response) {
+                        Swal.fire("Berhasil!", response.message, "success");
+                        selectedIds.clear();
+                        updateSelectedUi();
+                        $('#select-all').prop('checked', false).prop('indeterminate', false);
+                        table.ajax.reload();
+                    },
+                    error: function(xhr) {
+                        const message = xhr.responseJSON?.message || "Terjadi kesalahan saat menghapus data.";
+                        Swal.fire("Error!", message, "error");
+                    }
+                });
+            });
         });
 
         // SweetAlert2 untuk Konfirmasi Hapus

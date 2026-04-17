@@ -45,7 +45,7 @@
         $('#inventaris-barang-table').DataTable({
             processing: true,
             serverSide: true,
-            ajax: '/inventaris-barang',
+            ajax: @json(route('inventaris-barang.index')),
             columns: [
                 { data: null, searchable: false, orderable: false, render: function (data, type, row, meta) {
                     return meta.row + 1; // Menambahkan nomor urut

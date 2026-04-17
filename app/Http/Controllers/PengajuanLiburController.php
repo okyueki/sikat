@@ -197,45 +197,73 @@ class PengajuanLiburController extends Controller
 public function rekapLibur(Request $request)
 {
     $title = 'Rekapitulasi Libur Pegawai';
+    $query = PengajuanLibur::with('pegawai')
+        ->select(
+            'pengajuan_libur.id_pengajuan_libur',
+            'pengajuan_libur.kode_pengajuan_libur',
+            'pengajuan_libur.nik',
+            'pengajuan_libur.jenis_pengajuan_libur',
+            'pengajuan_libur.jumlah_hari',
+            'pengajuan_libur.tanggal_awal',
+            'pengajuan_libur.tanggal_akhir',
+            'pengajuan_libur.tanggal_dibuat',
+            'pengajuan_libur.status'
+        );
+
+    if ($request->filled('start_date') && $request->filled('end_date')) {
+        $query->whereBetween('pengajuan_libur.tanggal_dibuat', [$request->start_date, $request->end_date]);
+    }
+
+    // Export CSV berdasarkan filter aktif.
+    if ($request->get('export') === 'csv') {
+        $rows = $query->orderBy('pengajuan_libur.tanggal_awal')->get();
+        $filename = 'rekap-libur-' . now()->format('Ymd-His') . '.csv';
+
+        return response()->streamDownload(function () use ($rows) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['Nama', 'Tanggal Mulai', 'Tanggal Akhir', 'Jenis', 'Status', 'Jumlah Hari']);
+
+            foreach ($rows as $row) {
+                fputcsv($handle, [
+                    optional($row->pegawai)->nama ?? '-',
+                    $row->tanggal_awal,
+                    $row->tanggal_akhir,
+                    $row->jenis_pengajuan_libur,
+                    $row->status,
+                    (int) $row->jumlah_hari,
+                ]);
+            }
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
 
     // Jika request bukan Ajax, tampilkan halaman rekaplibur.blade.php
     if (!$request->ajax()) {
         return view('pengajuan_libur.rekaplibur', compact('title'));
     }
 
-    // Ambil data pengajuan cuti dengan relasi ke pegawai
-    $query = PengajuanLibur::with('pegawai')
-        ->select(
-            'pengajuan_libur.nik',
-            'pengajuan_libur.jenis_pengajuan_libur', 
-            'pengajuan_libur.jumlah_hari', 
-            'pengajuan_libur.tanggal_awal',
-            'pengajuan_libur.tanggal_akhir',
-            'pengajuan_libur.tanggal_dibuat'
-        );
+    $totalHari = (clone $query)->sum('pengajuan_libur.jumlah_hari');
 
-    // Filter berdasarkan tanggal jika ada input
-    if ($request->has('start_date') && $request->has('end_date')) {
-        $query->whereBetween('pengajuan_libur.tanggal_dibuat', [$request->start_date, $request->end_date]);
-    }
-
-    // Ambil data dan kelompokkan berdasarkan NIK
-    $rekap = $query->get()->groupBy('nik')->map(function ($items) {
-        $badge = function ($dates) {
-            return $dates->map(fn($i) => "<span class='badge bg-primary'>{$i->tanggal_awal} - {$i->tanggal_akhir}</span>")->implode(' ');
-        };
-
-        return [
-            'nama'       => optional($items->first()->pegawai)->nama, // Hindari error jika pegawai tidak ditemukan
-            'ijin'       => $badge($items->where('jenis_pengajuan_libur', 'Ijin')),
-            'tahunan'    => $badge($items->where('jenis_pengajuan_libur', 'Tahunan')),
-            'melahirkan' => $badge($items->where('jenis_pengajuan_libur', 'Melahirkan')),
-            'ambil_libur'=> $badge($items->where('jenis_pengajuan_libur', 'Ambil Libur')),
-            'menikah'    => $badge($items->where('jenis_pengajuan_libur', 'Menikah')),
-            'total_hari' => $items->sum('jumlah_hari'),
-        ];
-    })->values();
-
-    return DataTables::of($rekap)->rawColumns(['ijin', 'tahunan', 'melahirkan', 'ambil_libur', 'menikah'])->make(true);
+    return DataTables::of($query)
+        ->addColumn('nama', fn ($row) => optional($row->pegawai)->nama ?? '-')
+        ->addColumn('jenis', fn ($row) => $row->jenis_pengajuan_libur)
+        ->addColumn('status_badge', function ($row) {
+            $class = 'bg-secondary';
+            if ($row->status === 'Disetujui') {
+                $class = 'bg-success';
+            } elseif ($row->status === 'Ditolak') {
+                $class = 'bg-danger';
+            } elseif ($row->status === 'Dikirim') {
+                $class = 'bg-warning text-dark';
+            }
+            return "<span class=\"badge {$class}\">{$row->status}</span>";
+        })
+        ->addColumn('detail', fn ($row) => '<a href="' . route('pengajuan_libur.show', encrypt($row->kode_pengajuan_libur)) . '" class="btn btn-sm btn-outline-primary">Lihat</a>')
+        ->with(['total_hari' => (int) $totalHari])
+        ->rawColumns(['status_badge', 'detail'])
+        ->make(true);
 }
 }

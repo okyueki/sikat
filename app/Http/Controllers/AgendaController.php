@@ -626,13 +626,7 @@ class AgendaController extends Controller
                     $isNotulen = ($userNik === $row->notulen);
                     
                     // Cek apakah user memiliki akses rekap.view (untuk admin/staff yang berwenang) - hanya untuk generate QR
-                    $hasRekapAccess = false;
-                    $level = Auth::user()->level;
-                    $map = config('access.map', []);
-                    $allowedLevels = $map['rekap.view'] ?? [];
-                    if (is_array($allowedLevels) && in_array($level, $allowedLevels, true)) {
-                        $hasRekapAccess = true;
-                    }
+                    $hasRekapAccess = Auth::user()->canAccess('rekap.view');
                     
                     // QR code hanya bisa di-generate jika acara belum selesai
                     $canGenerateQR = !$isSelesai && ($isCreator || $isPimpinan || $isNotulen || $hasRekapAccess);
@@ -757,13 +751,7 @@ class AgendaController extends Controller
         $isNotulen = ($userNik === $agenda->notulen);
         
         // Cek apakah user memiliki akses rekap.view (untuk admin/staff yang berwenang)
-        $hasRekapAccess = false;
-        $level = Auth::user()->level;
-        $map = config('access.map', []);
-        $allowedLevels = $map['rekap.view'] ?? [];
-        if (is_array($allowedLevels) && in_array($level, $allowedLevels, true)) {
-            $hasRekapAccess = true;
-        }
+        $hasRekapAccess = Auth::user()->canAccess('rekap.view');
 
         // Jika bukan creator, bukan pimpinan, bukan notulen, dan tidak punya akses rekap, tolak akses
         if (!$isCreator && !$isPimpinan && !$isNotulen && !$hasRekapAccess) {
@@ -861,13 +849,7 @@ class AgendaController extends Controller
         $isNotulen = ($userNik === $agenda->notulen);
         
         // Cek apakah user memiliki akses rekap.view (untuk admin/staff yang berwenang)
-        $hasRekapAccess = false;
-        $level = Auth::user()->level;
-        $map = config('access.map', []);
-        $allowedLevels = $map['rekap.view'] ?? [];
-        if (is_array($allowedLevels) && in_array($level, $allowedLevels, true)) {
-            $hasRekapAccess = true;
-        }
+        $hasRekapAccess = Auth::user()->canAccess('rekap.view');
 
         // Jika bukan creator, bukan pimpinan, bukan notulen, dan tidak punya akses rekap, tolak akses
         if (!$isCreator && !$isPimpinan && !$isNotulen && !$hasRekapAccess) {

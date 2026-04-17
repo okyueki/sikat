@@ -12,6 +12,12 @@ class NotificationController extends Controller
 {
     public function getNotifications()
 {
+    if (!Auth::check()) {
+        return response()->json([
+            'message' => 'Unauthenticated.'
+        ], 401);
+    }
+
     $nik = Auth::user()->username;
 
     // Verifikasi Surat

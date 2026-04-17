@@ -52,6 +52,9 @@ class JadwalBudayaKerjaController extends Controller
             
             return DataTables::of($query)
                 ->addIndexColumn()
+                ->addColumn('select', function($row) {
+                    return '<input type="checkbox" class="row-select form-check-input" value="' . e($row->id_jadwal_budaya_kerja) . '">';
+                })
                 ->addColumn('nama', function($row) {
                     return $row->petugas ? $row->petugas->nama : '-';
                 })
@@ -83,7 +86,7 @@ class JadwalBudayaKerjaController extends Controller
                     return '<a href="'.route('jadwalbudayakerja.edit', $row->id_jadwal_budaya_kerja).'" class="btn btn-sm btn-success">Edit</a>
                             <a href="'.route('jadwalbudayakerja.destroy', $row->id_jadwal_budaya_kerja).'" class="btn btn-sm btn-danger delete-btn">Delete</a>';
                 })
-                ->rawColumns(['action', 'whatsapp_status'])
+                ->rawColumns(['select', 'action', 'whatsapp_status'])
                 ->make(true);
         }
         
@@ -221,6 +224,31 @@ class JadwalBudayaKerjaController extends Controller
         JadwalBudayaKerja::destroy($id);
         return response()->json(['success' => 'Data berhasil dihapus']);
 
+    }
+
+    public function bulkDestroy(Request $request)
+    {
+        $ids = $request->input('ids', []);
+
+        if (!is_array($ids) || empty($ids)) {
+            return response()->json(['message' => 'Tidak ada data yang dipilih.'], 422);
+        }
+
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        $ids = array_filter($ids, static fn ($id) => $id > 0);
+
+        if (empty($ids)) {
+            return response()->json(['message' => 'Data pilihan tidak valid.'], 422);
+        }
+
+        $deleted = JadwalBudayaKerja::whereIn('id_jadwal_budaya_kerja', $ids)->delete();
+
+        return response()->json([
+            'message' => $deleted > 0
+                ? $deleted . ' data berhasil dihapus.'
+                : 'Tidak ada data yang dihapus.',
+            'deleted' => $deleted,
+        ]);
     }
     
     /**

@@ -105,9 +105,11 @@
                     </div>
                     @if($agendaTerundang->count() > 5)
                     <div class="text-center mt-3">
+                        @can('absensi_agenda.access')
                         <a href="{{ route('absensi_agenda.index') }}" class="btn btn-primary">
                             <i class="fas fa-list me-1"></i> Lihat Semua Agenda
                         </a>
+                        @endcan
                     </div>
                     @endif
                 </div>

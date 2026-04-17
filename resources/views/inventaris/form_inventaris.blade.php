@@ -24,6 +24,22 @@
     </select>
 </div>
 
+@php
+    $infoBarang = isset($inventaris) ? ($inventaris->barang ?? null) : null;
+    $namaProdusenTampil = optional(optional($infoBarang)->produsen)->nama_produsen;
+    $namaMerkTampil = optional(optional($infoBarang)->merk)->nama_merk;
+@endphp
+
+<div class="form-group">
+    <label for="produsen">Produsen</label>
+    <input type="text" id="produsen" class="form-control bg-light" readonly tabindex="-1" value="{{ $namaProdusenTampil ?: '—' }}" aria-readonly="true">
+</div>
+
+<div class="form-group">
+    <label for="merk">Merk</label>
+    <input type="text" id="merk" class="form-control bg-light" readonly tabindex="-1" value="{{ $namaMerkTampil ?: '—' }}" aria-readonly="true">
+</div>
+
 <div class="form-group">
     <label for="asal_barang">Asal Barang</label>
     <select name="asal_barang" id="asal_barang" class="form-control" required>

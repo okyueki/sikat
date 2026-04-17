@@ -10,7 +10,6 @@
                                   <path d="M6.5 14.5v-3.505c0-.245.25-.495.5-.495h2c.25 0 .5.25.5.5v3.5a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5"/>
                                 </svg>
                                 <span class="side-menu__label">Dashboard</span>
-                                <span class="badge bg-success ms-auto menu-badge">1</span>
                             </a>
                         </li>
                 
@@ -76,6 +75,7 @@
                                     </ul>
                                 </li>
                 
+                                @can('surat.master')
                                 <li class="slide has-sub {{ request()->routeIs('klasifikasi_surat.*') || request()->routeIs('sifat_surat.*') ? 'open' : '' }}">
                                     <a href="javascript:void(0);" class="side-menu__item {{ request()->routeIs('sifat_surat.*') || request()->routeIs('klasifikasi_surat.*') ? 'active' : '' }}">Pengaturan Surat
                                         <i class="fe fe-chevron-right side-menu__angle"></i></a>
@@ -88,6 +88,7 @@
                                         </li>
                                     </ul>
                                 </li>
+                                @endcan
                             </ul>
                         </li>
                         <!-- End::slide -->
@@ -109,20 +110,24 @@
                                 <li class="slide">
                                     <a href="{{ route('acara_index') }}" class="side-menu__item {{ request()->routeIs('acara_*') ? 'active' : '' }}">Kalender Event</a>
                                 </li>
-                                @if (in_array(Auth::user()->level, ['Kabag','Kasie']))
+                                @can('agenda.backend')
                                 <li class="slide">
                                     <a href="{{ route('backend_acara') }}" class="side-menu__item {{ request()->routeIs('backend_acara') ? 'active' : '' }}">Agenda</a>
                                 </li>
-                                @endif
+                                @endcan
+                                @can('absensi_agenda.access')
                                 <li class="slide">
                                     <a href="{{ route('absensi_agenda.index') }}" class="side-menu__item {{ request()->routeIs('absensi_agenda.*') ? 'active' : '' }}">Absensi Agenda</a>
                                 </li>
                                 <li class="slide">
                                     <a href="{{ route('rekap-absensi') }}" class="side-menu__item {{ request()->routeIs('rekap-absensi') ? 'active' : '' }}">Rekap Absensi Agenda</a>
                                 </li>
+                                @endcan
+                                @can('masjid_token.access')
                                 <li class="slide">
                                     <a href="{{ route('masjid_token.index') }}" class="side-menu__item {{ request()->routeIs('masjid_token.*') ? 'active' : '' }}">Token QR Absensi Sholat</a>
                                 </li>
+                                @endcan
                                 <li class="slide">
                                     <a href="{{ route('rekap_absensi_sholat.index') }}" class="side-menu__item {{ request()->routeIs('rekap_absensi_sholat.*') ? 'active' : '' }}">Rekap Absensi Sholat</a>
                                 </li>
@@ -149,11 +154,11 @@
                                         <i class="fe fe-chevron-right side-menu__angle"></i>
                                     </a>
                                     <ul class="slide-menu child2">
-                                        @if (in_array(Auth::user()->level, ['Kasie','Kabag']))
+                                        @can('presensi.temporary')
                                         <li class="slide">
                                             <a href="{{ route('presensi.index') }}" class="side-menu__item {{ request()->routeIs('presensi.*') ? 'active' : '' }}">Temporary Presensi</a>
                                         </li>
-                                        @endif
+                                        @endcan
                                         <li class="slide">
                                             <a href="{{ route('jadwal.index') }}" class="side-menu__item {{ request()->routeIs('jadwal.*') ? 'active' : '' }}">Jadwal</a>
                                         </li>
@@ -175,6 +180,9 @@
                                         </li>
                                         <li class="slide">
                                             <a href="{{ route('budayakerja.rekapan') }}" class="side-menu__item {{ request()->routeIs('budayakerja.rekapan') ? 'active' : '' }}">Rekapan Budaya Kerja</a>
+                                        </li>
+                                        <li class="slide">
+                                            <a href="{{ route('budayakerja.rekap_petugas') }}" class="side-menu__item {{ request()->routeIs('budayakerja.rekap_petugas') ? 'active' : '' }}">Rekap Petugas Penilai</a>
                                         </li>
                                         <li class="slide">
                                             <a href="{{ route('jadwalbudayakerja.index') }}" class="side-menu__item {{ request()->routeIs('jadwalbudayakerja.*') ? 'active' : '' }}">Jadwal Budaya Kerja</a>
@@ -199,56 +207,11 @@
            
                         <!-- End::slide -->
                         
-                        <!-- Start::slide -->
-                        <li class="slide has-sub">
-                            <a href="javascript:void(0);" class="side-menu__item {{ request()->routeIs('inventaris-barang.*') || request()->routeIs('inventaris.*') ? 'active' : '' }}">
-                                <span class="side-menu__label">
-                                <svg class="me-2" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pc-display" viewBox="0 0 16 16">
-                                  <path d="M8 1a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1zm1 13.5a.5.5 0 1 0 1 0 .5.5 0 0 0-1 0m2 0a.5.5 0 1 0 1 0 .5.5 0 0 0-1 0M9.5 1a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1zM9 3.5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 0-1h-5a.5.5 0 0 0-.5.5M1.5 2A1.5 1.5 0 0 0 0 3.5v7A1.5 1.5 0 0 0 1.5 12H6v2h-.5a.5.5 0 0 0 0 1H7v-4H1.5a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5H7V2z"/>
-                                </svg>
-                        		Inventaris</span>
-                                <i class="fe fe-chevron-right side-menu__angle"></i>
-                            </a>
-                            <ul class="slide-menu child1">
-                                <li class="slide side-menu__label1">
-                                    <a href="javascript:void(0);">Inventaris</a>
-                                </li>
-                                <li class="slide">
-                                    <a href="{{ route('inventaris-barang.index') }}" class="side-menu__item {{ request()->routeIs('inventaris-barang.*') ? 'active' : '' }}">Master Barang</a>
-                                </li>
-                                <li class="slide">
-                                    <a href="{{ route('inventaris.index') }}" class="side-menu__item {{ request()->routeIs('inventaris.index') || request()->routeIs('inventaris.create') || request()->routeIs('inventaris.edit') || request()->routeIs('inventaris.show') ? 'active' : '' }}">Inventaris</a>
-                                </li>
-                                <li class="slide">
-                                    <a href="{{ route('inventaris.visualisasi') }}" class="side-menu__item {{ request()->routeIs('inventaris.visualisasi*') ? 'active' : '' }}">
-                                        <i class="fa fa-chart-bar me-2"></i>Visualisasi Data
-                                    </a>
-                                </li>
-                            </ul>
-                        </li>
+                        <!-- Start::slide Inventaris (config: navigation.inventaris) -->
+                        @can('inventaris.access')
+                        @include('navigation.sidebar-inventaris')
+                        @endcan
                         <!-- End::slide -->
-                        
-                        <!-- Start::slide -->
-                        <li class="slide has-sub">
-                            <a href="javascript:void(0);" class="side-menu__item {{ request()->routeIs('tickets.*') || request()->routeIs('helpdesk.*') ? 'active' : '' }}">
-                                <svg class="me-2" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-patch-question-fill" viewBox="0 0 16 16">
-                                  <path d="M5.933.87a2.89 2.89 0 0 1 4.134 0l.622.638.89-.011a2.89 2.89 0 0 1 2.924 2.924l-.01.89.636.622a2.89 2.89 0 0 1 0 4.134l-.637.622.011.89a2.89 2.89 0 0 1-2.924 2.924l-.89-.01-.622.636a2.89 2.89 0 0 1-4.134 0l-.622-.637-.89.011a2.89 2.89 0 0 1-2.924-2.924l.01-.89-.636-.622a2.89 2.89 0 0 1 0-4.134l.637-.622-.011-.89a2.89 2.89 0 0 1 2.924-2.924l.89.01zM7.002 11a1 1 0 1 0 2 0 1 1 0 0 0-2 0m1.602-2.027c.04-.534.198-.815.846-1.26.674-.475 1.05-1.09 1.05-1.986 0-1.325-.92-2.227-2.262-2.227-1.02 0-1.792.492-2.1 1.29A1.7 1.7 0 0 0 6 5.48c0 .393.203.64.545.64.272 0 .455-.147.564-.51.158-.592.525-.915 1.074-.915.61 0 1.03.446 1.03 1.084 0 .563-.208.885-.822 1.325-.619.433-.926.914-.926 1.64v.111c0 .428.208.745.585.745.336 0 .504-.24.554-.627"/>
-                                </svg>
-                                <span class="side-menu__label">Pusat Bantuan</span>
-                                <i class="fe fe-chevron-right side-menu__angle"></i>
-                            </a>
-                            <ul class="slide-menu child1">
-                                <li class="slide side-menu__label1">
-                                    <a href="javascript:void(0);">Pusat Bantuan</a>
-                                </li>
-                                <li class="slide">
-                                    <a href="{{ route('tickets.index') }}" class="side-menu__item {{ request()->routeIs('tickets.*') ? 'active' : '' }}">Permintaan Perbaikan</a>
-                                </li>
-                                <li class="slide">
-                                    <a href="{{ route('helpdesk.dashboard') }}" class="side-menu__item {{ request()->routeIs('helpdesk.*') ? 'active' : '' }}">Helpdesk</a>
-                                </li>
-                            </ul>
-                        </li>
                         
                         <li class="slide has-sub">
                             <a href="javascript:void(0);" class="side-menu__item {{ request()->routeIs('pengajuan_libur.rekap-libur') || request()->routeIs('rekap.lembur') ? 'active' : '' }}">
@@ -267,30 +230,6 @@
                                 </li>
                                 <li class="slide">
                                     <a href="{{ route('rekap.lembur') }}" class="side-menu__item {{ request()->routeIs('rekap.lembur') ? 'active' : '' }}">Rekap Lembur</a>
-                                </li>
-                            </ul>
-                        </li>
-                        <li class="slide has-sub">
-                            <a href="javascript:void(0);" class="side-menu__item {{ request()->routeIs('pemakaiankamar.*') || request()->routeIs('pasienrawatinap.*') || request()->routeIs('pasienrawatjalan.*') ? 'active' : '' }}">
-                                <svg class="me-2" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-emoji-grin" viewBox="0 0 16 16">
-                                  <path d="M12.946 11.398A6.002 6.002 0 0 1 2.108 9.14c-.114-.595.426-1.068 1.028-.997C4.405 8.289 6.48 8.5 8 8.5s3.595-.21 4.864-.358c.602-.07 1.142.402 1.028.998a5.95 5.95 0 0 1-.946 2.258m-.078-2.25C11.588 9.295 9.539 9.5 8 9.5s-3.589-.205-4.868-.352c.11.468.286.91.517 1.317A37 37 0 0 0 8 10.75a37 37 0 0 0 4.351-.285c.231-.407.407-.85.517-1.317m-1.36 2.416c-1.02.1-2.255.186-3.508.186s-2.488-.086-3.507-.186A5 5 0 0 0 8 13a5 5 0 0 0 3.507-1.436ZM6.488 7c.114-.294.179-.636.179-1 0-1.105-.597-2-1.334-2C4.597 4 4 4.895 4 6c0 .364.065.706.178 1 .23-.598.662-1 1.155-1 .494 0 .925.402 1.155 1M12 6c0 .364-.065.706-.178 1-.23-.598-.662-1-1.155-1-.494 0-.925.402-1.155 1a2.8 2.8 0 0 1-.179-1c0-1.105.597-2 1.334-2C11.403 4 12 4.895 12 6"/>
-                                  <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m0-1A7 7 0 1 1 8 1a7 7 0 0 1 0 14"/>
-                                </svg>
-                                <span class="side-menu__label">Manajemen</span>
-                                <i class="fe fe-chevron-right side-menu__angle"></i>
-                            </a>
-                            <ul class="slide-menu child1">
-                                <li class="slide side-menu__label1">
-                                    <a href="javascript:void(0);">Manajemen</a>
-                                </li>
-                                <li class="slide">
-                                    <a href="{{ route('pemakaiankamar.index') }}" class="side-menu__item {{ request()->routeIs('pemakaiankamar.*') ? 'active' : '' }}">Pemakaian Kamar</a>
-                                </li>
-                                <li class="slide">
-                                    <a href="{{ route('pasienrawatinap.index') }}" class="side-menu__item {{ request()->routeIs('pasienrawatinap.*') ? 'active' : '' }}">Pasien Rawat Inap</a>
-                                </li>
-                                <li class="slide">
-                                    <a href="{{ route('pasienrawatjalan.index') }}" class="side-menu__item {{ request()->routeIs('pasienrawatjalan.*') ? 'active' : '' }}">Pasien Rawat Jalan</a>
                                 </li>
                             </ul>
                         </li>
@@ -330,21 +269,21 @@
                                 <li class="slide side-menu__label1">
                                     <a href="javascript:void(0);">Pengaturan</a>
                                 </li>
-                                @if (in_array(Auth::user()->level, ['Kabag']))
+                                @can('surat.master')
                                 <li class="slide">
                                     <a href="{{ route('sifat_surat.index') }}" class="side-menu__item {{ request()->routeIs('sifat_surat.*') ? 'active' : '' }}">Sifat Surat</a>
                                 </li>
-                                @endif
-                                @if (in_array(Auth::user()->level, ['Kabag']))
+                                @endcan
+                                @can('users.manage')
                                 <li class="slide">
                                     <a href="{{ route('users.index') }}" class="side-menu__item {{ request()->routeIs('users.*') ? 'active' : '' }}">Users</a>
                                 </li>
-                                @endif
-                                @if (in_array(Auth::user()->level, ['Kabag']))
+                                @endcan
+                                @can('surat.master')
                                 <li class="slide">
                                     <a href="{{ route('klasifikasi_surat.index') }}" class="side-menu__item {{ request()->routeIs('klasifikasi_surat.*') ? 'active' : '' }}">Klasifikasi Surat</a>
                                 </li>
-                                @endif
+                                @endcan
                                 <li class="slide">
                                     <a href="{{ route('struktur_organisasi.index') }}" class="side-menu__item {{ request()->routeIs('struktur_organisasi.*') ? 'active' : '' }}">Struktur Organisasi</a>
                                 </li>

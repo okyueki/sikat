@@ -2,6 +2,13 @@
 
 @section('pageTitle', 'Detail Inventaris')
 
+@section('breadcrumbs')
+    <x-sikat.breadcrumbs :items="[
+        ['label' => 'Inventaris', 'url' => route('inventaris.index')],
+        ['label' => 'Detail'],
+    ]" />
+@endsection
+
 @section('content')
 <div class="col-12">
     <div class="card">

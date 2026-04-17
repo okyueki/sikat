@@ -14,16 +14,13 @@ class CheckAccess
             abort(403, 'Unauthorized access.');
         }
 
-        $level = Auth::user()->level;
-        $map = config('access.map', []);
-        $allowedLevels = $map[$ability] ?? null;
-
-        // If ability is not configured, deny by default (safer).
-        if (!is_array($allowedLevels)) {
+        // Ability harus ada di config access.map (bukan config('access.map.'.$x) — titik di nama ability bukan nested key).
+        $levels = config('access.map', [])[$ability] ?? null;
+        if (! is_array($levels)) {
             abort(403, 'Unauthorized access.');
         }
 
-        if (in_array($level, $allowedLevels, true)) {
+        if (Auth::user()->can($ability)) {
             return $next($request);
         }
 

@@ -2,6 +2,13 @@
 
 @section('pageTitle', 'Edit Inventaris')
 
+@section('breadcrumbs')
+    <x-sikat.breadcrumbs :items="[
+        ['label' => 'Inventaris', 'url' => route('inventaris.index')],
+        ['label' => 'Edit'],
+    ]" />
+@endsection
+
 @section('content')
 <div class="col-12">
     <div class="card">
@@ -21,25 +28,17 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Inisialisasi Choices.js untuk dropdown
-        const kodeProdusen = new Choices('#kode_produsen', {
-            searchEnabled: true,
-            shouldSort: false,
-        });
+        new Choices('#kode_barang', { searchEnabled: true, shouldSort: false });
+        new Choices('#asal_barang', { searchEnabled: true, shouldSort: false });
+        new Choices('#status_barang', { searchEnabled: true, shouldSort: false });
+        new Choices('#id_ruang', { searchEnabled: true, shouldSort: false });
+    });
 
-        const idMerk = new Choices('#id_merk', {
-            searchEnabled: true,
-            shouldSort: false,
-        });
+    @include('inventaris.partials.barang_info_loader')
 
-        const idKategori = new Choices('#id_kategori', {
-            searchEnabled: true,
-            shouldSort: false,
-        });
-
-        const idJenis = new Choices('#id_jenis', {
-            searchEnabled: true,
-            shouldSort: false,
+    $(document).ready(function() {
+        $('#kode_barang').on('change', function() {
+            loadInventarisBarangInfo($(this).val());
         });
     });
 </script>

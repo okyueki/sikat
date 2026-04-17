@@ -2,6 +2,13 @@
 
 @section('pageTitle', $pageTitle)
 
+@section('breadcrumbs')
+    <x-sikat.breadcrumbs :items="[
+        ['label' => 'Master barang', 'url' => route('inventaris-barang.index')],
+        ['label' => 'Tambah'],
+    ]" />
+@endsection
+
 @section('content')
 <div class="col-12">
     <div class="card">

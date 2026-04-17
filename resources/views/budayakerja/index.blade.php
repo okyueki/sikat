@@ -14,6 +14,9 @@
                             <a href="{{ route('budayakerja.rekap_pegawai') }}" class="btn btn-secondary me-2">
                                 <i class="fas fa-users me-1"></i>Rekap Semua Pegawai
                             </a>
+                            <a href="{{ route('budayakerja.rekap_petugas') }}" class="btn btn-warning me-2">
+                                <i class="fas fa-user-check me-1"></i>Rekap Petugas Penilai
+                            </a>
                             <a href="{{ route('budayakerja.rekapan') }}" class="btn btn-info me-2">
                                 <i class="fas fa-chart-bar me-1"></i>Rekapan Bulanan
                             </a>
@@ -24,6 +27,11 @@
                         @if (session('success'))
                             <div class="alert alert-success">
                                 {{ session('success') }}
+                            </div>
+                        @endif
+                        @if (session('error'))
+                            <div class="alert alert-danger">
+                                {{ session('error') }}
                             </div>
                         @endif
 
@@ -39,6 +47,16 @@
                                 <button id="filter" class="btn btn-primary">Filter</button>
                                 <button id="reset" class="btn btn-secondary">Reset</button>
                             </div>
+                            <div class="col-md-6 text-md-end mt-2 mt-md-0">
+                                <form id="bulkDeleteForm" action="{{ route('budayakerja.bulk-destroy') }}" method="POST" class="d-inline">
+                                    @csrf
+                                    <span id="selectedCount" class="me-2 text-muted small">0 dipilih</span>
+                                    <span id="bulkDeleteIdsContainer"></span>
+                                    <button type="button" id="bulkDeleteBtn" class="btn btn-danger" disabled>
+                                        <i class="fas fa-trash me-1"></i>Hapus Terpilih
+                                    </button>
+                                </form>
+                            </div>
                         </div>
 
                         <!-- Table -->
@@ -46,6 +64,9 @@
                             <table id="budayaKerjaTable" class="table table-bordered">
                                 <thead>
                                     <tr>
+                                        <th style="width: 36px;">
+                                            <input type="checkbox" id="select_all" class="form-check-input" title="Tandai semua baris di halaman ini">
+                                        </th>
                                         <th>Tanggal</th>
                                         <th>Jam</th>
                                         <th>NIK Pegawai</th>
@@ -89,6 +110,7 @@
             }
         },
         columns: [
+            { data: 'select', name: 'select', orderable: false, searchable: false },
             { data: 'tanggal', name: 'tanggal' },
             { data: 'jam', name: 'jam' },
             { data: 'nik_pegawai', name: 'nik_pegawai' },
@@ -103,8 +125,78 @@
         ]
     });
 
+    var selectedIds = new Set();
+    var $selectedCount = $('#selectedCount');
+    var $bulkDeleteBtn = $('#bulkDeleteBtn');
+    var $selectAll = $('#select_all');
+
+    function renderBulkDeleteInputs() {
+        var html = '';
+        selectedIds.forEach(function(id) {
+            html += '<input type="hidden" name="ids[]" value="' + id + '">';
+        });
+        $('#bulkDeleteIdsContainer').html(html);
+    }
+
+    function updateBulkUiState() {
+        var selectedTotal = selectedIds.size;
+        $selectedCount.text(selectedTotal + ' dipilih');
+        $bulkDeleteBtn.prop('disabled', selectedTotal === 0);
+        renderBulkDeleteInputs();
+    }
+
+    function syncVisibleCheckboxesFromSelection() {
+        var visible = $('.row-select');
+        var checkedCount = 0;
+
+        visible.each(function() {
+            var id = parseInt($(this).val(), 10);
+            var isChecked = selectedIds.has(id);
+            $(this).prop('checked', isChecked);
+            if (isChecked) checkedCount++;
+        });
+
+        var totalVisible = visible.length;
+        var allChecked = totalVisible > 0 && checkedCount === totalVisible;
+        $selectAll.prop('checked', allChecked);
+        $selectAll.prop('indeterminate', checkedCount > 0 && checkedCount < totalVisible);
+    }
+
+    $('#budayaKerjaTable').on('change', '.row-select', function() {
+        var id = parseInt($(this).val(), 10);
+        if ($(this).is(':checked')) {
+            selectedIds.add(id);
+        } else {
+            selectedIds.delete(id);
+        }
+        updateBulkUiState();
+        syncVisibleCheckboxesFromSelection();
+    });
+
+    $selectAll.on('change', function() {
+        var checked = $(this).is(':checked');
+        $('.row-select').each(function() {
+            var id = parseInt($(this).val(), 10);
+            if (checked) {
+                selectedIds.add(id);
+                $(this).prop('checked', true);
+            } else {
+                selectedIds.delete(id);
+                $(this).prop('checked', false);
+            }
+        });
+        updateBulkUiState();
+        syncVisibleCheckboxesFromSelection();
+    });
+
+    table.on('draw', function() {
+        syncVisibleCheckboxesFromSelection();
+        updateBulkUiState();
+    });
+
     // Filter Button: Reload table with the filter applied
     $('#filter').click(function() {
+        $selectAll.prop('checked', false).prop('indeterminate', false);
         table.ajax.reload();
     });
 
@@ -112,7 +204,17 @@
     $('#reset').click(function() {
         $('#start_date').val('');
         $('#end_date').val('');
+        selectedIds.clear();
+        updateBulkUiState();
+        $selectAll.prop('checked', false).prop('indeterminate', false);
         table.ajax.reload();
+    });
+
+    $('#bulkDeleteBtn').click(function() {
+        if (selectedIds.size === 0) return;
+        var confirmed = confirm('Hapus ' + selectedIds.size + ' data yang dipilih?');
+        if (!confirmed) return;
+        $('#bulkDeleteForm').trigger('submit');
     });
 });
 </script>

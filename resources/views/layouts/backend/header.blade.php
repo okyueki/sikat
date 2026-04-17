@@ -19,8 +19,8 @@
                     </div>
                     <!-- End::header-element -->
 
-                    <!-- Start::header-element -->
-                    <div class="header-element">
+                    <!-- Start::header-element (toggle + pintasan modul; perlu flex agar tidak overlap konten) -->
+                    <div class="header-element sikat-header-tools flex-grow-1 min-w-0">
                         <!-- Start::header-link -->
                         <a aria-label="Hide Sidebar" class="sidemenu-toggle header-link animated-arrow hor-toggle horizontal-navtoggle" data-bs-toggle="sidebar" href="javascript:void(0);">
                             <i class="header-icon fe fe-align-left"></i>
@@ -35,7 +35,10 @@
                             </svg>
                         </a>
                         <div class="main-header-center d-none d-lg-block">
-                            <input class="form-control" placeholder="Search for anything..." type="search"> <button class="btn"><i class="fa fa-search d-none d-md-block"></i></button>
+                            <button type="button" class="btn btn-light border d-flex align-items-center gap-2 text-muted px-3 py-2 sikat-header-menu-launch" id="headerMenuLaunchBtn" title="Buka pintasan modul">
+                                <i class="fe fe-search" aria-hidden="true"></i>
+                                <span class="text-truncate">Cari / buka modul…</span>
+                            </button>
                         </div>
                         <!-- End::header-link -->
                     </div>
@@ -56,7 +59,7 @@
                         <ul class="main-header-dropdown dropdown-menu dropdown-menu-end Search-element-dropdown" data-popper-placement="none">
                             <li>
                                 <div class="input-group w-100 p-2"> 
-                                    <input type="text" class="form-control" placeholder="Search....">
+                                    <input type="text" class="form-control" placeholder="Cari…">
                                     <div class="btn btn-primary"> 
                                         <i class="fa fa-search" aria-hidden="true"></i> 
                                     </div>

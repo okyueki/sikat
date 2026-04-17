@@ -655,7 +655,7 @@ class AbsensiController extends Controller
         // Audit trail untuk presensi pulang
         AuditTrail::logCreate('absensi', 'rekap_presensi', $pegawai->id, [
             'pegawai_id' => $pegawai->id,
-            'shift' => $shift,
+            'shift' => $temporaryPresensi->shift,
             'jam_datang' => $jamDatang->toDateTimeString(),
             'jam_pulang' => $jamPulang->toDateTimeString(),
             'durasi' => $durasi,

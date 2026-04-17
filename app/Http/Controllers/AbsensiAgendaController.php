@@ -166,13 +166,7 @@ public function rekapAbsensi(Request $request)
         $isNotulen = ($userNik === $agenda->notulen);
         
         // Cek apakah user memiliki akses rekap.view (untuk admin/staff yang berwenang)
-        $hasRekapAccess = false;
-        $level = Auth::user()->level;
-        $map = config('access.map', []);
-        $allowedLevels = $map['rekap.view'] ?? [];
-        if (is_array($allowedLevels) && in_array($level, $allowedLevels, true)) {
-            $hasRekapAccess = true;
-        }
+        $hasRekapAccess = Auth::user()->canAccess('rekap.view');
 
         // Jika bukan pimpinan, bukan notulen, dan tidak punya akses rekap.view, tolak akses
         if (!$isPimpinan && !$isNotulen && !$hasRekapAccess) {
@@ -180,13 +174,7 @@ public function rekapAbsensi(Request $request)
         }
     } else {
         // Jika tidak ada agenda_id (melihat semua agenda), cek akses rekap.view
-        $hasRekapAccess = false;
-        $level = Auth::user()->level;
-        $map = config('access.map', []);
-        $allowedLevels = $map['rekap.view'] ?? [];
-        if (is_array($allowedLevels) && in_array($level, $allowedLevels, true)) {
-            $hasRekapAccess = true;
-        }
+        $hasRekapAccess = Auth::user()->canAccess('rekap.view');
 
         // Jika tidak punya akses rekap.view, hanya tampilkan agenda di mana user adalah pimpinan atau notulen
         if (!$hasRekapAccess) {
@@ -371,13 +359,7 @@ public function rekapAbsensi(Request $request)
     }
 
     // Filter agenda berdasarkan akses user
-    $hasRekapAccess = false;
-    $level = Auth::user()->level;
-    $map = config('access.map', []);
-    $allowedLevels = $map['rekap.view'] ?? [];
-    if (is_array($allowedLevels) && in_array($level, $allowedLevels, true)) {
-        $hasRekapAccess = true;
-    }
+    $hasRekapAccess = Auth::user()->canAccess('rekap.view');
 
     if ($hasRekapAccess) {
         // Jika punya akses rekap.view, tampilkan semua agenda

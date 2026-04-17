@@ -98,9 +98,9 @@ public function create()
     }
 
     // Menghapus data permintaan
-    public function destroy($id)
+    public function destroy($no_permintaan)
     {
-        $permintaan = PermintaanPerbaikanInventaris::findOrFail($id);
+        $permintaan = PermintaanPerbaikanInventaris::where('no_permintaan', $no_permintaan)->firstOrFail();
         $permintaan->delete();
 
         return redirect()->route('permintaan.index')->with('success', 'Permintaan Perbaikan berhasil dihapus.');

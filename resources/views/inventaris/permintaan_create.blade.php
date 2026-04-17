@@ -108,7 +108,7 @@ document.getElementById('departemen').addEventListener('change', function() {
         var originalHtml = pegawaiSelect.html();
         
         // Kirim request AJAX dengan error handling
-        fetch(`/get-pegawai-by-departemen/${depId}`, {
+        fetch(@json(url('/get-pegawai-by-departemen')) + '/' + encodeURIComponent(depId), {
             method: 'GET',
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',

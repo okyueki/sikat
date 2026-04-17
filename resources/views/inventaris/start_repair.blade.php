@@ -8,7 +8,7 @@
         <div class="card-body">
             <h3>Mulai Perbaikan untuk Permintaan No: {{ $permintaan->no_permintaan }}</h3>
 
-            <form action="{{ route('perbaikan.start', $permintaan->no_permintaan) }}" method="POST">
+            <form action="{{ route('perbaikan.start.store', $permintaan->no_permintaan) }}" method="POST">
                 @csrf
                 <div class="mb-3">
                     <label class="form-label">Uraian Kegiatan</label>
@@ -25,7 +25,7 @@
                     <select name="pelaksana" class="form-select" required>
                         <option value="Teknisi Rumah Sakit">Teknisi Rumah Sakit</option>
                         <option value="Teknisi Rujukan">Teknisi Rujukan</option>
-                        <option value="Pihak Ketiga">Pihak Ketiga</option>
+                        <option value="Pihak ke III">Pihak ke III</option>
                     </select>
                 </div>
 

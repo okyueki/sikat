@@ -117,19 +117,31 @@
                             
                             <div class="tab-pane" id="lampiran" role="tabpanel">
                         @if(!empty($pengajuanlibur->foto))
-                            <img src="{{ asset('storage/'.$pengajuanlibur->foto) }}" class="img-fluid"/>
-                        
-                            @if(!empty($pengajuanlibur->file_lampiran))
-                                <p class="text-center mt-3">
-                                    <a href="{{ asset($pengajuanlibur->file_lampiran) }}"
-                                       class="btn btn-primary"
-                                       download>
-                                       Download PDF
-                                    </a>
-                                </p>
+                            @php
+                                $lampiranUrl = asset('storage/' . $pengajuanlibur->foto);
+                                $lampiranExt = strtolower(pathinfo($pengajuanlibur->foto, PATHINFO_EXTENSION));
+                                $isPdf = $lampiranExt === 'pdf';
+                                $isImage = in_array($lampiranExt, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
+                            @endphp
+                            <div class="mb-3 d-flex flex-wrap gap-2">
+                                <a href="{{ $lampiranUrl }}" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-external-link-alt me-1"></i>Buka di tab baru
+                                </a>
+                                <a href="{{ $lampiranUrl }}" class="btn btn-primary btn-sm" download="{{ basename($pengajuanlibur->foto) }}">
+                                    <i class="fas fa-download me-1"></i>Unduh lampiran
+                                </a>
+                            </div>
+                            @if($isPdf)
+                                <iframe src="{{ asset('assets/libs/pdfjs/web/viewer.html?file=' . urlencode($lampiranUrl) . '&v=' . time()) }}" width="100%" height="600px" class="border rounded"></iframe>
+                            @elseif($isImage)
+                                <div class="text-center">
+                                    <img src="{{ $lampiranUrl }}" alt="Lampiran" class="img-fluid rounded border" style="max-height: 70vh; object-fit: contain;">
+                                </div>
+                            @else
+                                <p class="text-muted mb-0">Pratinjau tidak tersedia untuk jenis file ini. Gunakan tombol di atas untuk membuka atau mengunduh.</p>
                             @endif
                         @else
-                            <h4 class="text-center">Tidak Ada Lampiran</h4>
+                            <h4 class="text-center text-muted">Tidak ada lampiran</h4>
                         @endif
                     </div>
                         </div>                                  

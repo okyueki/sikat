@@ -16,12 +16,14 @@ class PengajuanLembur extends Model
         'kode_pengajuan_lembur',
         'nik',
         'keterangan',
-        'tanggal_lembur',
+        'tanggal_awal',
+        'tanggal_akhir',
         'jam_awal',
         'jam_akhir',
         'nik_atasan_langsung',
         'status',
         'catatan',
+        'tanggal_dibuat',
         'tanggal_verifikasi'
     ];
 

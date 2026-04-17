@@ -8,7 +8,9 @@
         <div class="card custom-card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">Rekap Absensi Sholat (Masjid RS)</h5>
+                @can('masjid_token.access')
                 <a href="{{ route('masjid_token.index') }}" class="btn btn-outline-secondary btn-sm">Token QR Masjid</a>
+                @endcan
             </div>
             <div class="card-body">
                 <form method="get" action="{{ route('rekap_absensi_sholat.index') }}" class="mb-4">

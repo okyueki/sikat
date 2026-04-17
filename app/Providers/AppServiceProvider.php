@@ -5,6 +5,7 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Carbon\Carbon;
 
 // Tambahin use untuk model & observer
@@ -40,6 +41,12 @@ class AppServiceProvider extends ServiceProvider
         }
         
         Carbon::setLocale('id');
+
+        foreach (array_keys(config('access.map', [])) as $ability) {
+            Gate::define($ability, function (\App\Models\User $user) use ($ability) {
+                return $user->canAccess($ability);
+            });
+        }
 
         // 👉 Daftarin semua observer di sini
         Surat::observe(SuratObserver::class);

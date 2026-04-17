@@ -51,4 +51,15 @@ class User extends Authenticatable
     {
         return $this->hasMany(\App\Models\MasterTandaTangan::class);
     }
+
+    /**
+     * Cek izin berdasarkan config/access.php (map ability → daftar level).
+     */
+    public function canAccess(string $ability): bool
+    {
+        $levels = config('access.map', [])[$ability] ?? null;
+
+        return is_array($levels) && in_array($this->level, $levels, true);
+    }
 }
+

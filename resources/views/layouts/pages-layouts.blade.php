@@ -1,17 +1,18 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="light" data-menu-styles="light" data-toggled="close">
+<html lang="id" dir="ltr" data-nav-layout="vertical" data-theme-mode="light" data-header-styles="light" data-menu-styles="light" data-toggled="close">
 
 <head>
 
     <!-- Meta Data -->
     <meta charset="UTF-8">
-    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <meta name='viewport' content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title> {{ config('app.name', 'SIKAT') }} || Sistem Informasi Kepegawaian dan Arsip Surat</title>
-    <meta name="Description" content="Bootstrap Responsive Admin Web Dashboard HTML5 Template">
-    <meta name="Author" content="Spruko Technologies Private Limited">
-    <meta name="keywords" content="admin dashboard template,admin panel html,bootstrap dashboard,admin dashboard,html template,template dashboard html,html css,bootstrap 5 admin template,bootstrap admin template,bootstrap 5 dashboard,admin panel html template,dashboard template bootstrap,admin dashboard html template,bootstrap admin panel,simple html template,admin dashboard bootstrap">
+    <title>@yield('pageTitle', 'Beranda') — {{ config('app.name', 'SIKAT') }}</title>
+    <meta name="description" content="{{ config('app.name', 'SIKAT') }} — Sistem informasi kepegawaian, surat, dan operasional RS Aisyiyah Siti Fatimah Tulangan.">
+    <meta name="theme-color" content="#0d6efd">
+    <meta name="Author" content="{{ config('app.name', 'RSAS Tulangan') }}">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @stack('head')
     <!-- Favicon -->
     <link rel="icon" href="{{ asset('backend/assets/images/brand-logos/favicon.ico'); }}" type="image/x-icon">
     <!-- Bootstrap Css -->
@@ -30,8 +31,7 @@
     <!-- Color Picker Css -->
     <link rel="stylesheet" href="{{ asset('backend/assets/libs/flatpickr/flatpickr.min.css') }}">
     <link rel="stylesheet" href="{{ asset('backend/assets/libs/@simonwep/pickr/themes/nano.min.css') }}"> 
-    <!-- Full Calender Css -->
-    <link href="{{ asset('vendor/fullcalendar/dist/index.global.js') }}" rel="stylesheet" />
+    {{-- FullCalendar: gaya bawaan ikut bundle JS (index.global.min.js di bawah). Jangan memuat .js sebagai stylesheet. --}}
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Bootstrap JS -->
@@ -104,13 +104,69 @@
     overflow-y: auto !important; /* Gunakan native scroll karena SimpleBar disabled untuk elemen yang di-update via AJAX */
     -webkit-overflow-scrolling: touch; /* Smooth scrolling di iOS */
 }
+
+    /* Header halaman: lebih ringkas, tanpa tombol template kosong */
+    .sikat-page-header {
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    [data-theme-mode="dark"] .sikat-page-header {
+        border-bottom-color: rgba(255, 255, 255, 0.08);
+    }
+    .sikat-page-toolbar .btn {
+        white-space: nowrap;
+    }
+
+    /*
+     * Perbaikan tumpang tindih header: styles.css memasang .main-header-center .btn { position:absolute }
+     * untuk pola lama (input pencarian + tombol). Tombol pintasan modul harus tetap flow normal.
+     */
+    .app-header .header-content-left {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .app-header .sikat-header-tools {
+        flex: 1 1 auto !important;
+        min-width: 0;
+    }
+    .app-header .main-header-center {
+        display: flex !important;
+        align-items: center;
+        min-height: 2.5rem;
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+    .app-header .main-header-center .sikat-header-menu-launch.btn,
+    .app-header .main-header-center .sikat-header-menu-launch {
+        position: relative !important;
+        inset: auto !important;
+        inset-block-start: auto !important;
+        inset-inline-end: auto !important;
+        top: auto !important;
+        right: auto !important;
+        left: auto !important;
+        bottom: auto !important;
+        height: auto !important;
+        min-height: 2.5rem;
+        width: 100%;
+        max-width: 18rem;
+        justify-content: flex-start;
+        text-align: start;
+        padding-top: 0.45rem !important;
+        padding-bottom: 0.45rem !important;
+    }
+    @media (min-width: 1400px) {
+        .app-header .main-header-center .sikat-header-menu-launch {
+            max-width: 22rem;
+        }
+    }
     
 </style>
+@stack('styles')
 </head>
 
 <body>
 
-@include('layouts.backend.swithcer')
+@include('layouts.backend.switcher')
     <!-- Loader -->
     <div id="loader" >
         <img src="{{ asset('backend/assets/images/media/loader.svg'); }}" alt="">
@@ -121,6 +177,15 @@
          <!-- app-header -->
 @include('layouts.backend.header')
         <!-- /app-header -->
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var launch = document.getElementById('headerMenuLaunchBtn');
+                var openMenu = document.getElementById('openMenuModal');
+                if (launch && openMenu) {
+                    launch.addEventListener('click', function () { openMenu.click(); });
+                }
+            });
+        </script>
 @include('layouts.backend.modal')
          <!-- Start::app-sidebar -->
         <aside class="app-sidebar sticky" id="sidebar">
@@ -152,54 +217,9 @@
         <!-- Start::app-content -->
          <div class="main-content app-content">
             <div class="container-fluid">
-                <!-- Page Header -->
-                <div class="d-md-flex d-block align-items-center justify-content-between my-4 page-header-breadcrumb">
-    <div class="my-auto">
-        <h5 class="page-title fs-21 mb-1">@yield('pageTitle')</h5>
-        <nav>
-            <ol class="breadcrumb mb-0">
-                <!-- Breadcrumb dynamic section, customize as needed -->
-                <li class="breadcrumb-item">
-                    <a href="javascript:void(0);">Dashboard</a>
-                </li>
-                <li class="breadcrumb-item active" aria-current="page">
-                    @yield('pageHeader')
-                </li>
-            </ol>
-        </nav>
-    </div>
-    
-    <div class="d-flex my-xl-auto right-content align-items-center">
-        <div class="pe-1 mb-xl-0">
-            <button type="button" class="btn btn-info btn-icon me-2 btn-b">
-                <i class="mdi mdi-filter-variant"></i>
-            </button>
-        </div>
-        <div class="pe-1 mb-xl-0">
-            <button type="button" class="btn btn-danger btn-icon me-2">
-                <i class="mdi mdi-star"></i>
-            </button>
-        </div>
-        <div class="pe-1 mb-xl-0">
-            <button type="button" class="btn btn-warning btn-icon me-2">
-                <i class="mdi mdi-refresh"></i>
-            </button>
-        </div>
-        <div class="mb-xl-0">
-            <div class="dropdown">
-                <button class="btn btn-primary dropdown-toggle" type="button" id="dropdownMenuDate" data-bs-toggle="dropdown" aria-expanded="false">
-                    14 Aug 2019
-                </button>
-                <ul class="dropdown-menu" aria-labelledby="dropdownMenuDate">
-                    <li><a class="dropdown-item" href="javascript:void(0);">2015</a></li>
-                    <li><a class="dropdown-item" href="javascript:void(0);">2016</a></li>
-                    <li><a class="dropdown-item" href="javascript:void(0);">2017</a></li>
-                    <li><a class="dropdown-item" href="javascript:void(0);">2018</a></li>
-                </ul>
-            </div>
-        </div>
-    </div>
-</div>
+                @unless(request()->routeIs('dashboard'))
+                    @include('layouts.partials.page-header')
+                @endunless
 
                 <!-- End Page Header -->
                 @yield('content')
@@ -231,7 +251,7 @@
                                 <rect x="14" y="14" width="7" height="7"></rect>
                                 <rect x="3" y="14" width="7" height="7"></rect>
                             </svg>
-                            <h5 class="modal-title mb-0 fw-semibold" id="menuModalLabel">Dashboard</h5>
+                            <h5 class="modal-title mb-0 fw-semibold" id="menuModalLabel">Pintasan modul</h5>
                         </div>
                         <div class="flex-grow-1 ms-3">
                             <div class="input-group">
@@ -266,18 +286,32 @@
     <script src="{{ asset('backend/assets/js/custom.js'); }}"></script>
     
     <!-- Modern Menu Modal Script -->
+    @php
+        $inventarisModalItems = collect(config('navigation.inventaris.items'))->map(function (array $item) {
+            return [
+                'title' => $item['title'],
+                'category' => $item['modal_category'],
+                'icon' => trim(view('navigation.icons.' . $item['icon'])->render()),
+                'url' => route($item['route']),
+                'accessAbility' => $item['access_ability'] ?? null,
+            ];
+        })->values()->all();
+    @endphp
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         const menuModal = document.getElementById('menuModal');
         const menuGrid = document.getElementById('menuGrid');
         const menuSearch = document.getElementById('menuSearch');
         
-        // Menu items configuration - Dikelompokkan berdasarkan parent-child sesuai navbar.blade.php
+        // Menu modal: filter dari config/access.php (satu sumber dengan middleware checkAccess)
+        const accessMap = @json(config('access.map'));
         const userLevel = '{{ Auth::check() ? Auth::user()->level : '' }}';
-        const canAccess = (allowedLevels) => {
-            if (!allowedLevels || allowedLevels.length === 0) return true;
-            return allowedLevels.includes(userLevel);
+        const canAccessItem = (item) => {
+            if (!item.accessAbility) return true;
+            const levels = accessMap[item.accessAbility];
+            return Array.isArray(levels) && levels.includes(userLevel);
         };
+        const inventarisMenuItems = @json($inventarisModalItems);
         const menuItems = [
             // ========== MENU UTAMA ==========
             {
@@ -335,14 +369,14 @@
                 category: 'Surat Menyurat',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>',
                 url: '{{ route("sifat_surat.index") }}',
-                allowedLevels: ['Kabag']
+                accessAbility: 'surat.master'
             },
             {
                 title: 'Klasifikasi Surat',
                 category: 'Surat Menyurat',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>',
                 url: '{{ route("klasifikasi_surat.index") }}',
-                allowedLevels: ['Kabag']
+                accessAbility: 'surat.master'
             },
             
             // ========== EVENT & AGENDA ==========
@@ -357,19 +391,21 @@
                 category: 'Event & Agenda',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
                 url: '{{ route("backend_acara") }}',
-                allowedLevels: ['Kabag','Kasie']
+                accessAbility: 'agenda.backend'
             },
             {
                 title: 'Absensi Agenda',
                 category: 'Event & Agenda',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>',
-                url: '{{ route("absensi_agenda.index") }}'
+                url: '{{ route("absensi_agenda.index") }}',
+                accessAbility: 'absensi_agenda.access'
             },
             {
                 title: 'Rekap Absensi Agenda',
                 category: 'Event & Agenda',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
-                url: '{{ route("rekap-absensi") }}'
+                url: '{{ route("rekap-absensi") }}',
+                accessAbility: 'absensi_agenda.access'
             },
             
             // ========== KEPEGAWAIAN ==========
@@ -378,7 +414,7 @@
                 category: 'Kepegawaian',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
                 url: '{{ route("presensi.index") }}',
-                allowedLevels: ['Kabag','Kasie']
+                accessAbility: 'presensi.temporary'
             },
             {
                 title: 'Absensi',
@@ -446,64 +482,8 @@
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
                 url: '{{ route("kepegawaian.rekap_presensi.index") }}'
             },
-            
-            // ========== INVENTARIS ==========
-            {
-                title: 'Master Barang',
-                category: 'Inventaris',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
-                url: '{{ route("inventaris-barang.index") }}'
-            },
-            {
-                title: 'Jenis Inventaris',
-                category: 'Inventaris',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
-                url: '{{ route("jenis-inventaris.index") }}'
-            },
-            {
-                title: 'Kategori Inventaris',
-                category: 'Inventaris',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
-                url: '{{ route("kategori-inventaris.index") }}'
-            },
-            {
-                title: 'Merk Inventaris',
-                category: 'Inventaris',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
-                url: '{{ route("merk-inventaris.index") }}'
-            },
-            {
-                title: 'Produsen Inventaris',
-                category: 'Inventaris',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
-                url: '{{ route("produsen-inventaris.index") }}'
-            },
-            {
-                title: 'Inventaris',
-                category: 'Inventaris',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
-                url: '{{ route("inventaris.index") }}'
-            },
-            {
-                title: 'Visualisasi Data',
-                category: 'Inventaris',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>',
-                url: '{{ route("inventaris.visualisasi") }}'
-            },
-            
-            // ========== PUSAT BANTUAN ==========
-            {
-                title: 'Permintaan Perbaikan',
-                category: 'Pusat Bantuan',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>',
-                url: '{{ route("tickets.index") }}'
-            },
-            {
-                title: 'Helpdesk',
-                category: 'Pusat Bantuan',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
-                url: '{{ route("helpdesk.dashboard") }}'
-            },
+
+            ...inventarisMenuItems,
             
             // ========== LAPORAN ==========
             {
@@ -519,57 +499,13 @@
                 url: '{{ route("rekap.lembur") }}'
             },
             
-            // ========== MANAJEMEN KESEHATAN ==========
-            {
-                title: 'Kamar Inap',
-                category: 'Manajemen Kesehatan',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
-                url: '{{ route("kamar_inap.index") }}'
-            },
-            {
-                title: 'Data Discharge Note',
-                category: 'Manajemen Kesehatan',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
-                url: '{{ route("datadischargenote.index") }}'
-            },
-            {
-                title: 'Ranap Dokter',
-                category: 'Manajemen Kesehatan',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
-                url: '{{ route("ranap_dokter.index") }}'
-            },
-            {
-                title: 'Pemakaian Kamar',
-                category: 'Manajemen Kesehatan',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>',
-                url: '{{ route("pemakaiankamar.index") }}'
-            },
-            {
-                title: 'Pasien Rawat Inap',
-                category: 'Manajemen Kesehatan',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
-                url: '{{ route("pasienrawatinap.index") }}'
-            },
-            {
-                title: 'Pasien Rawat Jalan',
-                category: 'Manajemen Kesehatan',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
-                url: '{{ route("pasienrawatjalan.index") }}'
-            },
-            {
-                title: 'Grafik Ralan',
-                category: 'Manajemen Kesehatan',
-                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>',
-                url: '{{ route("grafikralan.index") }}'
-            },
-            
             // ========== PENGATURAN ==========
             {
                 title: 'Users',
                 category: 'Pengaturan',
                 icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
                 url: '{{ route("users.index") }}',
-                allowedLevels: ['Kabag']
+                accessAbility: 'users.manage'
             },
             {
                 title: 'Struktur Organisasi',
@@ -644,9 +580,8 @@
                 'Event & Agenda',
                 'Kepegawaian',
                 'Inventaris',
-                'Pusat Bantuan',
+                'Inventaris · Master data',
                 'Laporan',
-                'Manajemen Kesehatan',
                 'Pengaturan',
                 'Lainnya'
             ];
@@ -718,8 +653,8 @@
             });
         }
         
-        // Filter by role (UI only). Real security is enforced by route middleware.
-        const visibleMenuItems = menuItems.filter(item => canAccess(item.allowedLevels));
+        // UI saja; proteksi server lewat middleware checkAccess / Gate.
+        const visibleMenuItems = menuItems.filter(item => canAccessItem(item));
 
         // Initial render
         renderMenuItems(visibleMenuItems);

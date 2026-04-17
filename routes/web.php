@@ -82,7 +82,9 @@ use App\Http\Controllers\RanapDokterController;
 use App\Http\Controllers\TelegramUserController;
 
 
-Route::get('/notifications', [NotificationController::class, 'getNotifications'])->name('notifications');
+Route::get('/notifications', [NotificationController::class, 'getNotifications'])
+    ->middleware('auth')
+    ->name('notifications');
 
 Route::get('/', function () {
     return view('auth.login');
@@ -92,9 +94,9 @@ Route::get('/logout', [LogoutController::class, 'logout'])->name('logout');
 Auth::routes(['register' => true]);
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('auth');
-Route::group(['middleware' => ['auth', 'checkLevel:Kabag']], function () {
-Route::resource('sifat_surat', SifatSuratController::class);
-Route::resource('klasifikasi_surat', KlasifikasiSuratController::class);
+Route::middleware(['auth', 'checkAccess:surat.master'])->group(function () {
+    Route::resource('sifat_surat', SifatSuratController::class);
+    Route::resource('klasifikasi_surat', KlasifikasiSuratController::class);
 });
 
 /**
@@ -147,10 +149,10 @@ Route::get('/rekap-libur', [PengajuanLiburController::class, 'rekapLibur'])
 Route::resource('pengajuan_lembur', PengajuanLemburController::class)->middleware('auth');
 
 // Inventaris Routes
-Route::resource('jenis-inventaris', InventarisJenisController::class)->middleware('auth');
-Route::resource('kategori-inventaris', InventarisKategoriController::class)->middleware('auth');
-Route::resource('merk-inventaris', InventarisMerkController::class)->middleware('auth');
-Route::resource('produsen-inventaris', InventarisProdusenController::class)->middleware('auth');
+Route::resource('jenis-inventaris', InventarisJenisController::class)->middleware(['auth', 'checkAccess:inventaris.access']);
+Route::resource('kategori-inventaris', InventarisKategoriController::class)->middleware(['auth', 'checkAccess:inventaris.access']);
+Route::resource('merk-inventaris', InventarisMerkController::class)->middleware(['auth', 'checkAccess:inventaris.access']);
+Route::resource('produsen-inventaris', InventarisProdusenController::class)->middleware(['auth', 'checkAccess:inventaris.access']);
 Route::get('/verifikasi_pengajuan_lembur', [VerifikasiPengajuanLemburController::class, 'index'])->name('verifikasi_pengajuan_lembur.index')->middleware('auth');
 Route::get('/verifikasi_pengajuan_lembur/detail/{id}', [VerifikasiPengajuanLemburController::class, 'detail'])->name('verifikasi_pengajuan_lembur.detail')->middleware('auth');
 Route::put('/verifikasi_pengajuan_lembur/update/{id}', [VerifikasiPengajuanLemburController::class, 'update'])->name('verifikasi_pengajuan_lembur.update')->middleware('auth');
@@ -161,10 +163,10 @@ Route::get('/rekap-lembur', [PengajuanLemburController::class, 'rekapLembur'])
     ->name('rekap.lembur')
     ->middleware(['auth', 'checkAccess:rekap.view']);
 
-Route::get('/presensi', [PresensiController::class, 'index'])->name('presensi.index')->middleware('auth');
-Route::put('/presensi/{id}/datang', [PresensiController::class, 'updateJamDatang'])->name('presensi.updateJamDatang')->middleware('auth');
-Route::put('/presensi/{id}/pulang', [PresensiController::class, 'updateJamPulang'])->name('presensi.updateJamPulang')->middleware('auth');
-Route::get('/presensi/verifikasi/{id}', [PresensiController::class, 'verifikasiPresensi'])->name('presensi.verifikasi')->middleware('auth');
+Route::get('/presensi', [PresensiController::class, 'index'])->name('presensi.index')->middleware(['auth', 'checkAccess:presensi.temporary']);
+Route::put('/presensi/{id}/datang', [PresensiController::class, 'updateJamDatang'])->name('presensi.updateJamDatang')->middleware(['auth', 'checkAccess:presensi.temporary']);
+Route::put('/presensi/{id}/pulang', [PresensiController::class, 'updateJamPulang'])->name('presensi.updateJamPulang')->middleware(['auth', 'checkAccess:presensi.temporary']);
+Route::get('/presensi/verifikasi/{id}', [PresensiController::class, 'verifikasiPresensi'])->name('presensi.verifikasi')->middleware(['auth', 'checkAccess:presensi.temporary']);
 
 Route::get('/absensi', [AbsensiController::class, 'showPresensiForm'])->name('absensi.show')->middleware('auth');
 Route::post('/absensi', [AbsensiController::class, 'handlePresensi'])->name('absensi.handle')->middleware('auth');
@@ -177,7 +179,7 @@ Route::get('/kepegawaian/rekap-presensi/data', [RekapPresensiController::class, 
     ->name('kepegawaian.rekap_presensi.data')
     ->middleware(['auth', 'checkAccess:rekap.view']);
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'checkAccess:inventaris.access'])->group(function () {
     // inventaris-barang: `kode_barang` bisa mengandung '/', jadi gunakan route_key_encode() pada URL.
     Route::get('inventaris-barang', [InventarisBarangController::class, 'index'])->name('inventaris-barang.index');
     Route::get('inventaris-barang/create', [InventarisBarangController::class, 'create'])->name('inventaris-barang.create');
@@ -186,11 +188,30 @@ Route::middleware(['auth'])->group(function () {
     Route::put('inventaris-barang/{kode}', [InventarisBarangController::class, 'update'])->name('inventaris-barang.update');
     Route::delete('inventaris-barang/{kode}', [InventarisBarangController::class, 'destroy'])->name('inventaris-barang.destroy');
 });
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'checkAccess:inventaris.access'])->group(function () {
     // Route khusus harus diletakkan SEBELUM resource route
     Route::get('inventaris/visualisasi', [InventarisVisualisasiController::class, 'index'])->name('inventaris.visualisasi');
     Route::get('inventaris/visualisasi/api/data-ruang', [InventarisVisualisasiController::class, 'getDataPerRuangApi'])->name('inventaris.visualisasi.api.ruang');
+    Route::get('inventaris/barang-info', [InventarisController::class, 'barangInfo'])->name('inventaris.barang-info');
+    Route::get('inventaris/grid-data', [InventarisController::class, 'gridData'])->name('inventaris.grid-data');
     Route::get('inventaris/{no_inventaris}/barcode', [InventarisController::class, 'generateBarcode'])->name('inventaris.barcode');
+
+    Route::get('get-pegawai-by-departemen/{dep_id}', [PermintaanPerbaikanInventarisController::class, 'getPegawaiByDepartemen'])->name('inventaris.get-pegawai-by-departemen');
+    Route::get('inventaris/permintaan-perbaikan', [PermintaanPerbaikanInventarisController::class, 'index'])->name('permintaan.index');
+    Route::get('inventaris/permintaan-perbaikan/buat', [PermintaanPerbaikanInventarisController::class, 'create'])->name('permintaan.create');
+    Route::post('inventaris/permintaan-perbaikan', [PermintaanPerbaikanInventarisController::class, 'store'])->name('permintaan.store');
+    Route::get('inventaris/permintaan-perbaikan/{no_permintaan}/edit', [PermintaanPerbaikanInventarisController::class, 'edit'])->name('permintaan.edit');
+    Route::put('inventaris/permintaan-perbaikan/{no_permintaan}', [PermintaanPerbaikanInventarisController::class, 'update'])->name('permintaan.update');
+    Route::delete('inventaris/permintaan-perbaikan/{no_permintaan}', [PermintaanPerbaikanInventarisController::class, 'destroy'])->name('permintaan.destroy');
+    Route::get('inventaris/permintaan-perbaikan/{no_permintaan}/mulai-perbaikan', [PermintaanPerbaikanInventarisController::class, 'startRepairForm'])->name('perbaikan.start');
+    Route::post('inventaris/permintaan-perbaikan/{no_permintaan}/mulai-perbaikan', [PermintaanPerbaikanInventarisController::class, 'startRepair'])->name('perbaikan.start.store');
+
+    Route::get('inventaris/perbaikan-inventaris', [PerbaikanInventarisController::class, 'index'])->name('perbaikan.index');
+    Route::get('inventaris/perbaikan-inventaris/buat/{no_permintaan?}', [PerbaikanInventarisController::class, 'create'])->name('perbaikan.create');
+    Route::post('inventaris/perbaikan-inventaris', [PerbaikanInventarisController::class, 'store'])->name('perbaikan.store');
+    Route::get('inventaris/perbaikan-inventaris/{no_permintaan}/edit', [PerbaikanInventarisController::class, 'edit'])->name('perbaikan.edit');
+    Route::put('inventaris/perbaikan-inventaris/{no_permintaan}', [PerbaikanInventarisController::class, 'update'])->name('perbaikan.update');
+    Route::delete('inventaris/perbaikan-inventaris/{no_permintaan}', [PerbaikanInventarisController::class, 'destroy'])->name('perbaikan.destroy');
     
     // Resource route harus diletakkan di akhir
     Route::resource('inventaris', InventarisController::class)->names([
@@ -202,9 +223,9 @@ Route::middleware(['auth'])->group(function () {
         'update' => 'inventaris.update',
         'destroy' => 'inventaris.destroy'
     ]);
-});
 
     Route::get('inventaris/{no_inventaris}/detail', [InventarisController::class, 'detail'])->name('inventaris.detail');
+});
 
 Route::get('/calendar', [FullCalendarController::class, 'index'])->name('calendar.index');
 Route::get('/pegawai/birthday', [BirthdayController::class, 'index'])->name('pegawai.birthday');
@@ -311,7 +332,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/agenda/{id}/upload-materi', [AgendaController::class, 'uploadMateri'])->name('agenda.upload-materi');
     Route::post('/agenda/{id}/upload-dokumentasi', [AgendaController::class, 'uploadDokumentasi'])->name('agenda.upload-dokumentasi');
     Route::post('/agenda/{id}/kesimpulan', [AgendaController::class, 'simpanKesimpulan'])->name('agenda.kesimpulan');
-    Route::get('/backend-acara', [AgendaController::class, 'backendAcara'])->name('backend_acara');
+    Route::get('/backend-acara', [AgendaController::class, 'backendAcara'])
+        ->name('backend_acara')
+        ->middleware('checkAccess:agenda.backend');
     Route::get('/agenda/{id}/generate-qr', [AgendaController::class, 'generateQrCode'])->name('generate-qr');
     Route::get('/agenda/{agendaId}/qr-code', [AgendaController::class, 'showQRCodePage'])->name('agenda.qr_code');
     Route::get('/generate-qrcode', [AgendaController::class, 'generateQRCode'])->name('generate-qrcode');
@@ -380,30 +403,38 @@ Route::get('/budayakerja/rekap-pegawai/export', [BudayaKerjaController::class, '
 Route::get('/budayakerja/rekap-pegawai/detail/{nik}', [BudayaKerjaController::class, 'rekapPegawaiDetail'])
     ->name('budayakerja.rekap_pegawai_detail')
     ->middleware(['auth', 'checkAccess:rekap.view']);
+Route::get('/budayakerja/rekap-petugas', [BudayaKerjaController::class, 'rekapPetugas'])
+    ->name('budayakerja.rekap_petugas')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
+Route::post('/budayakerja/bulk-destroy', [BudayaKerjaController::class, 'bulkDestroy'])
+    ->name('budayakerja.bulk-destroy')
+    ->middleware('auth');
 Route::resource('budayakerja', BudayaKerjaController::class);
 
-Route::get('/absensi_agenda', [AbsensiAgendaController::class, 'index'])->name('absensi_agenda.index');
+Route::middleware(['auth', 'checkAccess:absensi_agenda.access'])->group(function () {
+    Route::get('/absensi_agenda', [AbsensiAgendaController::class, 'index'])->name('absensi_agenda.index');
+    Route::get('/scan-qr', [AbsensiAgendaController::class, 'showScanQRCodePage'])->name('absensi_agenda.scan_qr_page');
+    Route::get('/rekap-absensi', [AbsensiAgendaController::class, 'rekapAbsensi'])->name('rekap-absensi');
+    Route::post('/absensi-agenda/update-status', [AbsensiAgendaController::class, 'updateStatusKehadiran'])
+        ->name('absensi-agenda.update-status');
+    Route::post('/absensi-agenda/create-update', [AbsensiAgendaController::class, 'createOrUpdateAbsensi'])
+        ->name('absensi-agenda.create-update');
+    Route::get('/absensi-agenda/export-pdf', [AbsensiAgendaController::class, 'exportPDF'])
+        ->name('absensi-agenda.export-pdf');
+});
 
-Route::get('/scan-qr', [AbsensiAgendaController::class, 'showScanQRCodePage'])->name('absensi_agenda.scan_qr_page');
-// Route scan attendance sudah ada di middleware auth (baris 265) - tidak perlu duplikat
-Route::get('/rekap-absensi', [AbsensiAgendaController::class, 'rekapAbsensi'])
-    ->name('rekap-absensi')
-    ->middleware('auth');
-Route::post('/absensi-agenda/update-status', [AbsensiAgendaController::class, 'updateStatusKehadiran'])
-    ->name('absensi-agenda.update-status')
-    ->middleware('auth');
-Route::post('/absensi-agenda/create-update', [AbsensiAgendaController::class, 'createOrUpdateAbsensi'])
-    ->name('absensi-agenda.create-update')
-    ->middleware('auth');
-Route::get('/absensi-agenda/export-pdf', [AbsensiAgendaController::class, 'exportPDF'])
-    ->name('absensi-agenda.export-pdf')
-    ->middleware('auth');
-
-Route::get('/masjid-token', [App\Http\Controllers\MasjidTokenController::class, 'index'])->name('masjid_token.index')->middleware('auth');
-Route::post('/masjid-token', [App\Http\Controllers\MasjidTokenController::class, 'store'])->name('masjid_token.store')->middleware('auth');
+Route::get('/masjid-token', [App\Http\Controllers\MasjidTokenController::class, 'index'])
+    ->name('masjid_token.index')
+    ->middleware(['auth', 'checkAccess:masjid_token.access']);
+Route::post('/masjid-token', [App\Http\Controllers\MasjidTokenController::class, 'store'])
+    ->name('masjid_token.store')
+    ->middleware(['auth', 'checkAccess:masjid_token.access']);
 Route::get('/rekap-absensi-sholat', [App\Http\Controllers\AbsensiSholatRekapController::class, 'index'])->name('rekap_absensi_sholat.index')->middleware('auth');
 
 Route::resource('jadwalbudayakerja', JadwalBudayaKerjaController::class)->except('show')->middleware('auth');
+Route::post('/jadwalbudayakerja/bulk-destroy', [JadwalBudayaKerjaController::class, 'bulkDestroy'])
+    ->name('jadwalbudayakerja.bulk-destroy')
+    ->middleware('auth');
 Route::get('/jadwalbudayakerja/generator', [JadwalBudayaKerjaController::class, 'generatorForm'])
     ->name('jadwalbudayakerja.generator')
     ->middleware('auth');
