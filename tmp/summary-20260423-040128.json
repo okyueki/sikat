@@ -1,0 +1,4 @@
+{
+  "summary": "Melanjutkan hardening modul Surat Edaran dengan tiga perbaikan tambahan di controller: mencegah akses langsung ke halaman tanda tangani jika dokumen sudah sah (redirect ke detail dengan warning), membersihkan file gambar tanda tangan (`signature_detail.image_path`) saat dokumen dihapus agar tidak ada file orphan, dan merapikan pengecekan file pada stream PDF agar validasi path dilakukan setelah memastikan `file_pdf` terisi.",
+  "current_status": "Hardening bertahap modul Surat Edaran terus berjalan; controller tervalidasi tanpa error sintaks maupun lint."
+}

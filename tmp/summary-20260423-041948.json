@@ -1,0 +1,4 @@
+{
+  "summary": "Mengimplementasikan peningkatan UX yang diminta pengguna dengan menambahkan warning kompatibilitas PDF real-time pada halaman create dan edit Surat Edaran. Saat file PDF dipilih atau di-drop, browser membaca 1MB awal file lalu menampilkan indikator risiko struktural seperti versi PDF >= 1.5, /ObjStm, XRef stream, dan /Encrypt, disertai saran Print to PDF bila berpotensi gagal saat finalisasi.",
+  "current_status": "Deteksi dini kompatibilitas PDF kini tersedia di frontend create/edit Surat Edaran, dan kedua file blade lolos pemeriksaan lint tanpa error."
+}

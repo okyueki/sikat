@@ -1,0 +1,4 @@
+{
+  "summary": "Menjelaskan perbedaan teknis layanan seperti Privy (infrastruktur komersial, sertifikat, mesin PDF berbayar) vs stack FPDI internal. Menambahkan satu kalimat bantuan bahasa awam di area upload PDF pada `surat_edaran/create.blade.php` dan `surat_edaran/edit.blade.php` (tip hanya saat draft di edit), dipakai bersama oleh Surat Edaran dan SPO.",
+  "current_status": "Bantuan upload non-teknis terpasang di form create/edit modul yang memakai view tersebut. Tidak ada perubahan backend pada giliran ini."
+}

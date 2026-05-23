@@ -3,6 +3,7 @@
 @section('pageTitle', isset($pageTitle) ? $pageTitle . $title : $title)
 
 @section('content')
+@php($routePrefix = $routePrefix ?? 'surat_edaran')
 <div class="row">
     <div class="col-xl-12">
         <div class="card custom-card">
@@ -19,7 +20,7 @@
                         </ul>
                     </div>
                 @endif
-                <form action="{{ route('surat_edaran.store') }}" method="POST" enctype="multipart/form-data">
+                <form action="{{ route($routePrefix . '.store') }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     <div class="row">
                         <div class="col-md-6">
@@ -44,6 +45,19 @@
                                     @endforeach
                                 </select>
                             </div>
+                            @if(!empty($isSpo))
+                            <div class="mb-3">
+                                <label for="dep_terkait" class="form-label">Departemen Terkait</label>
+                                <select name="dep_terkait[]" id="dep_terkait" class="form-select" multiple>
+                                    @foreach(($departemenList ?? []) as $dep)
+                                        <option value="{{ $dep->dep_id }}" {{ in_array($dep->dep_id, (array)($selectedDepartemenTerkait ?? []), true) ? 'selected' : '' }}>
+                                            {{ $dep->nama }} ({{ $dep->dep_id }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <small class="text-muted">Bisa pilih lebih dari satu departemen.</small>
+                            </div>
+                            @endif
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -52,6 +66,10 @@
                             </div>
                             <div class="mb-3">
                                 <label for="file_pdf" class="form-label">File PDF <span class="text-danger">*</span></label>
+                                <p class="small text-muted border-start border-primary ps-2 mb-2 ms-1" style="border-width: 3px !important;">
+                                    <i class="fe fe-info text-primary me-1"></i>
+                                    Kalau file tidak diterima atau nanti tanda tangan di sistem tidak jalan, buka dokumen seperti biasa, pilih <strong>Cetak</strong>, simpan sebagai <strong>PDF</strong> baru, lalu upload file yang baru itu.
+                                </p>
                                 <!-- Compact File Upload -->
                                 <div class="file-upload-compact" id="file-upload-area">
                                     <input type="file" name="file_pdf" id="file_pdf" accept=".pdf" required style="display: none;">
@@ -75,6 +93,7 @@
                                         </button>
                                     </div>
                                 </div>
+                                <div id="pdf-compat-warning" class="alert alert-warning mt-2 py-2 px-3 d-none" role="alert"></div>
                                 @error('file_pdf')
                                     <div class="text-danger small mt-1">{{ $message }}</div>
                                 @enderror
@@ -83,7 +102,7 @@
                     </div>
                     <hr>
                     <button type="submit" class="btn btn-primary">Simpan</button>
-                    <a href="{{ route('surat_edaran.index') }}" class="btn btn-secondary">Batal</a>
+                    <a href="{{ route($routePrefix . '.index') }}" class="btn btn-secondary">Batal</a>
                 </form>
             </div>
         </div>
@@ -92,6 +111,8 @@
 @endsection
 
 @push('scripts')
+<script src="{{ asset('backend/assets/js/pdf-compat-warning.js') }}"></script>
+<script src="{{ asset('backend/assets/js/surat-edaran-upload.js') }}"></script>
 <script>
 $(function() {
     $('#nik_penandatangan').select2({
@@ -99,69 +120,21 @@ $(function() {
         allowClear: true,
         width: '100%'
     });
+    @if(!empty($isSpo))
+    $('#dep_terkait').select2({
+        placeholder: '-- Pilih departemen terkait --',
+        allowClear: true,
+        width: '100%'
+    });
+    @endif
+
+    if (typeof initSuratEdaranCreateUpload === 'function') {
+        initSuratEdaranCreateUpload();
+    }
+    if (typeof initPdfCompatibilityWarning === 'function') {
+        initPdfCompatibilityWarning('file_pdf', 'pdf-compat-warning');
+    }
 });
-
-// Compact File Upload Functionality
-(function() {
-    var fileInput = document.getElementById('file_pdf');
-    var uploadArea = document.getElementById('file-upload-area');
-    var uploadTrigger = uploadArea.querySelector('.upload-trigger');
-    var fileInfo = document.getElementById('file-info');
-    var fileName = document.getElementById('file-name');
-    var fileSize = document.getElementById('file-size');
-
-    // Handle file selection
-    fileInput.addEventListener('change', function(e) {
-        if (this.files && this.files[0]) {
-            showFileInfo(this.files[0]);
-        }
-    });
-
-    // Drag and drop
-    uploadArea.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        this.classList.add('dragover');
-    });
-
-    uploadArea.addEventListener('dragleave', function() {
-        this.classList.remove('dragover');
-    });
-
-    uploadArea.addEventListener('drop', function(e) {
-        e.preventDefault();
-        this.classList.remove('dragover');
-        var files = e.dataTransfer.files;
-        if (files.length > 0 && files[0].type === 'application/pdf') {
-            fileInput.files = files;
-            showFileInfo(files[0]);
-        } else if (files.length > 0) {
-            alert('Hanya file PDF yang diizinkan.');
-        }
-    });
-
-    function showFileInfo(file) {
-        fileName.textContent = file.name;
-        fileSize.textContent = formatFileSize(file.size);
-        uploadTrigger.style.display = 'none';
-        fileInfo.style.display = 'flex';
-    }
-
-    window.clearFile = function() {
-        fileInput.value = '';
-        uploadTrigger.style.display = 'flex';
-        fileInfo.style.display = 'none';
-        fileName.textContent = '';
-        fileSize.textContent = '';
-    };
-
-    function formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        var k = 1024;
-        var sizes = ['Bytes', 'KB', 'MB'];
-        var i = Math.floor(Math.log(bytes) / Math.log(k));
-        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-    }
-})();
 </script>
 <style>
 /* Compact File Upload Styles */

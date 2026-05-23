@@ -17,6 +17,7 @@ use App\Http\Controllers\{
     SuratKeluarController,
     SuratMasukController,
     SuratEdaranController,
+    SpoController,
     MasterTandaTanganController,
     MasterStempelController,
     SuratController,
@@ -295,10 +296,18 @@ Route::get('/surat_edaran/{surat_edaran}/tanda-tangani', [SuratEdaranController:
 Route::post('/surat_edaran/{surat_edaran}/save-signature', [SuratEdaranController::class, 'saveSignatureAndPlacements'])->name('surat_edaran.saveSignature')->middleware('auth');
 Route::get('/surat_edaran/{surat_edaran}/generate-signed-pdf', [SuratEdaranController::class, 'generateSignedPdf'])->name('surat_edaran.generateSignedPdf')->middleware('auth');
 Route::get('/surat_edaran/{surat_edaran}/verifikasi', [SuratEdaranController::class, 'verifyAuthenticity'])->name('surat_edaran.verify');
+Route::get('/surat_edaran/{surat_edaran}/verifikasi-qr', [SuratEdaranController::class, 'verificationQrPng'])->name('surat_edaran.verifyQr');
+Route::get('/spo/{spo}/pdf', [SpoController::class, 'streamPdf'])->name('spo.streamPdf')->middleware('auth');
+Route::get('/spo/{spo}/tanda-tangani', [SpoController::class, 'tandaTangani'])->name('spo.tandaTangani')->middleware('auth');
+Route::post('/spo/{spo}/save-signature', [SpoController::class, 'saveSignatureAndPlacements'])->name('spo.saveSignature')->middleware('auth');
+Route::get('/spo/{spo}/generate-signed-pdf', [SpoController::class, 'generateSignedPdf'])->name('spo.generateSignedPdf')->middleware('auth');
+Route::get('/spo/{spo}/verifikasi', [SpoController::class, 'verifyAuthenticity'])->name('spo.verify');
+Route::get('/spo/{spo}/verifikasi-qr', [SpoController::class, 'verificationQrPng'])->name('spo.verifyQr');
 Route::post('/master-tanda-tangan', [MasterTandaTanganController::class, 'store'])->name('master_tanda_tangan.store')->middleware('auth');
 Route::get('/master-stempel', [MasterStempelController::class, 'edit'])->name('master_stempel.edit')->middleware('auth');
 Route::put('/master-stempel', [MasterStempelController::class, 'update'])->name('master_stempel.update')->middleware('auth');
 Route::resource('surat_edaran', SuratEdaranController::class)->middleware('auth');
+Route::resource('spo', SpoController::class)->middleware('auth');
 
 Route::resource('tickets', TicketController::class);
 Route::put('/ticket/{id}/status', [ResponKerjaController::class, 'updateStatus'])->name('ticket.updateStatus');
@@ -323,7 +332,7 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware('auth')->group(function () {
     Route::get('/agenda', [AgendaController::class, 'index'])->name('acara_index');
     Route::post('/agenda', [AgendaController::class, 'store'])->name('acara_store');
-    Route::get('/agenda/create', [AgendaController::class, 'create'])->name('acara_create');
+    Route::get('/agenda/create', [AgendaController::class, 'create'])->name('acara_create')->middleware('checkAccess:agenda.backend');
     Route::get('/agenda/{id}/edit', [AgendaController::class, 'edit'])->name('acara_edit');
     Route::put('/agenda/{id}', [AgendaController::class, 'update'])->name('acara_update');
     Route::delete('/agenda/{id}', [AgendaController::class, 'destroy'])->name('acara_destroy');

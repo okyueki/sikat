@@ -28,20 +28,29 @@ return [
         /** Sifat surat & klasifikasi (mengganti checkLevel:Kabag) */
         'surat.master' => ['Kabag'],
 
-        /** Halaman backend daftar agenda (/backend-acara) */
-        'agenda.backend' => ['Kabag', 'Kasie', 'Pelaksana', 'Koordinator', 'Programmer'],
+        /** Halaman backend daftar agenda (/backend-acara) — level dan/atau whitelist NIK */
+        'agenda.backend' => [
+            'levels' => ['Kabag', 'Kasie', 'Pelaksana', 'Koordinator', 'Programmer'],
+            'niks' => ['434.10.03.2025'],
+        ],
 
-        /** Absensi agenda web: semua level akun (setara daftar level di inventaris). */
+        /** Absensi agenda web: semua level akun (setara daftar level di inventaris), plus whitelist NIK. */
         'absensi_agenda.access' => [
-            'Direktur', 'Programmer', 'HRD', 'Kabag', 'Kabid',
-            'Kasie', 'Koordinator', 'Pelaksana', 'Komite',
+            'levels' => [
+                'Direktur', 'Programmer', 'HRD', 'Kabag', 'Kabid',
+                'Kasie', 'Koordinator', 'Pelaksana', 'Komite',
+            ],
+            'niks' => [],
         ],
 
         /** Modul presensi sementara / verifikasi jam */
         'presensi.temporary' => ['Kabag', 'Kasie', 'Pelaksana', 'Koordinator'],
 
-        /** Token QR absensi sholat (halaman /masjid-token) — hanya Programmer */
-        'masjid_token.access' => ['Programmer'],
+        /** Token QR absensi sholat (halaman /masjid-token) — level dan/atau whitelist NIK */
+        'masjid_token.access' => [
+            'levels' => ['Programmer'],
+            'niks' => ['278.21.11.2018', '139.01.04.2015'],
+        ],
 
         /**
          * Seluruh route inventaris & master referensi (setara semua level akun di form user).

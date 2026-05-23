@@ -1,0 +1,4 @@
+{
+  "summary": "Menindaklanjuti persetujuan pengguna untuk melanjutkan smoke testing dengan menyiapkan checklist uji manual alur utama modul Surat Edaran pasca hardening dan refactor frontend. Fokus pengujian diarahkan pada validasi save draft, finalisasi tanda tangan, crop signature, proteksi dokumen sah, serta konsistensi respons error di sisi UI.",
+  "current_status": "Kode stabil dan siap diuji secara manual end-to-end menggunakan checklist smoke test."
+}

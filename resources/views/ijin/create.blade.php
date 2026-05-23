@@ -50,6 +50,7 @@
                             <div class="form-group mb-3">
                                 <label for="myFile" class="form-label">Upload Foto Bukti (opsional, jpeg/png/pdf max 2MB):</label>
                                 <input class="form-control" type="file" id="myFile" name="file" accept=".jpeg,.jpg,.png,.pdf">
+                                <div id="pdf-warning-myfile" class="alert alert-warning mt-2 py-2 px-3 d-none" role="alert"></div>
                             </div>
 
                             <div class="form-group mb-3">
@@ -70,6 +71,7 @@
         </div>
 
 <!-- End Page-content -->
+<script src="{{ asset('backend/assets/js/pdf-compat-warning.js') }}"></script>
 <script>
         document.addEventListener('DOMContentLoaded', function() {
             $('#myDropify').dropify({
@@ -135,6 +137,12 @@
                 allowHTML: true // Add this line to suppress the deprecation warning
             });
 
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (typeof initPdfCompatibilityWarning === 'function') {
+                initPdfCompatibilityWarning('myFile', 'pdf-warning-myfile');
+            }
         });
 </script>
 @endsection

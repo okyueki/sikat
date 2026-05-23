@@ -57,9 +57,32 @@ class User extends Authenticatable
      */
     public function canAccess(string $ability): bool
     {
-        $levels = config('access.map', [])[$ability] ?? null;
+        $abilityConfig = config('access.map', [])[$ability] ?? null;
+        if (!is_array($abilityConfig)) {
+            return false;
+        }
 
-        return is_array($levels) && in_array($this->level, $levels, true);
+        // Backward compatible:
+        // - Lama: ability => ['Direktur', 'Programmer', ...] (berarti level yang diizinkan)
+        // - Baru: ability => ['levels' => [...], 'niks' => [...]] (izin berdasarkan level atau NIK/username)
+        $allowedLevels = [];
+        $allowedNiks = [];
+
+        $hasKeyLevels = array_key_exists('levels', $abilityConfig);
+        $hasKeyNiks = array_key_exists('niks', $abilityConfig);
+
+        if ($hasKeyLevels || $hasKeyNiks) {
+            $allowedLevels = is_array($abilityConfig['levels'] ?? null) ? $abilityConfig['levels'] : [];
+            $allowedNiks = is_array($abilityConfig['niks'] ?? null) ? $abilityConfig['niks'] : [];
+        } else {
+            // Jika config-nya berupa list string, anggap itu daftar level (lama).
+            $allowedLevels = $abilityConfig;
+        }
+
+        $isAllowedByLevel = in_array($this->level, $allowedLevels, true);
+        $isAllowedByNik = in_array($this->username, $allowedNiks, true);
+
+        return $isAllowedByLevel || $isAllowedByNik;
     }
 }
 

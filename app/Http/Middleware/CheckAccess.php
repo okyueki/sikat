@@ -14,9 +14,9 @@ class CheckAccess
             abort(403, 'Unauthorized access.');
         }
 
-        // Ability harus ada di config access.map (bukan config('access.map.'.$x) — titik di nama ability bukan nested key).
-        $levels = config('access.map', [])[$ability] ?? null;
-        if (! is_array($levels)) {
+        // Ability harus ada di config access.map.
+        $abilityConfig = config('access.map', [])[$ability] ?? null;
+        if (! is_array($abilityConfig)) {
             abort(403, 'Unauthorized access.');
         }
 

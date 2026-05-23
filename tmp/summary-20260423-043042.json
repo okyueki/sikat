@@ -1,0 +1,4 @@
+{
+  "summary": "Menanggapi arahan pengguna bahwa modul baru akan dibuat dari nol tanpa controller/view existing, dengan kesiapan menerapkan pola Surat Edaran. Diperlukan klarifikasi inti (nama modul, struktur data, alur approve/sign, dan endpoint) sebelum implementasi agar scaffolding tidak salah arah.",
+  "current_status": "Siap mulai pembangunan modul baru berbasis pola Surat Edaran; menunggu detail requirement minimum untuk eksekusi coding."
+}

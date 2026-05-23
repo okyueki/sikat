@@ -1,0 +1,4 @@
+{
+  "summary": "Menyelesaikan perbaikan tahap 3 pada modul Surat Edaran dengan hardening validasi payload gambar tanda tangan berbasis data URL. Perubahan mencakup pembatasan panjang input string, decoder khusus untuk data:image/png;base64 dengan validasi format, validasi base64 strict decode, dan batas ukuran maksimum 2 MB sebelum file disimpan, serta integrasi decoder ini ke alur simpan tanda tangan cropped maupun non-cropped.",
+  "current_status": "Tahap 3 selesai: endpoint save signature lebih aman terhadap input gambar invalid/oversize; syntax check dan lint untuk controller bersih."
+}

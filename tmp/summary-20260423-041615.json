@@ -1,0 +1,4 @@
+{
+  "summary": "Menangani laporan gagal finalisasi dokumen dengan error 500 pada endpoint save-signature berdasarkan bukti log produksi. Akar masalah teridentifikasi sebagai ketidakcocokan parser FPDI terhadap struktur kompresi PDF tertentu. Perbaikan dilakukan dengan (1) menambahkan validasi kompatibilitas PDF saat upload/create dan update menggunakan pengecekan parser awal di SuratEdaranPdfService, serta (2) memperjelas pesan kegagalan finalisasi menjadi pesan domain-spesifik dengan status 422 ketika penyebabnya PDF tidak kompatibel.",
+  "current_status": "Root cause error 500 finalisasi sudah dipatch agar terdeteksi lebih awal saat upload dan menghasilkan pesan error yang jelas; file terkait lolos syntax check dan lint."
+}

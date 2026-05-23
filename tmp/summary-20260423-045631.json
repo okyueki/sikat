@@ -1,0 +1,4 @@
+{
+  "summary": "Menambahkan menu SPO di sidebar (grup Surat Menyurat) termasuk state active parent `spo.*`. Memperbaiki QR verifikasi yang tidak muncul di PDF dokumen sah: logika penempatan QR sebelumnya melewatkan gambar jika semua sudut bawah bentrok dengan kotak tanda tangan/stempel; sekarang ada fallback ke posisi preferensi sehingga QR selalu digambar di halaman terakhir. Perbaikan diterapkan di `SuratEdaranPdfService` dan `SpoPdfService`. Pesan sukses setelah finalisasi di `surat-edaran-tanda-tangani.js` diperjelas bahwa QR ada di halaman terakhir PDF dan di halaman detail.",
+  "current_status": "Sidebar dan perbaikan QR PDF selesai. Dokumen yang sudah pernah difinalisasi tanpa QR perlu di-generate ulang (misalnya download signed PDF lagi atau alur yang memanggil `generateSignedPdfContent`) agar PDF terbaru berisi QR; draft baru otomatis dapat QR setelah finalisasi."
+}

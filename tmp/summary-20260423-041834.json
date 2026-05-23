@@ -1,0 +1,4 @@
+{
+  "summary": "Menjawab kebutuhan pengguna agar penyebab PDF tidak kompatibel dijelaskan lebih transparan. Menambahkan diagnostik penyebab kompatibilitas di SuratEdaranPdfService dengan deteksi indikator teknis dari konten PDF (versi PDF >=1.5, Object Stream /ObjStm, XRef Stream, dan flag Encrypt), lalu menyisipkan hasil deteksi tersebut ke pesan error yang dilempar saat parser FPDI gagal membaca file.",
+  "current_status": "Pesan error kompatibilitas PDF sekarang lebih informatif dan dapat menjelaskan indikasi teknis penyebab kegagalan finalisasi."
+}

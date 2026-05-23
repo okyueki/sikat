@@ -104,6 +104,7 @@
                             </div>
                         @endif
                         <input type="file" name="materi" id="materi" class="form-control" accept=".pdf,.doc,.docx">
+                        <div id="pdf-warning-materi" class="alert alert-warning mt-2 py-2 px-3 d-none" role="alert"></div>
                         <small class="text-muted">Kosongkan jika tidak ingin mengubah materi. Maksimal 2MB. Format: PDF, DOC, DOCX</small>
                         <div id="materi-error" class="text-danger mt-1" style="display: none;"></div>
                     </div>
@@ -144,6 +145,7 @@
     </div>
 </div>
 
+<script src="{{ asset('backend/assets/js/pdf-compat-warning.js') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         // Initialize Flatpickr for both date fields with 24-hour format
@@ -276,6 +278,10 @@
                 }
             }
         });
+
+        if (typeof initPdfCompatibilityWarning === 'function') {
+            initPdfCompatibilityWarning('materi', 'pdf-warning-materi');
+        }
 
         // Validasi form sebelum submit
         document.querySelector('form').addEventListener('submit', function(e) {

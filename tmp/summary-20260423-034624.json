@@ -1,0 +1,4 @@
+{
+  "summary": "Menindaklanjuti permintaan pengguna untuk melakukan patch pada modul Surat Edaran dengan fokus pada dua risiko yang sudah diidentifikasi sebelumnya. Perubahan dilakukan di controller untuk memblokir update dokumen yang sudah sah di sisi backend dan menambahkan validasi input cropped_signature_image agar data crop dari frontend tidak terbuang saat request diproses.",
+  "current_status": "Dua perbaikan prioritas modul Surat Edaran telah diterapkan dan file terkait bersih dari linter error."
+}

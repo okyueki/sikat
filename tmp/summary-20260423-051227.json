@@ -1,0 +1,4 @@
+{
+  "summary": "Memperbaiki hilangnya blok Verifikasi Keabsahan Dokumen dan konsistensi QR dengan PDF: kartu verifikasi sekarang ditampilkan setiap dokumen sah (tidak lagi bergantung pada data-URI yang bisa gagal/kosong). Ditambah route publik PNG `surat_edaran.verifyQr` dan `spo.verifyQr` yang meng-encode URL verifikasi yang sama dengan PDF. View `show` memakai `<img src>` ke URL tersebut dengan fallback data-URI. Helper `App\\Support\\DocumentVerificationQr` memusatkan pembuatan PNG + data URI dengan try/catch. Tombol unduh PDF sah kini juga menulis ulang file PDF di storage sehingga preview/iframe memuat PDF terbaru berisi QR di halaman terakhir.",
+  "current_status": "Surat Edaran dan SPO: verifikasi UI + unduhan PDF selaras dengan URL verifikasi. Dokumen lama tanpa QR di file: satu kali \"Download PDF Sah\" memperbarui file tersimpan; fallback penempatan QR di PDF sudah ada dari perubahan sebelumnya."
+}

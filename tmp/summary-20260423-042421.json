@@ -1,0 +1,4 @@
+{
+  "summary": "Melanjutkan konsolidasi warning kompatibilitas PDF dengan menghapus duplikasi logic analyzer pada view Surat Edaran create/edit dan menggantinya dengan helper shared `pdf-compat-warning.js`. Kedua halaman kini memuat helper yang sama, menginisialisasi deteksi via `initPdfCompatibilityWarning`, serta mempertahankan behavior clear/reset warning saat file dibatalkan.",
+  "current_status": "Logic deteksi kompatibilitas PDF sudah terpusat dan konsisten lintas modul, termasuk Surat Edaran; linter untuk file yang diubah bersih."
+}

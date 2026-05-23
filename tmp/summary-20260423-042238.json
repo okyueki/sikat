@@ -1,0 +1,4 @@
+{
+  "summary": "Menindaklanjuti permintaan pengguna untuk menerapkan warning kompatibilitas PDF secara konsisten di modul lain. Dibuat skrip reusable baru `public/backend/assets/js/pdf-compat-warning.js` untuk mendeteksi indikator PDF berisiko (versi modern, ObjStm, XRef stream, Encrypt), lalu diintegrasikan ke form upload PDF pada modul Surat Masuk (create/edit), Surat Keluar (create/edit), Agenda edit (materi), dan Ijin create (file campuran gambar/pdf).",
+  "current_status": "Komponen warning kompatibilitas PDF kini reusable dan sudah dipasang lintas modul upload terkait; lint dan syntax check untuk perubahan terbaru bersih."
+}

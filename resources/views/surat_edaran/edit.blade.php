@@ -3,6 +3,7 @@
 @section('pageTitle', isset($pageTitle) ? $pageTitle . $title : $title)
 
 @section('content')
+@php($routePrefix = $routePrefix ?? 'surat_edaran')
 <div class="row">
     <div class="col-xl-12">
         <div class="card custom-card">
@@ -39,7 +40,7 @@
                         </ul>
                     </div>
                 @endif
-                <form action="{{ route('surat_edaran.update', $surat_edaran) }}" method="POST" enctype="multipart/form-data">
+                <form action="{{ route($routePrefix . '.update', $surat_edaran) }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     @method('PUT')
                     <div class="row">
@@ -65,6 +66,19 @@
                                     @endforeach
                                 </select>
                             </div>
+                            @if(!empty($isSpo))
+                            <div class="mb-3">
+                                <label for="dep_terkait" class="form-label">Departemen Terkait</label>
+                                <select name="dep_terkait[]" id="dep_terkait" class="form-select" multiple {{ $surat_edaran->tanggal_ditandatangani ? 'disabled' : '' }}>
+                                    @foreach(($departemenList ?? []) as $dep)
+                                        <option value="{{ $dep->dep_id }}" {{ in_array($dep->dep_id, (array)($selectedDepartemenTerkait ?? []), true) ? 'selected' : '' }}>
+                                            {{ $dep->nama }} ({{ $dep->dep_id }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <small class="text-muted">Bisa pilih lebih dari satu departemen.</small>
+                            </div>
+                            @endif
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -73,6 +87,12 @@
                             </div>
                             <div class="mb-3">
                                 <label for="file_pdf" class="form-label">File PDF</label>
+                                @if(!$surat_edaran->tanggal_ditandatangani)
+                                <p class="small text-muted border-start border-primary ps-2 mb-2 ms-1" style="border-width: 3px !important;">
+                                    <i class="fe fe-info text-primary me-1"></i>
+                                    Kalau file tidak diterima atau nanti tanda tangan di sistem tidak jalan, buka dokumen seperti biasa, pilih <strong>Cetak</strong>, simpan sebagai <strong>PDF</strong> baru, lalu upload file yang baru itu.
+                                </p>
+                                @endif
                                 <!-- Compact File Upload -->
                                 <div class="file-upload-compact" id="file-upload-area">
                                     <input type="file" name="file_pdf" id="file_pdf" accept=".pdf" style="display: none;">
@@ -84,7 +104,7 @@
                                         <div class="file-details">
                                             <span class="file-name fw-medium">PDF saat ini tersedia</span>
                                             <small class="file-size text-muted">
-                                                <a href="{{ route('surat_edaran.streamPdf', $surat_edaran) }}" target="_blank" class="text-primary">
+                                                <a href="{{ route($routePrefix . '.streamPdf', $surat_edaran) }}" target="_blank" class="text-primary">
                                                     <i class="fe fe-eye me-1"></i>Lihat PDF
                                                 </a>
                                             </small>
@@ -117,6 +137,7 @@
                                         </button>
                                     </div>
                                 </div>
+                                <div id="pdf-compat-warning" class="alert alert-warning mt-2 py-2 px-3 d-none" role="alert"></div>
                                 <small class="text-muted">Kosongkan jika tidak mengubah file.</small>
                                 @error('file_pdf')
                                     <div class="text-danger small mt-1">{{ $message }}</div>
@@ -130,10 +151,10 @@
                             <i class="fe fe-lock me-2"></i>
                             Dokumen ini sudah ditandatangani dan tidak dapat diubah. Untuk perubahan, silakan membuat dokumen baru.
                         </div>
-                        <a href="{{ route('surat_edaran.index') }}" class="btn btn-secondary">Kembali</a>
+                        <a href="{{ route($routePrefix . '.index') }}" class="btn btn-secondary">Kembali</a>
                     @else
                         <button type="submit" class="btn btn-primary">Simpan</button>
-                        <a href="{{ route('surat_edaran.index') }}" class="btn btn-secondary">Batal</a>
+                        <a href="{{ route($routePrefix . '.index') }}" class="btn btn-secondary">Batal</a>
                     @endif
                 </form>
             </div>
@@ -143,81 +164,36 @@
 @endsection
 
 @push('scripts')
+<script src="{{ asset('backend/assets/js/pdf-compat-warning.js') }}"></script>
+<script src="{{ asset('backend/assets/js/surat-edaran-upload.js') }}"></script>
 <script>
-// Compact File Upload Functionality for Edit
-(function() {
-    // Check if document is signed
-    var isSigned = {{ $surat_edaran->tanggal_ditandatangani ? 'true' : 'false' }};
-    if (isSigned) return; // Don't initialize upload functionality for signed documents
-    
-    var fileInput = document.getElementById('file_pdf');
-    var uploadArea = document.getElementById('file-upload-area');
-    var uploadTrigger = document.getElementById('upload-trigger');
-    var existingFileInfo = document.getElementById('existing-file-info');
-    var newFileInfo = document.getElementById('new-file-info');
-    var fileName = document.getElementById('file-name');
-    var fileSize = document.getElementById('file-size');
-
-    // Handle file selection
-    fileInput.addEventListener('change', function(e) {
-        if (this.files && this.files[0]) {
-            showNewFileInfo(this.files[0]);
-        }
-    });
-
-    // Drag and drop
-    uploadArea.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        this.classList.add('dragover');
-    });
-
-    uploadArea.addEventListener('dragleave', function() {
-        this.classList.remove('dragover');
-    });
-
-    uploadArea.addEventListener('drop', function(e) {
-        e.preventDefault();
-        this.classList.remove('dragover');
-        var files = e.dataTransfer.files;
-        if (files.length > 0 && files[0].type === 'application/pdf') {
-            fileInput.files = files;
-            showNewFileInfo(files[0]);
-        } else if (files.length > 0) {
-            alert('Hanya file PDF yang diizinkan.');
-        }
-    });
-
-    function showNewFileInfo(file) {
-        fileName.textContent = file.name;
-        fileSize.textContent = formatFileSize(file.size);
-        if (uploadTrigger) uploadTrigger.style.display = 'none';
-        if (existingFileInfo) existingFileInfo.style.display = 'none';
-        newFileInfo.style.display = 'flex';
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.jQuery && $('#nik_penandatangan').length) {
+        $('#nik_penandatangan').select2({
+            placeholder: '-- Pilih pegawai --',
+            allowClear: true,
+            width: '100%'
+        });
     }
-
-    window.changeFile = function() {
-        fileInput.click();
-    };
-
-    window.clearFile = function() {
-        fileInput.value = '';
-        newFileInfo.style.display = 'none';
-        
-        @if ($surat_edaran->file_pdf)
-            existingFileInfo.style.display = 'flex';
-        @else
-            uploadTrigger.style.display = 'flex';
-        @endif
-    };
-
-    function formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        var k = 1024;
-        var sizes = ['Bytes', 'KB', 'MB'];
-        var i = Math.floor(Math.log(bytes) / Math.log(k));
-        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    @if(!empty($isSpo))
+    if (window.jQuery && $('#dep_terkait').length) {
+        $('#dep_terkait').select2({
+            placeholder: '-- Pilih departemen terkait --',
+            allowClear: true,
+            width: '100%'
+        });
     }
-})();
+    @endif
+    if (typeof initSuratEdaranEditUpload === 'function') {
+        initSuratEdaranEditUpload({
+            isSigned: {{ $surat_edaran->tanggal_ditandatangani ? 'true' : 'false' }},
+            hasExistingFile: {{ $surat_edaran->file_pdf ? 'true' : 'false' }}
+        });
+    }
+    if (typeof initPdfCompatibilityWarning === 'function') {
+        initPdfCompatibilityWarning('file_pdf', 'pdf-compat-warning');
+    }
+});
 </script>
 <style>
 /* Compact File Upload Styles */

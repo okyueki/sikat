@@ -308,7 +308,9 @@
         const userLevel = '{{ Auth::check() ? Auth::user()->level : '' }}';
         const canAccessItem = (item) => {
             if (!item.accessAbility) return true;
-            const levels = accessMap[item.accessAbility];
+            const cfg = accessMap[item.accessAbility];
+            if (!cfg) return false;
+            const levels = Array.isArray(cfg) ? cfg : (cfg.levels || []);
             return Array.isArray(levels) && levels.includes(userLevel);
         };
         const inventarisMenuItems = @json($inventarisModalItems);

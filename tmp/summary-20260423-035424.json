@@ -1,0 +1,4 @@
+{
+  "summary": "Melanjutkan perbaikan bertahap tahap 2 pada modul Surat Edaran dengan menambahkan cleanup file gambar tanda tangan lama agar tidak menumpuk di storage. Logika signature_detail diperbaiki untuk mempertahankan gambar lama saat tipe image tidak mengganti file, mengganti file saat ada upload/crop baru, dan menghapus file lama ketika berganti ke gambar baru atau saat beralih ke tipe text.",
+  "current_status": "Tahap 2 selesai: manajemen lifecycle file tanda tangan gambar sudah lebih aman, syntax dan lint pada controller bersih."
+}

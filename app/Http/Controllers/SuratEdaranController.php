@@ -9,9 +9,11 @@ use App\Models\SuratEdaranPlacement;
 use App\Models\AuditTrail;
 use App\Models\Pegawai;
 use App\Services\SuratEdaranPdfService;
+use App\Support\DocumentVerificationQr;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Surat Edaran – Judul, Nomor, Deskripsi, Tanggal, Yang menyetujui, File PDF.
@@ -54,6 +56,14 @@ class SuratEdaranController extends Controller
         $path = $request->file('file_pdf')->store('surat_edaran', 'public');
         $validated['file_pdf'] = $path;
         $validated['created_by_username'] = (string) (auth()->user()->username ?? '');
+        try {
+            SuratEdaranPdfService::assertPdfParsableFromStoragePath($path);
+        } catch (\Throwable $e) {
+            Storage::disk('public')->delete($path);
+            throw ValidationException::withMessages([
+                'file_pdf' => $e->getMessage(),
+            ]);
+        }
 
         $created = SuratEdaran::create($validated);
         AuditTrail::logCreate(
@@ -72,13 +82,40 @@ class SuratEdaranController extends Controller
         $surat_edaran->load(['penandatangan', 'placements']);
         $title = 'Detail Surat Edaran';
         $verifyUrl = route('surat_edaran.verify', $surat_edaran);
-        $verificationQrDataUri = null;
-        if ($surat_edaran->tanggal_ditandatangani) {
-            $qr = QrCode::format('png')->size(220)->margin(1)->generate($verifyUrl);
-            $verificationQrDataUri = 'data:image/png;base64,' . base64_encode($qr);
+        $verificationQrUrl = $surat_edaran->tanggal_ditandatangani
+            ? route('surat_edaran.verifyQr', $surat_edaran)
+            : null;
+        $verificationQrDataUri = $surat_edaran->tanggal_ditandatangani
+            ? DocumentVerificationQr::dataUri($verifyUrl)
+            : null;
+
+        return view('surat_edaran.show', compact('title', 'surat_edaran', 'verificationQrDataUri', 'verificationQrUrl', 'verifyUrl'));
+    }
+
+    /**
+     * Gambar QR verifikasi (PNG) — dipakai halaman detail agar tidak bergantung data-URI panjang / CSP.
+     * Konten sama dengan QR yang di-embed ke PDF (URL halaman verifikasi).
+     */
+    public function verificationQrPng(SuratEdaran $surat_edaran)
+    {
+        if (! $surat_edaran->tanggal_ditandatangani) {
+            abort(404);
+        }
+        $verifyUrl = route('surat_edaran.verify', $surat_edaran);
+        try {
+            $png = DocumentVerificationQr::pngBinary($verifyUrl);
+        } catch (\Throwable $e) {
+            report($e);
+            abort(503, 'QR verifikasi tidak dapat dibuat.');
+        }
+        if ($png === '') {
+            abort(503, 'QR verifikasi kosong.');
         }
 
-        return view('surat_edaran.show', compact('title', 'surat_edaran', 'verificationQrDataUri', 'verifyUrl'));
+        return response($png, 200, [
+            'Content-Type' => 'image/png',
+            'Cache-Control' => 'public, max-age=86400',
+        ]);
     }
 
     public function edit(SuratEdaran $surat_edaran)
@@ -90,6 +127,10 @@ class SuratEdaranController extends Controller
 
     public function update(Request $request, SuratEdaran $surat_edaran)
     {
+        if ($surat_edaran->tanggal_ditandatangani) {
+            abort(403, 'Dokumen yang sudah sah tidak dapat diubah. Silakan buat dokumen baru.');
+        }
+
         $validated = $request->validate([
             'judul_surat' => 'required|string|max:255',
             'nomor_surat' => 'nullable|string|max:100',
@@ -107,10 +148,22 @@ class SuratEdaranController extends Controller
         ]);
 
         if ($request->hasFile('file_pdf')) {
-            if ($surat_edaran->file_pdf) {
-                Storage::disk('public')->delete($surat_edaran->file_pdf);
+            $oldPath = $surat_edaran->file_pdf;
+            $newPath = $request->file('file_pdf')->store('surat_edaran', 'public');
+
+            try {
+                SuratEdaranPdfService::assertPdfParsableFromStoragePath($newPath);
+            } catch (\Throwable $e) {
+                Storage::disk('public')->delete($newPath);
+                throw ValidationException::withMessages([
+                    'file_pdf' => $e->getMessage(),
+                ]);
             }
-            $validated['file_pdf'] = $request->file('file_pdf')->store('surat_edaran', 'public');
+
+            $validated['file_pdf'] = $newPath;
+            if ($surat_edaran->file_pdf) {
+                Storage::disk('public')->delete($oldPath);
+            }
         } else {
             unset($validated['file_pdf']);
         }
@@ -132,11 +185,17 @@ class SuratEdaranController extends Controller
     {
         $this->ensureCanDelete($surat_edaran);
 
+        $signatureDetail = is_array($surat_edaran->signature_detail) ? $surat_edaran->signature_detail : [];
+        $signatureImagePath = (string) ($signatureDetail['image_path'] ?? '');
+
         if ($surat_edaran->file_pdf) {
             Storage::disk('public')->delete($surat_edaran->file_pdf);
         }
         if ($surat_edaran->file_pdf_signed) {
             Storage::disk('public')->delete($surat_edaran->file_pdf_signed);
+        }
+        if ($signatureImagePath !== '' && Storage::disk('public')->exists($signatureImagePath)) {
+            Storage::disk('public')->delete($signatureImagePath);
         }
         AuditTrail::logDelete(
             'surat_edaran',
@@ -177,8 +236,12 @@ class SuratEdaranController extends Controller
             }
         }
 
+        if (! $surat_edaran->file_pdf) {
+            abort(404, 'File PDF tidak ditemukan.');
+        }
+
         $path = Storage::disk('public')->path($surat_edaran->file_pdf);
-        if (! $surat_edaran->file_pdf || ! file_exists($path)) {
+        if (! file_exists($path)) {
             abort(404, 'File PDF tidak ditemukan.');
         }
         return response()->file($path, [
@@ -193,6 +256,11 @@ class SuratEdaranController extends Controller
     public function tandaTangani(SuratEdaran $surat_edaran)
     {
         $this->ensureCanSign($surat_edaran);
+        if ($surat_edaran->tanggal_ditandatangani) {
+            return redirect()
+                ->route('surat_edaran.show', $surat_edaran)
+                ->with('warning', 'Dokumen sudah sah dan tidak dapat dibuka lagi di mode tanda tangan.');
+        }
 
         $surat_edaran->load(['penandatangan', 'placements']);
         $title = 'Tanda tangani PDF';
@@ -228,6 +296,10 @@ class SuratEdaranController extends Controller
     {
         $this->ensureCanSign($surat_edaran);
 
+        if ($surat_edaran->tanggal_ditandatangani) {
+            return $this->jsonError('Dokumen sudah sah dan tidak dapat diubah.', 409, true);
+        }
+
         $finalize = filter_var($request->input('finalize', false), FILTER_VALIDATE_BOOLEAN);
 
         $validated = $request->validate([
@@ -236,7 +308,8 @@ class SuratEdaranController extends Controller
             'font_style' => 'nullable|string|max:50',
             'color' => 'nullable|string|max:20',
             'signature_type' => 'nullable|string|in:text,image',
-            'signature_image_url' => 'nullable|string',
+            'signature_image_url' => 'nullable|string|max:4000000',
+            'cropped_signature_image' => 'nullable|string|max:4000000',
             'finalize' => 'nullable|boolean',
             'placements' => 'nullable|array',
             'placements.*.field_type' => 'required|string|in:signature,inisial,nama,tanggal,teks,stempel',
@@ -250,30 +323,41 @@ class SuratEdaranController extends Controller
         ]);
 
         // Handle image URL - prioritize cropped image over regular image
-        $imageUrl = $validated['signature_image_url'] ?? '';
-        $imagePath = null;
-        if (($validated['signature_type'] ?? 'text') === 'image') {
+        $existingSignatureDetail = is_array($surat_edaran->signature_detail) ? $surat_edaran->signature_detail : [];
+        $existingImagePath = (string) ($existingSignatureDetail['image_path'] ?? '');
+        $existingImageUrl = (string) ($existingSignatureDetail['image_url'] ?? '');
+        $signatureType = $validated['signature_type'] ?? 'text';
+        $croppedImageBinary = $this->decodeSignatureImageDataUrl($validated['cropped_signature_image'] ?? null, 'cropped_signature_image');
+        $signatureImageBinary = $this->decodeSignatureImageDataUrl($validated['signature_image_url'] ?? null, 'signature_image_url');
+
+        $imageUrl = $validated['signature_image_url'] ?? $existingImageUrl;
+        $imagePath = $existingImagePath !== '' ? $existingImagePath : null;
+        $imagePathToDelete = null;
+
+        if ($signatureType === 'image') {
             // Check for cropped image first
-            $croppedImage = $validated['cropped_signature_image'] ?? '';
-            if ($croppedImage && str_starts_with($croppedImage, 'data:image')) {
-                // Decode base64 cropped image and save
-                $imageData = explode(',', $croppedImage);
-                if (count($imageData) === 2) {
-                    $decoded = base64_decode($imageData[1]);
-                    $imagePath = 'tanda_tangan/surat_' . $surat_edaran->id . '_' . time() . '.png';
-                    Storage::disk('public')->put($imagePath, $decoded);
-                    $imageUrl = Storage::disk('public')->url($imagePath);
+            if ($croppedImageBinary !== null) {
+                $imagePath = 'tanda_tangan/surat_' . $surat_edaran->id . '_' . time() . '.png';
+                Storage::disk('public')->put($imagePath, $croppedImageBinary);
+                $imageUrl = Storage::disk('public')->url($imagePath);
+                if ($existingImagePath !== '' && $existingImagePath !== $imagePath) {
+                    $imagePathToDelete = $existingImagePath;
                 }
             }
             // Fallback to regular image if no cropped image
-            elseif ($imageUrl && str_starts_with($imageUrl, 'data:image')) {
-                $imageData = explode(',', $imageUrl);
-                if (count($imageData) === 2) {
-                    $decoded = base64_decode($imageData[1]);
-                    $imagePath = 'tanda_tangan/surat_' . $surat_edaran->id . '_' . time() . '.png';
-                    Storage::disk('public')->put($imagePath, $decoded);
-                    $imageUrl = Storage::disk('public')->url($imagePath);
+            elseif ($signatureImageBinary !== null) {
+                $imagePath = 'tanda_tangan/surat_' . $surat_edaran->id . '_' . time() . '.png';
+                Storage::disk('public')->put($imagePath, $signatureImageBinary);
+                $imageUrl = Storage::disk('public')->url($imagePath);
+                if ($existingImagePath !== '' && $existingImagePath !== $imagePath) {
+                    $imagePathToDelete = $existingImagePath;
                 }
+            }
+        } else {
+            $imageUrl = '';
+            $imagePath = null;
+            if ($existingImagePath !== '') {
+                $imagePathToDelete = $existingImagePath;
             }
         }
 
@@ -283,11 +367,15 @@ class SuratEdaranController extends Controller
                 'inisial' => $validated['inisial'] ?? '',
                 'font_style' => $validated['font_style'] ?? '1',
                 'color' => $validated['color'] ?? '#000000',
-                'type' => $validated['signature_type'] ?? 'text',
+                'type' => $signatureType,
                 'image_url' => $imageUrl,
                 'image_path' => $imagePath,
             ],
         ]);
+
+        if ($imagePathToDelete && Storage::disk('public')->exists($imagePathToDelete)) {
+            Storage::disk('public')->delete($imagePathToDelete);
+        }
 
         $surat_edaran->placements()->delete();
         if (! empty($validated['placements'])) {
@@ -324,29 +412,40 @@ class SuratEdaranController extends Controller
         }
 
         // Finalisasi: sahkan dokumen dan simpan PDF bertanda tangan
-        $surat_edaran->update(['tanggal_ditandatangani' => now()]);
-        $surat_edaran->load('placements');
         $oldPath = $surat_edaran->file_pdf;
+        $newPath = 'surat_edaran/' . $surat_edaran->id . '_signed.pdf';
+
         try {
+            $surat_edaran->load('placements');
             $signedContent = SuratEdaranPdfService::generateSignedPdfContent($surat_edaran);
-            $newPath = 'surat_edaran/' . $surat_edaran->id . '_signed.pdf';
             Storage::disk('public')->put($newPath, $signedContent);
 
-            if ($oldPath && Storage::disk('public')->exists($oldPath)) {
+            DB::transaction(function () use ($surat_edaran, $newPath) {
+                $surat_edaran->update([
+                    'tanggal_ditandatangani' => now(),
+                    'file_pdf' => $newPath,
+                    'file_pdf_signed' => $newPath,
+                ]);
+            });
+
+            if ($oldPath && $oldPath !== $newPath && Storage::disk('public')->exists($oldPath)) {
                 Storage::disk('public')->delete($oldPath);
             }
-
-            $surat_edaran->update([
-                'file_pdf' => $newPath,
-                'file_pdf_signed' => $newPath,
-            ]);
         } catch (\Throwable $e) {
+            if (Storage::disk('public')->exists($newPath)) {
+                Storage::disk('public')->delete($newPath);
+            }
             report($e);
-            return response()->json([
-                'success' => true,
-                'message' => 'Dokumen disahkan, tetapi gagal menyimpan file PDF bertanda tangan: ' . $e->getMessage(),
-                'finalized' => true,
-            ]);
+            $errorMessage = 'Gagal memfinalisasi dokumen. Draft posisi tanda tangan tetap tersimpan.';
+            $errorStatus = 500;
+            if (str_contains(strtolower($e->getMessage()), 'pdf tidak kompatibel') ||
+                str_contains(strtolower($e->getMessage()), 'pdf menggunakan kompresi/struktur') ||
+                str_contains(strtolower($e->getMessage()), 'not supported by the free parser shipped with fpdi')) {
+                $errorMessage = 'Finalisasi gagal karena file PDF tidak kompatibel dengan parser sistem. ' .
+                    'Silakan simpan ulang PDF sebagai PDF standar (Print to PDF), lalu upload ulang.';
+                $errorStatus = 422;
+            }
+            return $this->jsonError($errorMessage, $errorStatus, false);
         }
 
         AuditTrail::log(
@@ -372,7 +471,16 @@ class SuratEdaranController extends Controller
     public function generateSignedPdf(SuratEdaran $surat_edaran)
     {
         $surat_edaran->load(['penandatangan', 'placements']);
-        return SuratEdaranPdfService::generateSignedPdf($surat_edaran);
+        $pdfContent = SuratEdaranPdfService::generateSignedPdfContent($surat_edaran);
+        if ($surat_edaran->tanggal_ditandatangani && $surat_edaran->file_pdf) {
+            Storage::disk('public')->put($surat_edaran->file_pdf, $pdfContent);
+        }
+        $filename = 'surat_edaran_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $surat_edaran->judul_surat) . '_signed.pdf';
+
+        return response($pdfContent, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
     }
 
     public function verifyAuthenticity(SuratEdaran $surat_edaran)
@@ -499,5 +607,47 @@ class SuratEdaranController extends Controller
             $i .= mb_substr($w, 0, 1, 'UTF-8');
         }
         return mb_strtoupper($i, 'UTF-8');
+    }
+
+    private function decodeSignatureImageDataUrl(?string $value, string $field): ?string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        $value = trim($value);
+        if (! str_starts_with($value, 'data:image')) {
+            return null;
+        }
+
+        if (! preg_match('/^data:image\/png;base64,([A-Za-z0-9+\/=\r\n]+)$/', $value, $matches)) {
+            throw ValidationException::withMessages([
+                $field => 'Format gambar tanda tangan tidak valid. Gunakan PNG base64.',
+            ]);
+        }
+
+        $decoded = base64_decode($matches[1], true);
+        if ($decoded === false) {
+            throw ValidationException::withMessages([
+                $field => 'Data gambar tanda tangan tidak valid.',
+            ]);
+        }
+
+        if (strlen($decoded) > 2 * 1024 * 1024) {
+            throw ValidationException::withMessages([
+                $field => 'Ukuran gambar tanda tangan maksimal 2 MB.',
+            ]);
+        }
+
+        return $decoded;
+    }
+
+    private function jsonError(string $message, int $status = 400, bool $finalized = false)
+    {
+        return response()->json([
+            'success' => false,
+            'message' => $message,
+            'finalized' => $finalized,
+        ], $status);
     }
 }

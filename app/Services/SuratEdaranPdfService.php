@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\MasterStempel;
 use App\Models\SuratEdaran;
 use setasign\Fpdi\Tcpdf\Fpdi;
+use setasign\Fpdi\PdfParser\CrossReference\CrossReferenceException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Response;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
@@ -28,7 +29,18 @@ class SuratEdaranPdfService
         $pdf = new Fpdi();
         $pdf->setPrintHeader(false);
         $pdf->setPrintFooter(false);
-        $pageCount = $pdf->setSourceFile($path);
+        try {
+            $pageCount = $pdf->setSourceFile($path);
+        } catch (CrossReferenceException $e) {
+            $reason = self::detectIncompatiblePdfReason($path);
+            throw new \RuntimeException(
+                'File PDF tidak kompatibel untuk proses tanda tangan digital internal. ' .
+                $reason . ' ' .
+                'Silakan simpan ulang dokumen sebagai PDF standar (misalnya via Print to PDF), lalu upload ulang.',
+                0,
+                $e
+            );
+        }
 
         $signatureDetail = $surat->signature_detail ?? [];
         $namaLengkap = $signatureDetail['nama_lengkap'] ?? $surat->penandatangan?->nama ?? '';
@@ -141,75 +153,17 @@ class SuratEdaranPdfService
                     QrCode::format('png')->size(220)->margin(1)->generate($verifyUrl, $qrFullPath);
 
                     if (file_exists($qrFullPath)) {
+                        // Selalu pojok kanan bawah (konsisten, mudah dijelaskan ke user), dengan latar putih
+                        // agar QR tetap terbaca walau menimpa tanda tangan/stempel — pola mirip layanan tanda tangan umum.
                         $qrSizeMm = 22.0;
                         $marginMm = 8.0;
-                        $qrPosition = $masterStempel?->qr_position ?? 'bottom_right';
-                        $safePadding = 0.8;
-                        $qrBoxW = $qrSizeMm + ($safePadding * 2);
-                        $qrBoxH = $qrSizeMm + ($safePadding * 2);
+                        $padMm = 1.2;
+                        $xQr = max(2.0, (float) $size['width'] - $qrSizeMm - $marginMm);
+                        $yQr = max(2.0, (float) $size['height'] - $qrSizeMm - $marginMm);
 
-                        $cornerToCoord = function (string $corner) use ($size, $qrSizeMm, $marginMm): array {
-                            $x = max(2.0, (float) $size['width'] - $qrSizeMm - $marginMm);
-                            $y = max(2.0, (float) $size['height'] - $qrSizeMm - $marginMm);
-                            if ($corner === 'bottom_left') {
-                                $x = $marginMm;
-                            }
-
-                            return [$x, $y];
-                        };
-
-                        $overlap = function (array $a, array $b): bool {
-                            return !(
-                                $a['x'] + $a['w'] <= $b['x'] ||
-                                $b['x'] + $b['w'] <= $a['x'] ||
-                                $a['y'] + $a['h'] <= $b['y'] ||
-                                $b['y'] + $b['h'] <= $a['y']
-                            );
-                        };
-
-                        $placementBoxes = [];
-                        foreach ($placements as $placement) {
-                            $placementBoxes[] = [
-                                'x' => (float) $placement->x,
-                                'y' => (float) $placement->y,
-                                'w' => $placement->width ? (float) $placement->width : 40.0,
-                                'h' => $placement->height ? (float) $placement->height : 8.0,
-                            ];
-                        }
-
-                        // Mode aman: hanya area bawah agar tidak mengganggu konten utama dokumen.
-                        $allowedBottomCorners = ['bottom_right', 'bottom_left'];
-                        $preferred = in_array($qrPosition, $allowedBottomCorners, true) ? $qrPosition : 'bottom_right';
-                        $prioritizedCorners = array_values(array_unique(array_merge([$preferred], $allowedBottomCorners)));
-
-                        $chosenQr = null;
-                        foreach ($prioritizedCorners as $corner) {
-                            [$candidateX, $candidateY] = $cornerToCoord($corner);
-                            $candidateQrBox = [
-                                'x' => max(1.0, $candidateX - $safePadding),
-                                'y' => max(1.0, $candidateY - $safePadding),
-                                'w' => $qrBoxW,
-                                'h' => $qrBoxH,
-                            ];
-
-                            $isCollision = false;
-                            foreach ($placementBoxes as $box) {
-                                if ($overlap($candidateQrBox, $box)) {
-                                    $isCollision = true;
-                                    break;
-                                }
-                            }
-
-                            if (! $isCollision) {
-                                $chosenQr = [$candidateX, $candidateY];
-                                break;
-                            }
-                        }
-
-                        if ($chosenQr) {
-                            [$xQr, $yQr] = $chosenQr;
-                            $pdf->Image($qrFullPath, $xQr, $yQr, $qrSizeMm, $qrSizeMm, 'PNG', '', '', false, 300);
-                        }
+                        $pdf->SetFillColor(255, 255, 255);
+                        $pdf->Rect($xQr - $padMm, $yQr - $padMm, $qrSizeMm + (2 * $padMm), $qrSizeMm + (2 * $padMm), 'F');
+                        $pdf->Image($qrFullPath, $xQr, $yQr, $qrSizeMm, $qrSizeMm, 'PNG', '', '', false, 300);
 
                         Storage::disk('public')->delete($qrRelativePath);
                     }
@@ -235,6 +189,71 @@ class SuratEdaranPdfService
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
+    }
+
+    /**
+     * Validasi awal kompatibilitas parser FPDI terhadap file PDF yang di-upload.
+     * Dipakai agar kegagalan diketahui lebih awal saat upload/edit, bukan saat finalisasi.
+     */
+    public static function assertPdfParsableFromStoragePath(string $relativePath): void
+    {
+        if ($relativePath === '') {
+            throw new \RuntimeException('Path file PDF kosong.');
+        }
+
+        $path = Storage::disk('public')->path($relativePath);
+        if (! file_exists($path)) {
+            throw new \RuntimeException('File PDF tidak ditemukan: ' . $relativePath);
+        }
+
+        $pdf = new Fpdi();
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+
+        try {
+            $pdf->setSourceFile($path);
+        } catch (CrossReferenceException $e) {
+            $reason = self::detectIncompatiblePdfReason($path);
+            throw new \RuntimeException(
+                'File PDF menggunakan kompresi/struktur yang belum didukung parser sistem. ' .
+                $reason . ' ' .
+                'Silakan simpan ulang sebagai PDF standar (Print to PDF), lalu upload kembali.',
+                0,
+                $e
+            );
+        }
+    }
+
+    private static function detectIncompatiblePdfReason(string $absolutePath): string
+    {
+        $chunk = @file_get_contents($absolutePath, false, null, 0, 1024 * 1024);
+        if (! is_string($chunk) || $chunk === '') {
+            return 'Penyebab detail tidak dapat dibaca dari struktur file PDF.';
+        }
+
+        $reasons = [];
+        if (preg_match('/%PDF-(\d\.\d)/', $chunk, $m)) {
+            $version = $m[1] ?? '';
+            if ($version !== '' && version_compare($version, '1.5', '>=')) {
+                $reasons[] = 'Versi PDF ' . $version . ' (sering memakai struktur object stream modern)';
+            }
+        }
+
+        if (str_contains($chunk, '/ObjStm')) {
+            $reasons[] = 'Terdeteksi Object Stream (/ObjStm)';
+        }
+        if (str_contains($chunk, '/Type/XRef') || str_contains($chunk, '/XRef')) {
+            $reasons[] = 'Terdeteksi Cross-Reference Stream (XRef stream)';
+        }
+        if (str_contains($chunk, '/Encrypt')) {
+            $reasons[] = 'File PDF terenkripsi/protected';
+        }
+
+        if (empty($reasons)) {
+            return 'Kemungkinan memakai struktur kompresi PDF tingkat lanjut yang belum didukung parser FPDI free.';
+        }
+
+        return 'Indikasi teknis: ' . implode('; ', $reasons) . '.';
     }
 
     private static function hexToRgb(string $hex): array

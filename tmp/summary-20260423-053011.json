@@ -1,0 +1,4 @@
+{
+  "summary": "Menjawab pertanyaan pencegahan regresi serupa (QR/verifikasi hilang): rekomendasi arsitektur dan proses—UI kritikal tidak boleh bergantung satu variabel opsional, hindari data-URI besar, satu helper untuk isi QR web+PDF, konsistensi penyimpanan file untuk preview vs unduh, uji ringan + logging, dan review kondisi Blade.",
+  "current_status": "Tidak ada perubahan kode baru pada giliran ini; hanya nasihat operasional/teknik. Perbaikan sebelumnya (route QR PNG, kartu verifikasi selalu untuk dokumen sah, persist PDF saat unduh) sudah mengimplementasi sebagian prinsip tersebut."
+}

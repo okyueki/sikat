@@ -1,0 +1,4 @@
+{
+  "summary": "Menjawab strategi untuk user low-educated: kombinasi cek awal sederhana + jangan sembunyikan UI kritikal; menjelaskan batas vs Privy (mesin PDF komersial). Mengimplementasi paksaan QR verifikasi selalu di pojok kanan bawah halaman terakhir dengan kotak putih di belakang agar selalu terbaca walau overlap tanda tangan/stempel—menghapus logika bentrok multi-sudut di `SuratEdaranPdfService` dan `SpoPdfService`.",
+  "current_status": "Penempatan QR di PDF disederhanakan dan diprediksi untuk pengguna awam. Upload PDF tidak kompatibel FPDI tetap perlu peringatan di depan (sudah ada pdf-compat-warning + validasi server); itu batas teknis berbeda dari overlay QR."
+}

@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "adapters": [
+    "telegram"
+  ],
+  "telegram": {
+    "token": "6439992385:AAHucQdmxAZANaKkcMHTPCIECdqnzSh34S0",
+    "chatId": "485395148"
+  },
+  "email": {
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "secure": false,
+    "user": "your-email@gmail.com",
+    "pass": "your-app-password",
+    "to": "recipient@example.com"
+  },
+  "feishu": {
+    "appId": "cli_xxxxxxxxxxxxxxxxx",
+    "appSecret": "your_app_secret_here",
+    "useWebhook": false
+  }
+}

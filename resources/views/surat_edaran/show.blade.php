@@ -3,6 +3,7 @@
 @section('pageTitle', isset($pageTitle) ? $pageTitle . $title : $title)
 
 @section('content')
+@php($routePrefix = $routePrefix ?? 'surat_edaran')
 <div class="row">
     <div class="col-xl-12">
         <div class="card custom-card">
@@ -10,17 +11,17 @@
                 <h5 class="card-title mb-0">{{ $title }}</h5>
                 <div>
                     @if(!$surat_edaran->tanggal_ditandatangani)
-                        <a href="{{ route('surat_edaran.tandaTangani', $surat_edaran) }}" class="btn btn-info btn-sm">Tanda tangani PDF</a>
-                        <a href="{{ route('surat_edaran.edit', $surat_edaran) }}" class="btn btn-warning btn-sm">Edit</a>
+                        <a href="{{ route($routePrefix . '.tandaTangani', $surat_edaran) }}" class="btn btn-info btn-sm">Tanda tangani PDF</a>
+                        <a href="{{ route($routePrefix . '.edit', $surat_edaran) }}" class="btn btn-warning btn-sm">Edit</a>
                     @else
-                        <a href="{{ route('surat_edaran.generateSignedPdf', $surat_edaran) }}" class="btn btn-success btn-sm" target="_blank">Download PDF bertanda tangan</a>
+                        <a href="{{ route($routePrefix . '.generateSignedPdf', $surat_edaran) }}" class="btn btn-success btn-sm" target="_blank">Download PDF bertanda tangan</a>
                     @endif
-                    <form action="{{ route('surat_edaran.destroy', $surat_edaran) }}" method="POST" class="d-inline" onsubmit="return confirm('Yakin hapus dokumen ini?{{ $surat_edaran->tanggal_ditandatangani ? " Dokumen yang sudah ditandatangani akan dihapus permanen." : "" }}');">
+                    <form action="{{ route($routePrefix . '.destroy', $surat_edaran) }}" method="POST" class="d-inline" onsubmit="return confirm('Yakin hapus dokumen ini?{{ $surat_edaran->tanggal_ditandatangani ? " Dokumen yang sudah ditandatangani akan dihapus permanen." : "" }}');">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="btn btn-danger btn-sm">{{ $surat_edaran->tanggal_ditandatangani ? 'Hapus' : 'Hapus Draft' }}</button>
                     </form>
-                    <a href="{{ route('surat_edaran.index') }}" class="btn btn-secondary btn-sm">Kembali</a>
+                    <a href="{{ route($routePrefix . '.index') }}" class="btn btn-secondary btn-sm">Kembali</a>
                 </div>
             </div>
             <div class="card-body">
@@ -65,6 +66,23 @@
                                     <div class="col-sm-4 text-muted">Deskripsi</div>
                                     <div class="col-sm-8">{{ $surat_edaran->deskripsi ?: '-' }}</div>
                                 </div>
+                                @if(!empty($isSpo))
+                                <div class="row mb-3">
+                                    <div class="col-sm-4 text-muted">Petugas yang upload</div>
+                                    <div class="col-sm-8">{{ $surat_edaran->uploaderPegawai?->nama ?? '-' }}</div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-sm-4 text-muted">Dept petugas upload</div>
+                                    <div class="col-sm-8">{{ ($departemenMap ?? [])[$surat_edaran->departemen_upload_id ?? ''] ?? '-' }}</div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-sm-4 text-muted">Dept terkait</div>
+                                    <div class="col-sm-8">
+                                        @php($depTerkaitNames = collect($surat_edaran->dep_terkait_ids ?? [])->map(fn($id) => ($departemenMap ?? [])[$id] ?? $id)->filter()->values())
+                                        {{ $depTerkaitNames->isEmpty() ? '-' : $depTerkaitNames->implode(', ') }}
+                                    </div>
+                                </div>
+                                @endif
                                 @if($surat_edaran->tanggal_ditandatangani)
                                 <div class="row mb-3">
                                     <div class="col-sm-4 text-muted">Ditandatangani (sah)</div>
@@ -86,11 +104,11 @@
                                     <div class="mb-3">
                                         <i class="fe fe-file-text" style="font-size: 3rem; color: #6c757d;"></i>
                                     </div>
-                                    <a href="{{ route('surat_edaran.streamPdf', $surat_edaran) }}" target="_blank" class="btn btn-outline-primary btn-sm w-100 mb-2">
+                                    <a href="{{ route($routePrefix . '.streamPdf', $surat_edaran) }}" target="_blank" class="btn btn-outline-primary btn-sm w-100 mb-2">
                                         <i class="fe fe-eye me-1"></i>Buka PDF
                                     </a>
                                     @if($surat_edaran->tanggal_ditandatangani)
-                                    <a href="{{ route('surat_edaran.generateSignedPdf', $surat_edaran) }}" class="btn btn-success btn-sm w-100">
+                                    <a href="{{ route($routePrefix . '.generateSignedPdf', $surat_edaran) }}" class="btn btn-success btn-sm w-100">
                                         <i class="fe fe-download me-1"></i>Download PDF Sah
                                     </a>
                                     @endif
@@ -113,7 +131,7 @@
                     </div>
                     <div class="card-body p-0">
                         <div class="pdf-preview-container" style="height: 600px; overflow: auto;">
-                            <iframe src="{{ route('surat_edaran.streamPdf', $surat_edaran) }}" 
+                            <iframe src="{{ route($routePrefix . '.streamPdf', $surat_edaran) }}" 
                                     width="100%" 
                                     height="100%" 
                                     style="border: none;"
@@ -124,7 +142,7 @@
                 </div>
                 @endif
 
-                @if($surat_edaran->tanggal_ditandatangani && !empty($verificationQrDataUri))
+                @if($surat_edaran->tanggal_ditandatangani)
                 <div class="card mt-4">
                     <div class="card-header bg-light">
                         <h6 class="mb-0"><i class="fe fe-shield me-2"></i>Verifikasi Keabsahan Dokumen</h6>
@@ -132,11 +150,17 @@
                     <div class="card-body">
                         <div class="row align-items-center">
                             <div class="col-md-3 text-center">
-                                <img src="{{ $verificationQrDataUri }}" alt="QR Verifikasi Surat Edaran" style="max-width: 180px;">
+                                @if(!empty($verificationQrUrl))
+                                    <img src="{{ $verificationQrUrl }}" alt="QR Verifikasi" class="img-fluid" style="max-width: 180px;">
+                                @elseif(!empty($verificationQrDataUri))
+                                    <img src="{{ $verificationQrDataUri }}" alt="QR Verifikasi" class="img-fluid" style="max-width: 180px;">
+                                @else
+                                    <div class="text-muted small">Gambar QR tidak dapat dibuat otomatis. Gunakan tombol di samping untuk membuka halaman verifikasi.</div>
+                                @endif
                             </div>
                             <div class="col-md-9">
                                 <p class="mb-2">
-                                    Scan QR ini untuk memverifikasi bahwa dokumen ini sah dan melihat jejak audit aktivitas dokumen.
+                                    Scan QR ini untuk memverifikasi bahwa dokumen ini sah dan melihat jejak audit aktivitas dokumen. Kode yang sama di-embed ke halaman terakhir PDF yang sah.
                                 </p>
                                 <a href="{{ $verifyUrl }}" target="_blank" class="btn btn-outline-primary btn-sm">
                                     Buka Halaman Verifikasi

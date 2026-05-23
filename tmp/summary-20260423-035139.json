@@ -1,0 +1,4 @@
+{
+  "summary": "Melakukan perbaikan tahap 1 pada modul Surat Edaran sesuai prioritas: menolak perubahan jika dokumen sudah sah di endpoint save-signature, merapikan alur finalisasi agar tidak menghasilkan status sukses palsu saat gagal, dan menambahkan transaction pada commit status dokumen sah beserta path file signed. Juga menambahkan cleanup file signed baru jika proses finalisasi gagal.",
+  "current_status": "Hardening tahap 1 selesai dan tervalidasi (syntax check + linter bersih) pada SuratEdaranController."
+}

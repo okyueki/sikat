@@ -89,6 +89,7 @@
                         <div class="form-group">
                             <label for="file_lampiran">Unggah Lampiran</label>
                             <input type="file" name="file_lampiran" class="form-control" id="file_lampiran" accept=".pdf, .docx">
+                            <div id="pdf-warning-file-lampiran" class="alert alert-warning mt-2 py-2 px-3 d-none" role="alert"></div>
                                 @if($surat->file_lampiran)
                                     <small>File saat ini:</small>
                                     <a href="{{ asset('storage/' . $surat->file_lampiran) }}" class="btn btn-sm btn-primary" download>
@@ -107,6 +108,7 @@
     </div>
 </div>
 
+<script src="{{ asset('backend/assets/js/pdf-compat-warning.js') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize flatpickr for date field
@@ -129,6 +131,10 @@
                 });
             }
         });
+
+        if (typeof initPdfCompatibilityWarning === 'function') {
+            initPdfCompatibilityWarning('file_lampiran', 'pdf-warning-file-lampiran');
+        }
     });
 </script>
 @endsection

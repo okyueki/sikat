@@ -1,0 +1,4 @@
+{
+  "summary": "Melanjutkan refactor ringan modul Surat Edaran dengan memindahkan blok JavaScript besar dari view `tanda_tangani.blade.php` ke file terpisah `public/backend/assets/js/surat-edaran-tanda-tangani.js`. View kini hanya menyuplai konfigurasi dinamis melalui `window.SuratEdaranTtdConfig` (worker URL, PDF URL, placements, stempel URL, master store URL) lalu memuat file JS eksternal. Fungsi crop tetap dipertahankan sebagai global agar kompatibel dengan atribut `onclick` yang sudah ada.",
+  "current_status": "Refactor frontend tahap awal selesai: struktur view lebih rapi dan maintainable, serta syntax/lint untuk blade dan file JS baru bersih."
+}

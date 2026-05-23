@@ -1,0 +1,4 @@
+{
+  "summary": "Menyelesaikan cleanup terakhir khusus modul Surat Edaran dengan mengekstrak logic compact upload PDF create/edit ke file shared baru `public/backend/assets/js/surat-edaran-upload.js`. View create/edit kini hanya menginisialisasi helper (`initSuratEdaranCreateUpload` / `initSuratEdaranEditUpload`) serta helper warning kompatibilitas PDF yang sudah terpusat, sehingga script inline menjadi lebih ringkas dan maintainable.",
+  "current_status": "Refactor internal modul Surat Edaran selesai tanpa menyentuh modul lain; lint bersih dan syntax JS shared valid."
+}
