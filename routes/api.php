@@ -129,6 +129,8 @@ Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('absensi-agenda
     Route::get('/agenda', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'agenda']);
     Route::get('/riwayat', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'riwayat']);
     Route::post('/scan', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'scan']);
+    Route::get('/device-info', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'deviceInfo']);
+    Route::get('/audit/{agendaId}', [App\Http\Controllers\Api\AbsensiAgendaController::class, 'auditTrail']);
 });
 
 // API Budaya Kerja (penilaian budaya kerja pegawai) - butuh token Bearer

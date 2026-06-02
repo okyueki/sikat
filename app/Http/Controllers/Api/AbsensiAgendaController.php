@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Agenda;
 use App\Models\AbsensiAgenda;
 use App\Services\AbsensiAgendaService;
+use App\Services\AbsensiAgendaAuditService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -212,6 +213,7 @@ class AbsensiAgendaController extends Controller
                 return [
                     'nik' => $row->nik,
                     'nama' => $row->pegawai ? $row->pegawai->nama : null,
+                    'departemen' => $row->pegawai ? ($row->pegawai->departemen ?? '-') : '-',
                     'waktu_kehadiran' => $row->waktu_kehadiran ? $row->waktu_kehadiran->toIso8601String() : null,
                     'status_kehadiran' => $row->status_kehadiran,
                 ];
@@ -264,14 +266,30 @@ class AbsensiAgendaController extends Controller
             ], $error['http']);
         }
 
-        // Simpan kehadiran
+        // Simpan kehadiran dengan device info
         $absensi = AbsensiAgenda::create([
             'nik' => $nik,
             'agenda_id' => $agendaId,
             'waktu_kehadiran' => now(),
             'status_kehadiran' => 'hadir',
             'token' => $token,
+            'ip_address' => $request->ip(),
+            'device_token' => $request->input('device_token'),
+            'device_model' => $request->input('device_model'),
+            'os_version' => $request->input('os_version'),
+            'browser' => $request->input('browser'),
         ]);
+
+        // Log audit
+        AbsensiAgendaAuditService::logCreate(
+            $absensi->id_absensi_agenda,
+            $agendaId,
+            $nik,
+            'hadir',
+            $nik,
+            $request,
+            $request->input('device_token')
+        );
 
         return response()->json([
             'success' => true,
@@ -283,5 +301,70 @@ class AbsensiAgendaController extends Controller
                 'waktu_kehadiran' => $absensi->waktu_kehadiran->toIso8601String(),
             ],
         ], 201);
+    }
+
+    /**
+     * GET /api/absensi-agenda/device-info
+     * Parse User-Agent dan return device info (model HP, OS, browser).
+     * Untuk di-cache di LocalStorage mobile app.
+     */
+    public function deviceInfo(Request $request)
+    {
+        $deviceInfo = AbsensiAgendaAuditService::parseDeviceInfo($request);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'device_model' => $deviceInfo['device_model'],
+                'os_version' => $deviceInfo['os_version'],
+                'browser' => $deviceInfo['browser'],
+            ],
+        ]);
+    }
+
+    /**
+     * GET /api/absensi-agenda/audit/{agendaId}
+     * Get audit trail untuk suatu agenda.
+     * Hanya untuk pimpinan_rapat, notulen, atau user dengan akses rekap.
+     */
+    public function auditTrail(Request $request, $agendaId)
+    {
+        $nik = Auth::user()->username;
+        $agenda = Agenda::findOrFail($agendaId);
+
+        $isPimpinan = $nik === $agenda->pimpinan_rapat;
+        $isNotulen = $nik === $agenda->notulen;
+        $hasRekapAccess = Auth::user()->canAccess('rekap.view');
+
+        if (!$isPimpinan && !$isNotulen && !$hasRekapAccess) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak.',
+            ], 403);
+        }
+
+        $auditTrail = AbsensiAgendaAuditService::getAuditTrailByAgenda($agendaId);
+
+        $data = $auditTrail->map(function ($row) {
+            return [
+                'id' => $row->id,
+                'nik' => $row->nik,
+                'nama' => $row->absensi && $row->absensi->pegawai ? $row->absensi->pegawai->nama : null,
+                'aksi' => $row->aksi,
+                'status_lama' => $row->status_lama,
+                'status_baru' => $row->status_baru,
+                'alasan' => $row->alasan_perubahan,
+                'perubahan_oleh' => $row->perubahan_oleh,
+                'perubahan_oleh_nama' => $row->perubahanOlehPegawai ? $row->perubahanOlehPegawai->nama : null,
+                'perubahan_pada' => $row->perubahan_pada ? Carbon::parse($row->perubahan_pada)->format('d M Y H:i') : null,
+                'ip_address' => $row->ip_address,
+                'device_info' => $row->device_info ? json_decode($row->device_info, true) : null,
+            ];
+        })->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
     }
 }

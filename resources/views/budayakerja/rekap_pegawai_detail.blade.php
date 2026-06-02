@@ -108,6 +108,7 @@
                                     <tr>
                                         <th>No</th>
                                         <th>Tanggal</th>
+                                        <th>Jadwal</th>
                                         <th>Jam Datang</th>
                                         <th>Jam Pulang</th>
                                         <th>Status</th>
@@ -116,9 +117,23 @@
                                 </thead>
                                 <tbody>
                                     @foreach($listPresensi as $idx => $p)
+                                    @php
+                                        $tanggalKey = \Carbon\Carbon::parse($p->jam_datang)->format('Y-m-d');
+                                        $shiftValue = $jadwalShifts[$tanggalKey] ?? null;
+                                        $isPagi = $shiftValue && (strpos(strtolower($shiftValue), 'pagi') !== false);
+                                    @endphp
                                     <tr>
                                         <td>{{ $idx + 1 }}</td>
                                         <td>{{ \Carbon\Carbon::parse($p->jam_datang)->format('d-m-Y') }}</td>
+                                        <td>
+                                            @if($shiftValue)
+                                                <span class="badge bg-{{ $isPagi ? 'info' : 'secondary' }}">
+                                                    {{ $shiftValue }}
+                                                </span>
+                                            @else
+                                                <span class="text-muted">-</span>
+                                            @endif
+                                        </td>
                                         <td>{{ $p->jam_datang ? \Carbon\Carbon::parse($p->jam_datang)->format('H:i') : '-' }}</td>
                                         <td>{{ $p->jam_pulang ? \Carbon\Carbon::parse($p->jam_pulang)->format('H:i') : '-' }}</td>
                                         <td>

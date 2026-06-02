@@ -1,5 +1,5 @@
 <?php
-// App\Models\AbsensiAgenda.php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,6 +20,11 @@ class AbsensiAgenda extends Model
         'token',
         'status_kehadiran',
         'alasan',
+        'device_token',
+        'device_model',
+        'os_version',
+        'browser',
+        'ip_address',
     ];
 
     protected $casts = [
@@ -36,5 +41,11 @@ class AbsensiAgenda extends Model
     public function agenda()
     {
         return $this->belongsTo(Agenda::class, 'agenda_id', 'id');
+    }
+
+    // Relasi ke audit logs
+    public function auditLogs()
+    {
+        return $this->hasMany(AbsensiAgendaAudit::class, 'absensi_id', 'id_absensi_agenda');
     }
 }

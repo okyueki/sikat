@@ -9,6 +9,7 @@ use App\Models\AgendaToken;
 use App\Models\AbsensiAgenda;
 use App\Models\Pegawai;
 use App\Services\AbsensiAgendaService;
+use App\Services\AbsensiAgendaAuditService;
 use Carbon\Carbon;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Support\Str;
@@ -134,7 +135,20 @@ class AbsensiAgendaController extends Controller
             'waktu_kehadiran' => now(),
             'status_kehadiran' => 'hadir',
             'token' => $token,
+            'ip_address' => $request->ip(),
+            'device_token' => $request->input('device_token'),
         ]);
+
+        // Log audit
+        AbsensiAgendaAuditService::logCreate(
+            $absensi->id_absensi_agenda,
+            $agendaId,
+            $nik,
+            'hadir',
+            $nik,
+            $request,
+            $request->input('device_token')
+        );
 
         return response()->json([
             'success' => true,
@@ -401,10 +415,13 @@ public function rekapAbsensi(Request $request)
             ], 403);
         }
 
+        // Simpan status lama untuk audit
+        $statusLama = $absensi->status_kehadiran;
+
         // Update status
         $absensi->status_kehadiran = $validated['status_kehadiran'];
         $absensi->alasan = $validated['alasan'] ?? null;
-        
+
         // Jika status diubah menjadi 'hadir' dan belum ada waktu_kehadiran, set waktu sekarang
         if ($validated['status_kehadiran'] === 'hadir' && !$absensi->waktu_kehadiran) {
             $absensi->waktu_kehadiran = now();
@@ -413,8 +430,23 @@ public function rekapAbsensi(Request $request)
         elseif ($validated['status_kehadiran'] !== 'hadir') {
             $absensi->waktu_kehadiran = null;
         }
-        
+
+        $absensi->ip_address = $request->ip();
+        $absensi->device_token = $request->input('device_token');
         $absensi->save();
+
+        // Log audit perubahan status
+        AbsensiAgendaAuditService::logUpdateStatus(
+            $absensi->id_absensi_agenda,
+            $agenda->id,
+            $absensi->nik,
+            $statusLama,
+            $validated['status_kehadiran'],
+            $validated['alasan'] ?? null,
+            $userNik,
+            $request,
+            $request->input('device_token')
+        );
 
         return response()->json([
             'success' => true,
@@ -456,21 +488,51 @@ public function rekapAbsensi(Request $request)
             ->first();
 
         if ($absensi) {
-            // Update existing
+            // Update existing - simpan status lama
+            $statusLama = $absensi->status_kehadiran;
             $absensi->status_kehadiran = $validated['status_kehadiran'];
             $absensi->alasan = $validated['alasan'] ?? null;
             $absensi->waktu_kehadiran = null; // Bukan hadir, jadi waktu null
+            $absensi->ip_address = $request->ip();
+            $absensi->device_token = $request->input('device_token');
             $absensi->save();
+
+            // Log audit
+            AbsensiAgendaAuditService::logUpdateStatus(
+                $absensi->id_absensi_agenda,
+                $validated['agenda_id'],
+                $validated['nik'],
+                $statusLama,
+                $validated['status_kehadiran'],
+                $validated['alasan'] ?? null,
+                $userNik,
+                $request,
+                $request->input('device_token')
+            );
         } else {
             // Create new
-            AbsensiAgenda::create([
+            $newAbsensi = AbsensiAgenda::create([
                 'nik' => $validated['nik'],
                 'agenda_id' => $validated['agenda_id'],
                 'status_kehadiran' => $validated['status_kehadiran'],
                 'alasan' => $validated['alasan'] ?? null,
                 'waktu_kehadiran' => null,
                 'token' => 'MANUAL-' . $validated['agenda_id'] . '-' . $validated['nik'] . '-' . time(),
+                'ip_address' => $request->ip(),
+                'device_token' => $request->input('device_token'),
             ]);
+
+            // Log audit manual create
+            AbsensiAgendaAuditService::logManualCreate(
+                $newAbsensi->id_absensi_agenda,
+                $validated['agenda_id'],
+                $validated['nik'],
+                $validated['status_kehadiran'],
+                $validated['alasan'] ?? null,
+                $userNik,
+                $request,
+                $request->input('device_token')
+            );
         }
 
         return response()->json([

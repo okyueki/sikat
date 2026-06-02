@@ -5,12 +5,20 @@ namespace App\Http\Controllers\Kepegawaian;
 use App\Http\Controllers\Controller;
 use App\Models\Agenda;
 use App\Models\AbsensiAgenda;
+use App\Models\AbsensiSholat;
 use App\Models\BudayaKerja;
 use App\Models\JadwalBudayaKerja;
+use App\Models\JadwalPegawai;
 use App\Models\Pegawai;
+use App\Models\PegawaiDataCache;
+use App\Models\PengajuanLibur;
 use App\Models\RekapPresensi;
+use App\Services\PegawaiDataAggregatorService;
+use App\Services\PegawaiAnalyticsService;
+use App\Services\IndicatorCalculatorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -435,7 +443,6 @@ class BudayaKerjaController extends Controller
      */
     public function rekapSemuaPegawai(Request $request)
     {
-        // Rentang tanggal (default: bulan ini)
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
         $departemen = $request->input('departemen');
@@ -452,182 +459,30 @@ class BudayaKerjaController extends Controller
             $endDate = $end->toDateString();
         }
 
-        // Ambil semua pegawai aktif (kecuali MIT/MITRA), optional filter departemen
-        $queryPegawai = Pegawai::where('stts_aktif', 'AKTIF')
-            ->where(function ($query) {
-                $query->where('stts_kerja', '!=', 'MIT')
-                    ->where('stts_kerja', '!=', 'MITRA');
-            })
-            ->when($departemen, function ($q) use ($departemen) {
-                $q->where('departemen', $departemen);
-            });
-        $semuaPegawaiAktif = (clone $queryPegawai)
-            ->select('id', 'nik', 'nama', 'departemen', 'jbtn as jabatan', 'stts_kerja')
-            ->get()
-            ->keyBy('nik');
-
-        // Inisialisasi rekapan per pegawai
-        $rekapanPegawai = [];
-        foreach ($semuaPegawaiAktif as $pegawai) {
-            $rekapanPegawai[$pegawai->nik] = [
-                'pegawai_id' => $pegawai->id,
-                'nik' => $pegawai->nik,
-                'nama' => $pegawai->nama,
-                'departemen' => $pegawai->departemen,
-                'jabatan' => $pegawai->jabatan,
-                'total_penilaian' => 0,
-                'total_nilai' => 0,
-                'rata_rata_nilai' => 0,
-                'nilai_tertinggi' => 0,
-                'nilai_terendah' => 11,
-                'status_tertib' => 'Belum dinilai',
-                'jumlah_hadir' => 0,
-                'jumlah_tepat_waktu' => 0,
-                'jumlah_terlambat' => 0,
-                'jumlah_diundang_agenda' => 0,
-                'jumlah_hadir_agenda' => 0,
-                'jumlah_ijin_agenda' => 0,
-                'jumlah_cuti_agenda' => 0,
-                'jumlah_tidak_hadir_agenda' => 0,
-            ];
-        }
-
-        // Ambil data penilaian dalam rentang tanggal
-        $dataBudayaKerja = BudayaKerja::whereBetween('tanggal', [$startDate, $endDate])->get();
-
-        foreach ($dataBudayaKerja as $data) {
-            $nik = $data->nik_pegawai;
-            if (! isset($rekapanPegawai[$nik])) {
-                continue;
-            }
-
-            $rekapanPegawai[$nik]['total_penilaian']++;
-            $rekapanPegawai[$nik]['total_nilai'] += $data->total_nilai;
-
-            if ($data->total_nilai > $rekapanPegawai[$nik]['nilai_tertinggi']) {
-                $rekapanPegawai[$nik]['nilai_tertinggi'] = $data->total_nilai;
-            }
-            if ($data->total_nilai < $rekapanPegawai[$nik]['nilai_terendah']) {
-                $rekapanPegawai[$nik]['nilai_terendah'] = $data->total_nilai;
-            }
-        }
-
-        // Data kehadiran (presensi) dalam rentang tanggal
-        $pegawaiIds = collect($rekapanPegawai)->pluck('pegawai_id')->unique()->filter()->values()->toArray();
-        $presensiData = [];
-        if (! empty($pegawaiIds)) {
-            $presensiData = RekapPresensi::whereIn('id', $pegawaiIds)
-                ->whereDate('jam_datang', '>=', $startDate)
-                ->whereDate('jam_datang', '<=', $endDate)
-                ->get()
-                ->groupBy('id');
-        }
-        $statusTepatWaktu = ['Tepat Waktu', 'Tepat Waktu & PSW'];
-        foreach ($rekapanPegawai as $nik => &$row) {
-            $rows = $presensiData->get($row['pegawai_id'] ?? 0, collect());
-            $row['jumlah_hadir'] = $rows->count();
-            $row['jumlah_tepat_waktu'] = $rows->whereIn('status', $statusTepatWaktu)->count();
-            $row['jumlah_terlambat'] = $row['jumlah_hadir'] - $row['jumlah_tepat_waktu'];
-        }
-        unset($row);
-
-        // Statistik undangan agenda (event) dalam rentang tanggal: diundang, hadir, ijin, cuti, tidak hadir
-        $listNik = array_keys($rekapanPegawai);
-        $agendaIdsInRange = Agenda::whereDate('mulai', '>=', $startDate)
-            ->whereDate('mulai', '<=', $endDate)
-            ->pluck('id')
-            ->toArray();
-
-        $diundangPerNik = array_fill_keys($listNik, 0);
-        $hadirAgendaPerNik = array_fill_keys($listNik, 0);
-        $ijinAgendaPerNik = array_fill_keys($listNik, 0);
-        $cutiAgendaPerNik = array_fill_keys($listNik, 0);
-        $tidakHadirAgendaPerNik = array_fill_keys($listNik, 0);
-
-        if (! empty($agendaIdsInRange)) {
-            $agendas = Agenda::whereIn('id', $agendaIdsInRange)->get(['id', 'yang_terundang']);
-            foreach ($agendas as $agenda) {
-                $terundang = $agenda->yang_terundang;
-                if (is_string($terundang)) {
-                    $terundang = json_decode($terundang, true) ?? [];
-                }
-                $isAll = is_array($terundang) && in_array('all', $terundang);
-                foreach ($listNik as $nik) {
-                    if ($isAll || (is_array($terundang) && in_array($nik, $terundang))) {
-                        $diundangPerNik[$nik] = ($diundangPerNik[$nik] ?? 0) + 1;
-                    }
-                }
-            }
-
-            $absensiAgendaRows = AbsensiAgenda::whereIn('agenda_id', $agendaIdsInRange)
-                ->whereIn('nik', $listNik)
-                ->get(['nik', 'status_kehadiran']);
-
-            foreach ($absensiAgendaRows as $row) {
-                $nik = $row->nik;
-                if (! isset($hadirAgendaPerNik[$nik])) {
-                    continue;
-                }
-                switch ($row->status_kehadiran) {
-                    case 'hadir':
-                        $hadirAgendaPerNik[$nik]++;
-                        break;
-                    case 'ijin':
-                        $ijinAgendaPerNik[$nik]++;
-                        break;
-                    case 'cuti':
-                        $cutiAgendaPerNik[$nik]++;
-                        break;
-                    case 'tidak_hadir':
-                        $tidakHadirAgendaPerNik[$nik]++;
-                        break;
-                }
-            }
-        }
-
-        foreach ($rekapanPegawai as $nik => &$row) {
-            $row['jumlah_diundang_agenda'] = $diundangPerNik[$nik] ?? 0;
-            $row['jumlah_hadir_agenda'] = $hadirAgendaPerNik[$nik] ?? 0;
-            $row['jumlah_ijin_agenda'] = $ijinAgendaPerNik[$nik] ?? 0;
-            $row['jumlah_cuti_agenda'] = $cutiAgendaPerNik[$nik] ?? 0;
-            $row['jumlah_tidak_hadir_agenda'] = $tidakHadirAgendaPerNik[$nik] ?? 0;
-        }
-        unset($row);
-
-        // Hitung rata-rata, total pelanggaran, dan status: Tertib / Warning / Tidak tertib
-        foreach ($rekapanPegawai as $nik => &$row) {
-            if ($row['total_penilaian'] > 0) {
-                $row['rata_rata_nilai'] = round($row['total_nilai'] / $row['total_penilaian'], 2);
-                $hitung = self::hitungStatusTertib($row['total_penilaian'], $row['total_nilai']);
-                $row['total_pelanggaran'] = $hitung['total_pelanggaran'];
-                $row['status_tertib'] = $hitung['status_tertib'];
-            } else {
-                $row['rata_rata_nilai'] = 0;
-                $row['total_pelanggaran'] = 0;
-                $row['status_tertib'] = 'Belum dinilai';
-                $row['nilai_tertinggi'] = 0;
-                $row['nilai_terendah'] = 0;
-            }
-        }
-        unset($row);
-
-        // Daftar departemen untuk dropdown = unique dari data yang tampil di tabel (agar pasti sama)
-        $departemenList = collect($rekapanPegawai)->pluck('departemen')->unique()->filter()->sort()->values();
-
-        $rekapanPegawai = collect($rekapanPegawai)->sortBy('nama')->values();
+        // Gunakan service untuk agregasi data
+        $aggregatedData = PegawaiDataAggregatorService::aggregate($startDate, $endDate, null, $departemen);
+        $dataWithScores = IndicatorCalculatorService::calculateScoresFromAggregated($aggregatedData);
 
         // Statistik ringkas
-        $jumlahPegawaiTotal = $rekapanPegawai->count();
-        $jumlahPegawaiDinilai = $rekapanPegawai->where('total_penilaian', '>', 0)->count();
-        $jumlahPegawaiBelumDinilai = $rekapanPegawai->where('total_penilaian', 0)->count();
-        $jumlahPegawaiTertib = $rekapanPegawai->where('status_tertib', 'Tertib')->count();
-        $jumlahPegawaiWarning = $rekapanPegawai->where('status_tertib', 'Warning')->count();
-        $jumlahPegawaiTidakTertib = $rekapanPegawai->where('status_tertib', 'Tidak tertib')->count();
+        $jumlahPegawaiTotal = $dataWithScores->count();
+        $jumlahPegawaiDinilai = $dataWithScores->filter(fn($row) => ($row['budaya']['total_penilaian'] ?? 0) > 0)->count();
+        $jumlahPegawaiBelumDinilai = $jumlahPegawaiTotal - $jumlahPegawaiDinilai;
+        $jumlahPegawaiTertib = $dataWithScores->where('status_keterlibatan', 'aktif')->count();
+        $jumlahPegawaiWarning = $dataWithScores->where('status_keterlibatan', 'warning')->count();
+        $jumlahPegawaiTidakTertib = $dataWithScores->where('status_keterlibatan', 'tidak_aktif')->count();
+
+        // Daftar departemen untuk dropdown
+        $departemenList = $dataWithScores->pluck('departemen')->unique()->filter()->sort()->values();
+
+        // Sort by nama
+        $dataWithScores = $dataWithScores->sortBy('nama')->values();
 
         return view('budayakerja.rekap_semua_pegawai', compact(
             'startDate',
             'endDate',
-            'rekapanPegawai',
+            'departemen',
+            'departemenList',
+            'dataWithScores',
             'jumlahPegawaiTotal',
             'jumlahPegawaiDinilai',
             'jumlahPegawaiBelumDinilai',
@@ -635,6 +490,157 @@ class BudayaKerjaController extends Controller
             'jumlahPegawaiWarning',
             'jumlahPegawaiTidakTertib'
         ));
+    }
+
+    /**
+     * Rekap Terpadu - Menggabungkan semua data kehadiran:
+     * - Presensi Harian
+     * - Absensi Sholat
+     * - Budaya Kerja
+     * - Absensi Agenda
+     *
+     * Menggunakan PegawaiDataAggregatorService untuk agregasi data.
+     */
+    public function rekapTerpadu(Request $request)
+    {
+        $bulan = $request->input('bulan', Carbon::now()->month);
+        $tahun = $request->input('tahun', Carbon::now()->year);
+        $departemen = $request->input('departemen');
+
+        // Hitung periode
+        $startDate = Carbon::create($tahun, $bulan, 1)->startOfMonth()->toDateString();
+        $endDate = Carbon::create($tahun, $bulan, 1)->endOfMonth()->toDateString();
+
+        // Agregasi data dari semua sumber
+        $aggregatedData = PegawaiDataAggregatorService::aggregate(
+            $startDate,
+            $endDate,
+            null,
+            $departemen
+        );
+
+        // Hitung skor untuk setiap pegawai
+        $dataWithScores = IndicatorCalculatorService::calculateScoresFromAggregated($aggregatedData);
+
+        // Statistik summary
+        $summary = [
+            'total_pegawai' => $dataWithScores->count(),
+            'avg_presensi_rate' => round($dataWithScores->avg('presensi.rate_kehadiran'), 1),
+            'avg_sholat_rate' => round($dataWithScores->avg('sholat.rate'), 1),
+            'avg_budaya_rate' => round($dataWithScores->avg('budaya.rate'), 1),
+            'avg_agenda_rate' => round($dataWithScores->avg('agenda.rate_kehadiran'), 1),
+            'avg_overall_score' => round($dataWithScores->avg('overall_score'), 2),
+            'aktif_count' => $dataWithScores->where('status_keterlibatan', 'aktif')->count(),
+            'warning_count' => $dataWithScores->where('status_keterlibatan', 'warning')->count(),
+            'tidak_aktif_count' => $dataWithScores->where('status_keterlibatan', 'tidak_aktif')->count(),
+        ];
+
+        // Top & Bottom performers
+        $topPerformers = $dataWithScores->sortByDesc('overall_score')->take(5)->values();
+        $bottomPerformers = $dataWithScores->sortBy('overall_score')->take(5)->values();
+
+        // Statistik sholat per jenis
+        $sholatStats = [
+            'subuh' => round($dataWithScores->avg('sholat.by_jenis.subuh.persen'), 1),
+            'dzuhur' => round($dataWithScores->avg('sholat.by_jenis.dzuhur.persen'), 1),
+            'ashar' => round($dataWithScores->avg('sholat.by_jenis.ashar.persen'), 1),
+            'maghrib' => round($dataWithScores->avg('sholat.by_jenis.maghrib.persen'), 1),
+            'isya' => round($dataWithScores->avg('sholat.by_jenis.isya.persen'), 1),
+        ];
+
+        // Daftar departemen untuk filter
+        $departemenList = $dataWithScores->pluck('departemen')->unique()->filter()->sort()->values();
+
+        // Sort by nama
+        $dataWithScores = $dataWithScores->sortBy('nama')->values();
+
+        return view('budayakerja.rekap_terpadu', compact(
+            'bulan',
+            'tahun',
+            'startDate',
+            'endDate',
+            'departemen',
+            'departemenList',
+            'dataWithScores',
+            'summary',
+            'topPerformers',
+            'bottomPerformers',
+            'sholatStats'
+        ));
+    }
+
+    /**
+     * Detail Rekap Terpadu untuk satu pegawai
+     */
+    public function rekapTerpaduDetail(Request $request, string $nik)
+    {
+        $bulan = $request->input('bulan', Carbon::now()->month);
+        $tahun = $request->input('tahun', Carbon::now()->year);
+
+        $startDate = Carbon::create($tahun, $bulan, 1)->startOfMonth()->toDateString();
+        $endDate = Carbon::create($tahun, $bulan, 1)->endOfMonth()->toDateString();
+
+        // Ambil data single pegawai
+        $pegawaiData = PegawaiDataAggregatorService::aggregateSingle($nik, $startDate, $endDate);
+
+        if (!$pegawaiData) {
+            abort(404, 'Pegawai tidak ditemukan');
+        }
+
+        // Hitung skor
+        $scoreData = IndicatorCalculatorService::calculateScore($pegawaiData);
+
+        // Ambil trend jika ada data sebelumnya
+        $trend = PegawaiAnalyticsService::getTrend($nik, 6);
+
+        return view('budayakerja.rekap_terpadu_detail', compact(
+            'bulan',
+            'tahun',
+            'startDate',
+            'endDate',
+            'pegawaiData',
+            'scoreData',
+            'trend'
+        ));
+    }
+
+    /**
+     * Save rekap terpadu ke cache untuk akses cepat nanti
+     */
+    public function saveRekapTerpadu(Request $request)
+    {
+        $bulan = $request->input('bulan', Carbon::now()->month);
+        $tahun = $request->input('tahun', Carbon::now()->year);
+
+        $startDate = Carbon::create($tahun, $bulan, 1)->startOfMonth()->toDateString();
+        $endDate = Carbon::create($tahun, $bulan, 1)->endOfMonth()->toDateString();
+
+        // Agregasi data
+        $aggregatedData = PegawaiDataAggregatorService::aggregate($startDate, $endDate);
+        $dataWithScores = IndicatorCalculatorService::calculateScoresFromAggregated($aggregatedData);
+
+        // Prepare for cache
+        $cacheData = IndicatorCalculatorService::prepareCacheData($dataWithScores, Auth::id());
+
+        // Delete old data for this period
+        PegawaiDataCache::where('periode_type', 'bulanan')
+            ->where('periode_start', $startDate)
+            ->delete();
+
+        // Insert new data
+        foreach ($cacheData as $data) {
+            PegawaiDataCache::create($data);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data rekap berhasil disimpan ke cache',
+            'data' => [
+                'bulan' => $bulan,
+                'tahun' => $tahun,
+                'total_pegawai' => count($cacheData),
+            ],
+        ]);
     }
 
     /**
@@ -919,6 +925,24 @@ class BudayaKerjaController extends Controller
         $jumlahTepatWaktu = $listPresensi->whereIn('status', $statusTepatWaktu)->count();
         $jumlahTerlambat = $jumlahHadir - $jumlahTepatWaktu;
 
+        // Data jadwal shift dari jadwal_pegawai (h1-h31 untuk setiap tanggal)
+        $tahunJadwal = Carbon::parse($startDate)->year;
+        $bulanJadwal = Carbon::parse($startDate)->month;
+        $jadwalPegawai = JadwalPegawai::where('id', $pegawai->id)
+            ->where('tahun', $tahunJadwal)
+            ->where('bulan', $bulanJadwal)
+            ->first();
+        $jadwalShifts = [];
+        if ($jadwalPegawai) {
+            for ($i = 1; $i <= 31; $i++) {
+                $hariKey = 'h' . $i;
+                if (isset($jadwalPegawai->$hariKey) && !empty($jadwalPegawai->$hariKey)) {
+                    $tanggalStr = sprintf('%04d-%02d-%02d', $tahunJadwal, $bulanJadwal, $i);
+                    $jadwalShifts[$tanggalStr] = $jadwalPegawai->$hariKey;
+                }
+            }
+        }
+
         return view('budayakerja.rekap_pegawai_detail', compact(
             'pegawai',
             'listPenilaian',
@@ -937,7 +961,8 @@ class BudayaKerjaController extends Controller
             'rataRata',
             'nilaiTertinggi',
             'nilaiTerendah',
-            'statusTertib'
+            'statusTertib',
+            'jadwalShifts'
         ));
     }
 
@@ -1061,6 +1086,780 @@ class BudayaKerjaController extends Controller
             'detailPenilaian',
             'detailPegawaiDinilai',
             'summary'
+        ));
+    }
+
+    /**
+     * Ringkasan Kehadiran Semua Pegawai
+     * Halaman terpisah untuk menampilkan data presensi semua pegawai
+     * dengan filter per departemen.
+     */
+    public function ringkasanKehadiran(Request $request)
+    {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $departemen = $request->input('departemen');
+
+        if (! $startDate || ! $endDate) {
+            $start = Carbon::now()->startOfMonth();
+            $end = Carbon::now()->endOfMonth();
+            $startDate = $start->toDateString();
+            $endDate = $end->toDateString();
+        } else {
+            $start = Carbon::parse($startDate)->startOfDay();
+            $end = Carbon::parse($endDate)->endOfDay();
+            $startDate = $start->toDateString();
+            $endDate = $end->toDateString();
+        }
+
+        // Ambil semua pegawai
+        $pegawaiQuery = Pegawai::query();
+        if ($departemen) {
+            $pegawaiQuery->where('departemen', $departemen);
+        }
+        $pegawaiList = $pegawaiQuery->get()->keyBy('id');
+
+        // Ambil jadwal pegawai untuk setiap bulan dalam range
+        $startCarbon = Carbon::parse($startDate);
+        $endCarbon = Carbon::parse($endDate);
+        $allJadwalPegawai = [];
+
+        $current = $startCarbon->copy()->startOfMonth();
+        while ($current->lte($endCarbon)) {
+            $tahun = $current->year;
+            $bulan = $current->month;
+
+            $jadwalBulan = JadwalPegawai::whereIn('id', $pegawaiList->keys())
+                ->where('tahun', $tahun)
+                ->where('bulan', $bulan)
+                ->get()
+                ->keyBy('id');
+
+            foreach ($jadwalBulan as $j) {
+                $allJadwalPegawai[$bulan][$j->id] = $j;
+            }
+            $current->addMonth();
+        }
+
+        // Ambil semua presensi dalam periode
+        $allPresensi = RekapPresensi::whereIn('id', $pegawaiList->keys())
+            ->whereDate('jam_datang', '>=', $startDate)
+            ->whereDate('jam_datang', '<=', $endDate)
+            ->orderBy('jam_datang')
+            ->get();
+
+        // Ambil jam masuk standar per shift (cache untuk performa)
+        $jamMasukList = Cache::remember('api.jam_masuk_list', 3600, fn () => \App\Models\JamMasuk::all()->keyBy('shift'));
+
+        // Gabungkan data presensi dengan info pegawai dan jadwal
+        $listPresensi = $allPresensi->map(function ($presensi) use ($pegawaiList, $allJadwalPegawai, $jamMasukList) {
+            $pegawai = $pegawaiList->get($presensi->id);
+            $tanggal = Carbon::parse($presensi->jam_datang);
+            $hariKey = 'h' . $tanggal->day;
+            $bulan = $tanggal->month;
+
+            // Ambil jadwal untuk bulan yang sesuai
+            $jadwalPegawai = $allJadwalPegawai[$bulan][$presensi->id] ?? null;
+            $shift = $jadwalPegawai ? ($jadwalPegawai->$hariKey ?? null) : null;
+
+            // Recalculate status berdasarkan jadwal_pegawai + jam_masuk + set_keterlambatan
+            $jamMasukStd = null;
+            $jamPulangStd = null;
+            $statusRecalc = 'Tepat Waktu';
+            $keterlambatanRecalc = '00:00:00';
+
+            if ($shift && $presensi->jam_datang) {
+                // Normalisasi shift name untuk lookup (Pagi, Pagi2, Siang, Malam, Midle Pagi1, dll)
+                $jamMasukData = $jamMasukList->get(ucfirst(strtolower($shift))) ?? $jamMasukList->get($shift);
+                if ($jamMasukData && $jamMasukData->jam_masuk) {
+                    $jamDatang = Carbon::parse($presensi->jam_datang, 'Asia/Jakarta');
+                    // Set jam_masuk dengan tanggal yang SAMA dengan jam_datang
+                    $jamMasukStd = $jamDatang->copy()->setTimeFromTimeString($jamMasukData->jam_masuk);
+                    $jamPulangStd = $jamMasukData->jam_pulang ? $jamDatang->copy()->setTimeFromTimeString($jamMasukData->jam_pulang) : null;
+
+                    // Perbandingan: >= 1 menit = Terlambat, < 1 menit = Tepat Waktu
+                    if ($jamDatang->greaterThan($jamMasukStd)) {
+                        $selisihDetik = $jamDatang->diffInSeconds($jamMasukStd);
+                        if ($selisihDetik >= 60) {
+                            $statusRecalc = 'Terlambat';
+                            $keterlambatanRecalc = $jamDatang->diff($jamMasukStd)->format('%H:%I:%S');
+                        }
+                        // < 1 menit tetap Tepat Waktu, $keterlambatanRecalc tetap 00:00:00
+                    }
+                }
+            }
+
+            return [
+                'nama' => $pegawai->nama ?? '-',
+                'nik' => $pegawai->nik ?? '-',
+                'departemen' => $pegawai->departemen ?? '-',
+                'tanggal' => $tanggal->format('d-m-Y'),
+                'tanggal_key' => $tanggal->format('Y-m-d'),
+                'shift' => $shift,
+                'jam_masuk_std' => $jamMasukStd ? $jamMasukStd->format('H:i') : null,
+                'jam_pulang_std' => $jamPulangStd ? $jamPulangStd->format('H:i') : null,
+                'jam_datang' => $presensi->jam_datang ? $tanggal->format('H:i') : '-',
+                'jam_pulang' => $presensi->jam_pulang ? Carbon::parse($presensi->jam_pulang)->format('H:i') : '-',
+                // Original (dari DB) vs Recalculated
+                'status_original' => $presensi->status ?? '-',
+                'status' => $statusRecalc,
+                'keterlambatan_original' => $presensi->keterlambatan ?? '-',
+                'keterlambatan' => $keterlambatanRecalc,
+            ];
+        })->values();
+
+        // Statistik ringkas (berdasarkan status recalculated)
+        $jumlahPegawaiTotal = $pegawaiList->count();
+        $totalHadir = $listPresensi->count();
+        $statusTepatWaktu = ['Tepat Waktu', 'Tepat Waktu & PSW'];
+        $totalTepatWaktu = $listPresensi->whereIn('status', $statusTepatWaktu)->count();
+        $totalTerlambat = $totalHadir - $totalTepatWaktu;
+
+        // Daftar departemen untuk dropdown
+        $departemenList = $pegawaiList->pluck('departemen')->unique()->filter()->sort()->values();
+
+        return view('presensi.ringkasan_kehadiran', compact(
+            'startDate',
+            'endDate',
+            'departemen',
+            'departemenList',
+            'listPresensi',
+            'jumlahPegawaiTotal',
+            'totalHadir',
+            'totalTepatWaktu',
+            'totalTerlambat'
+        ));
+    }
+
+    /**
+     * Rekap Keterlambatan Per Pegawai
+     * Menampilkan NIK, Nama, Departemen, jumlah terlambat, tepat waktu, total kehadiran, dan durasi keterlambatan
+     * OPTIMIZED: menggunakan query langsung tanpa loading semua data ke memory
+     */
+    public function rekapKeterlambatan(Request $request)
+    {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $departemen = $request->input('departemen');
+
+        if (! $startDate || ! $endDate) {
+            $start = Carbon::now()->startOfMonth();
+            $end = Carbon::now()->endOfMonth();
+            $startDate = $start->toDateString();
+            $endDate = $end->toDateString();
+        }
+
+        // Ambil jam masuk standar per shift
+        $jamMasukList = \App\Models\JamMasuk::all()->keyBy('shift');
+        $jamMasukArray = $jamMasukList->toArray();
+
+        // Ambil pegawai AKTIF saja (hanya kolom yang diperlukan)
+        $pegawaiQuery = Pegawai::where('stts_aktif', 'AKTIF')
+            ->select('id', 'nik', 'nama', 'departemen');
+        if ($departemen) {
+            $pegawaiQuery->where('departemen', $departemen);
+        }
+        $pegawaiList = $pegawaiQuery->get()->keyBy('id');
+        $pegawaiIds = $pegawaiList->keys()->toArray();
+
+        // Ambil jadwal pegawai untuk setiap bulan dalam range
+        $startCarbon = Carbon::parse($startDate);
+        $endCarbon = Carbon::parse($endDate);
+        $allJadwalPegawai = [];
+
+        $current = $startCarbon->copy()->startOfMonth();
+        while ($current->lte($endCarbon)) {
+            $tahun = $current->year;
+            $bulan = $current->month;
+
+            $jadwalBulan = JadwalPegawai::whereIn('id', $pegawaiIds)
+                ->where('tahun', $tahun)
+                ->where('bulan', $bulan)
+                ->get();
+
+            foreach ($jadwalBulan as $j) {
+                $allJadwalPegawai[$j->id][$bulan] = $j;
+            }
+            $current->addMonth();
+        }
+
+        // Ambil data cuti (PengajuanLibur) dalam periode - semua status
+        $listNik = $pegawaiList->pluck('nik')->toArray();
+        $cutiData = PengajuanLibur::whereIn('nik', $listNik)
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('tanggal_awal', [$startDate, $endDate])
+                    ->orWhereBetween('tanggal_akhir', [$startDate, $endDate])
+                    ->orWhere(function ($q) use ($startDate, $endDate) {
+                        $q->where('tanggal_awal', '<=', $startDate)
+                          ->where('tanggal_akhir', '>=', $endDate);
+                    });
+            })
+            ->get()
+            ->groupBy('nik');
+
+        // Ambil semua presensi dalam periode (chunk untuk hemat memory)
+        $rekapPerPegawai = [];
+        $nikToIdMap = [];
+        foreach ($pegawaiList as $pegawai) {
+            $rekapPerPegawai[$pegawai->id] = [
+                'nik' => $pegawai->nik,
+                'nama' => $pegawai->nama,
+                'departemen' => $pegawai->departemen,
+                'jml_terlambat' => 0,
+                'jml_tepat_waktu' => 0,
+                'jumlah_kehadiran' => 0,
+                'total_detik_terlambat' => 0,
+                'jumlah_cuti' => 0,
+                'hari_cuti' => [],
+            ];
+            $nikToIdMap[$pegawai->nik] = $pegawai->id;
+        }
+
+        // Hitung jumlah cuti per pegawai
+        foreach ($cutiData as $nik => $cutiList) {
+            $id = $nikToIdMap[$nik] ?? null;
+            if ($id && isset($rekapPerPegawai[$id])) {
+                $rekapPerPegawai[$id]['jumlah_cuti'] = $cutiList->count();
+                foreach ($cutiList as $cuti) {
+                    $tanggalAwal = Carbon::parse($cuti->tanggal_awal)->copy();
+                    $tanggalAkhir = Carbon::parse($cuti->tanggal_akhir);
+                    while ($tanggalAwal->lte($tanggalAkhir)) {
+                        if ($tanggalAwal->between($startCarbon, $endCarbon)) {
+                            $rekapPerPegawai[$id]['hari_cuti'][] = $tanggalAwal->format('Y-m-d');
+                        }
+                        $tanggalAwal->addDay();
+                    }
+                }
+            }
+        }
+
+        // Proses presensi per chunk
+        RekapPresensi::whereIn('id', $pegawaiIds)
+            ->whereDate('jam_datang', '>=', $startDate)
+            ->whereDate('jam_datang', '<=', $endDate)
+            ->orderBy('jam_datang')
+            ->chunk(500, function ($chunkPresensi) use (&$rekapPerPegawai, $allJadwalPegawai, $jamMasukArray) {
+                foreach ($chunkPresensi as $presensi) {
+                    if (!isset($rekapPerPegawai[$presensi->id])) continue;
+                    if (!$presensi->jam_datang) continue;
+
+                    $tanggal = Carbon::parse($presensi->jam_datang);
+                    $hariKey = 'h' . $tanggal->day;
+                    $bulan = $tanggal->month;
+                    $tahun = $tanggal->year;
+
+                    // Ambil jadwal untuk pegawai ini di bulan tsb
+                    $jadwalPegawai = $allJadwalPegawai[$presensi->id][$bulan] ?? null;
+                    $shift = $jadwalPegawai ? ($jadwalPegawai->$hariKey ?? null) : null;
+
+                    if (!$shift) continue;
+
+                    // Cek jam_masuk
+                    $jamMasukData = $jamMasukArray[$shift] ?? null;
+                    if (!$jamMasukData || empty($jamMasukData['jam_masuk'])) continue;
+
+                    $jamDatang = Carbon::parse($presensi->jam_datang, 'Asia/Jakarta');
+                    $jamMasukStd = $jamDatang->copy()->setTimeFromTimeString($jamMasukData['jam_masuk']);
+
+                    $rekapPerPegawai[$presensi->id]['jumlah_kehadiran']++;
+
+                    if ($jamDatang->greaterThan($jamMasukStd)) {
+                        $rekapPerPegawai[$presensi->id]['jml_terlambat']++;
+                        $rekapPerPegawai[$presensi->id]['total_detik_terlambat'] += $jamDatang->diffInSeconds($jamMasukStd);
+                    } else {
+                        $rekapPerPegawai[$presensi->id]['jml_tepat_waktu']++;
+                    }
+                }
+            });
+
+        // Format durasi
+        foreach ($rekapPerPegawai as $id => &$data) {
+            $totalMenit = floor($data['total_detik_terlambat'] / 60);
+            $totalJam = floor($totalMenit / 60);
+            $sisaMenit = $totalMenit % 60;
+            $data['durasi_terlambat'] = $data['jml_terlambat'] > 0 ? $totalJam . 'j ' . $sisaMenit . 'm' : '-';
+        }
+        unset($data);
+
+        // Sort: terlambat desc, nama asc
+        $rekapPerPegawai = collect($rekapPerPegawai)
+            ->sortByDesc('jml_terlambat')
+            ->sortBy('nama')
+            ->values();
+
+        // Statistik total
+        $totalPegawai = count($rekapPerPegawai);
+        $totalTerlambatSemua = collect($rekapPerPegawai)->sum('jml_terlambat');
+        $totalTepatWaktuSemua = collect($rekapPerPegawai)->sum('jml_tepat_waktu');
+        $totalKehadiranSemua = collect($rekapPerPegawai)->sum('jumlah_kehadiran');
+        $totalCutiSemua = collect($rekapPerPegawai)->sum(function ($item) {
+            return count($item['hari_cuti'] ?? []);
+        });
+
+        // Daftar departemen untuk dropdown
+        $departemenList = $pegawaiList->pluck('departemen')->unique()->filter()->sort()->values();
+
+        return view('presensi.rekap_keterlambatan', compact(
+            'startDate',
+            'endDate',
+            'departemen',
+            'departemenList',
+            'rekapPerPegawai',
+            'totalPegawai',
+            'totalTerlambatSemua',
+            'totalTepatWaktuSemua',
+            'totalKehadiranSemua',
+            'totalCutiSemua'
+        ));
+    }
+
+    /**
+     * Export Rekap Keterlambatan ke CSV
+     */
+    public function exportRekapKeterlambatan(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $departemen = $request->input('departemen');
+
+        if (! $startDate || ! $endDate) {
+            $start = Carbon::now()->startOfMonth();
+            $end = Carbon::now()->endOfMonth();
+            $startDate = $start->toDateString();
+            $endDate = $end->toDateString();
+        }
+
+        // Ambil data yang sama dengan rekapKeterlambatan
+        $jamMasukList = \App\Models\JamMasuk::all()->keyBy('shift');
+        $jamMasukArray = $jamMasukList->toArray();
+
+        $pegawaiQuery = Pegawai::where('stts_aktif', 'AKTIF')
+            ->select('id', 'nik', 'nama', 'departemen');
+        if ($departemen) {
+            $pegawaiQuery->where('departemen', $departemen);
+        }
+        $pegawaiList = $pegawaiQuery->get()->keyBy('id');
+        $pegawaiIds = $pegawaiList->keys()->toArray();
+
+        $startCarbon = Carbon::parse($startDate);
+        $endCarbon = Carbon::parse($endDate);
+        $allJadwalPegawai = [];
+
+        $current = $startCarbon->copy()->startOfMonth();
+        while ($current->lte($endCarbon)) {
+            $tahun = $current->year;
+            $bulan = $current->month;
+
+            $jadwalBulan = JadwalPegawai::whereIn('id', $pegawaiIds)
+                ->where('tahun', $tahun)
+                ->where('bulan', $bulan)
+                ->get();
+
+            foreach ($jadwalBulan as $j) {
+                $allJadwalPegawai[$bulan][$j->id] = $j;
+            }
+            $current->addMonth();
+        }
+
+        // Ambil data cuti (PengajuanLibur) dalam periode - semua status
+        $listNik = $pegawaiList->pluck('nik')->toArray();
+        $cutiData = PengajuanLibur::whereIn('nik', $listNik)
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('tanggal_awal', [$startDate, $endDate])
+                    ->orWhereBetween('tanggal_akhir', [$startDate, $endDate])
+                    ->orWhere(function ($q) use ($startDate, $endDate) {
+                        $q->where('tanggal_awal', '<=', $startDate)
+                          ->where('tanggal_akhir', '>=', $endDate);
+                    });
+            })
+            ->get()
+            ->groupBy('nik');
+
+        $rekapPerPegawai = [];
+        $nikToIdMap = [];
+        foreach ($pegawaiList as $pegawai) {
+            $rekapPerPegawai[$pegawai->id] = [
+                'nik' => $pegawai->nik,
+                'nama' => $pegawai->nama,
+                'departemen' => $pegawai->departemen,
+                'jml_terlambat' => 0,
+                'jml_tepat_waktu' => 0,
+                'jumlah_kehadiran' => 0,
+                'total_detik_terlambat' => 0,
+                'jumlah_cuti' => 0,
+                'hari_cuti' => [],
+            ];
+            $nikToIdMap[$pegawai->nik] = $pegawai->id;
+        }
+
+        // Hitung jumlah cuti per pegawai
+        foreach ($cutiData as $nik => $cutiList) {
+            $id = $nikToIdMap[$nik] ?? null;
+            if ($id && isset($rekapPerPegawai[$id])) {
+                $rekapPerPegawai[$id]['jumlah_cuti'] = $cutiList->count();
+                foreach ($cutiList as $cuti) {
+                    $tanggalAwal = Carbon::parse($cuti->tanggal_awal)->copy();
+                    $tanggalAkhir = Carbon::parse($cuti->tanggal_akhir);
+                    while ($tanggalAwal->lte($tanggalAkhir)) {
+                        if ($tanggalAwal->between($startCarbon, $endCarbon)) {
+                            $rekapPerPegawai[$id]['hari_cuti'][] = $tanggalAwal->format('Y-m-d');
+                        }
+                        $tanggalAwal->addDay();
+                    }
+                }
+            }
+        }
+
+        RekapPresensi::whereIn('id', $pegawaiIds)
+            ->whereDate('jam_datang', '>=', $startDate)
+            ->whereDate('jam_datang', '<=', $endDate)
+            ->orderBy('jam_datang')
+            ->chunk(500, function ($chunkPresensi) use (&$rekapPerPegawai, $allJadwalPegawai, $jamMasukArray) {
+                foreach ($chunkPresensi as $presensi) {
+                    if (!isset($rekapPerPegawai[$presensi->id])) continue;
+                    if (!$presensi->jam_datang) continue;
+
+                    $tanggal = Carbon::parse($presensi->jam_datang);
+                    $hariKey = 'h' . $tanggal->day;
+                    $bulan = $tanggal->month;
+
+                    $jadwalPegawai = $allJadwalPegawai[$bulan][$presensi->id] ?? null;
+                    $shift = $jadwalPegawai ? ($jadwalPegawai->$hariKey ?? null) : null;
+
+                    if (!$shift) continue;
+
+                    $jamMasukData = $jamMasukArray[$shift] ?? null;
+                    if (!$jamMasukData || empty($jamMasukData['jam_masuk'])) continue;
+
+                    $jamDatang = Carbon::parse($presensi->jam_datang, 'Asia/Jakarta');
+                    $jamMasukStd = $jamDatang->copy()->setTimeFromTimeString($jamMasukData['jam_masuk']);
+
+                    $rekapPerPegawai[$presensi->id]['jumlah_kehadiran']++;
+
+                    if ($jamDatang->greaterThan($jamMasukStd)) {
+                        $selisihDetik = $jamDatang->diffInSeconds($jamMasukStd);
+                        if ($selisihDetik >= 60) {
+                            $rekapPerPegawai[$presensi->id]['jml_terlambat']++;
+                            $rekapPerPegawai[$presensi->id]['total_detik_terlambat'] += $selisihDetik;
+                        } else {
+                            $rekapPerPegawai[$presensi->id]['jml_tepat_waktu']++;
+                        }
+                    } else {
+                        $rekapPerPegawai[$presensi->id]['jml_tepat_waktu']++;
+                    }
+                }
+            });
+
+        foreach ($rekapPerPegawai as $id => &$data) {
+            $totalMenit = floor($data['total_detik_terlambat'] / 60);
+            $totalJam = floor($totalMenit / 60);
+            $sisaMenit = $totalMenit % 60;
+            $data['durasi_terlambat'] = $data['jml_terlambat'] > 0 ? $totalJam . 'j ' . $sisaMenit . 'm' : '-';
+        }
+        unset($data);
+
+        $rekapPerPegawai = collect($rekapPerPegawai)
+            ->sortByDesc('jml_terlambat')
+            ->sortBy('nama')
+            ->values();
+
+        $filename = 'rekap_keterlambatan_' . Carbon::now()->format('Ymd_His') . '.csv';
+
+        return response()->stream(function () use ($rekapPerPegawai) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($handle, ['No', 'NIK', 'Nama', 'Departemen', 'Jml Terlambat', 'Jml Tepat Waktu', 'Jumlah Kehadiran', 'Jml Cuti', 'Hari Libur', 'Durasi Terlambat']);
+
+            foreach ($rekapPerPegawai as $idx => $row) {
+                fputcsv($handle, [
+                    $idx + 1,
+                    $row['nik'],
+                    $row['nama'],
+                    $row['departemen'],
+                    $row['jml_terlambat'],
+                    $row['jml_tepat_waktu'],
+                    $row['jumlah_kehadiran'],
+                    $row['jumlah_cuti'] ?? 0,
+                    count($row['hari_cuti'] ?? []),
+                    $row['durasi_terlambat'],
+                ]);
+            }
+            fclose($handle);
+        }, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
+     * Detail Keterlambatan Per Pegawai
+     * Breakdown per tanggal untuk satu NIK
+     */
+    public function rekapKeterlambatanDetail(Request $request, string $nik)
+    {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $departemen = $request->input('departemen');
+
+        if (! $startDate || ! $endDate) {
+            $start = Carbon::now()->startOfMonth();
+            $end = Carbon::now()->endOfMonth();
+            $startDate = $start->toDateString();
+            $endDate = $end->toDateString();
+        }
+
+        // Ambil data pegawai
+        $pegawai = Pegawai::where('nik', $nik)->first();
+        if (!$pegawai) {
+            abort(404, 'Pegawai tidak ditemukan');
+        }
+
+        // Ambil jam masuk standar per shift
+        $jamMasukList = \App\Models\JamMasuk::all()->keyBy('shift');
+        $jamMasukArray = $jamMasukList->toArray();
+
+        // Ambil jadwal pegawai untuk setiap bulan dalam range
+        $startCarbon = Carbon::parse($startDate);
+        $endCarbon = Carbon::parse($endDate);
+        $allJadwalPegawai = [];
+
+        $current = $startCarbon->copy()->startOfMonth();
+        while ($current->lte($endCarbon)) {
+            $tahun = $current->year;
+            $bulan = $current->month;
+
+            $jadwalBulan = JadwalPegawai::where('id', $pegawai->id)
+                ->where('tahun', $tahun)
+                ->where('bulan', $bulan)
+                ->first();
+
+            if ($jadwalBulan) {
+                $allJadwalPegawai[$bulan] = $jadwalBulan;
+            }
+            $current->addMonth();
+        }
+
+        // Ambil data cuti pegawai dalam periode - semua status
+        $cutiList = PengajuanLibur::where('nik', $nik)
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('tanggal_awal', [$startDate, $endDate])
+                    ->orWhereBetween('tanggal_akhir', [$startDate, $endDate])
+                    ->orWhere(function ($q) use ($startDate, $endDate) {
+                        $q->where('tanggal_awal', '<=', $startDate)
+                          ->where('tanggal_akhir', '>=', $endDate);
+                    });
+            })
+            ->get();
+
+        // Generate daftar tanggal cuti
+        $hariCutiMap = [];
+        $jumlahCuti = 0;
+        $cutiDetailsMap = [];
+        foreach ($cutiList as $cuti) {
+            $jumlahCuti++;
+            $tanggalAwal = Carbon::parse($cuti->tanggal_awal);
+            $tanggalAkhir = Carbon::parse($cuti->tanggal_akhir);
+            $tanggalAwalStr = $tanggalAwal->format('d-m-Y');
+            $tanggalAkhirStr = $tanggalAkhir->format('d-m-Y');
+            $periodeCuti = $tanggalAwalStr . ' s.d. ' . $tanggalAkhirStr;
+            while ($tanggalAwal->lte($tanggalAkhir)) {
+                if ($tanggalAwal->between($startCarbon, $endCarbon)) {
+                    $key = $tanggalAwal->format('Y-m-d');
+                    $hariCutiMap[$key] = [
+                        'jenis' => $cuti->jenis_pengajuan_libur,
+                        'status_cuti' => $cuti->status,
+                        'jumlah_hari' => $cuti->jumlah_hari,
+                        'periode' => $periodeCuti,
+                    ];
+                }
+                $tanggalAwal->addDay();
+            }
+            // Simpan detail cuti per tanggal (untuk tampilan di Keterangan)
+            $cutiDetailsMap[$cuti->tanggal_awal] = [
+                'jenis' => $cuti->jenis_pengajuan_libur,
+                'status' => $cuti->status,
+                'tanggal_awal' => $tanggalAwalStr,
+                'tanggal_akhir' => $tanggalAkhirStr,
+                'jumlah_hari' => $cuti->jumlah_hari,
+            ];
+        }
+
+        // Ambil semua presensi pegawai dalam periode
+        $listPresensi = [];
+        $presensiTanggalMap = [];
+        // Parameter tambahan untuk passing ke closure
+        $startCarbonLoop = $startCarbon;
+
+        RekapPresensi::where('id', $pegawai->id)
+            ->whereDate('jam_datang', '>=', $startDate)
+            ->whereDate('jam_datang', '<=', $endDate)
+            ->orderBy('jam_datang')
+            ->chunk(500, function ($chunkPresensi) use (&$listPresensi, &$presensiTanggalMap, $allJadwalPegawai, $jamMasukArray, $pegawai, $startCarbonLoop, $endCarbon, $cutiDetailsMap) {
+                foreach ($chunkPresensi as $presensi) {
+                    if (!$presensi->jam_datang) continue;
+
+                    $tanggal = Carbon::parse($presensi->jam_datang);
+                    $tanggalKey = $tanggal->format('Y-m-d');
+                    $hariKey = 'h' . $tanggal->day;
+                    $bulan = $tanggal->month;
+
+                    $jadwalPegawai = $allJadwalPegawai[$bulan] ?? null;
+                    $shift = $jadwalPegawai ? ($jadwalPegawai->$hariKey ?? null) : null;
+
+                    $jamMasukStd = null;
+                    $statusRecalc = 'Tepat Waktu';
+                    $keterlambatan = '-';
+
+                    if ($shift) {
+                        $jamMasukData = $jamMasukArray[$shift] ?? null;
+                        if ($jamMasukData && !empty($jamMasukData['jam_masuk'])) {
+                            $jamDatang = Carbon::parse($presensi->jam_datang, 'Asia/Jakarta');
+                            $jamMasukStd = $jamDatang->copy()->setTimeFromTimeString($jamMasukData['jam_masuk']);
+                            $jamPulangStd = !empty($jamMasukData['jam_pulang']) ? $jamDatang->copy()->setTimeFromTimeString($jamMasukData['jam_pulang']) : null;
+
+                            if ($jamDatang->greaterThan($jamMasukStd)) {
+                                $statusRecalc = 'Terlambat';
+                                $keterlambatan = $jamDatang->diff($jamMasukStd)->format('%H:%i:%s');
+                            }
+                        }
+                    }
+
+                    $presensiTanggalMap[$tanggalKey] = true;
+                    $listPresensi[] = [
+                        'tanggal' => $tanggal->format('d-m-Y'),
+                        'tanggal_key' => $tanggalKey,
+                        'shift' => $shift,
+                        'jam_masuk_std' => $jamMasukStd ? $jamMasukStd->format('H:i') : null,
+                        'jam_pulang_std' => isset($jamPulangStd) ? $jamPulangStd->format('H:i') : null,
+                        'jam_datang' => $tanggal->format('H:i'),
+                        'jam_pulang' => $presensi->jam_pulang ? Carbon::parse($presensi->jam_pulang)->format('H:i') : '-',
+                        'status' => $statusRecalc,
+                        'keterlambatan' => $keterlambatan,
+                        'status_db' => $presensi->status ?? '-',
+                        'tipe' => 'presensi',
+                    ];
+                }
+            });
+
+        // Tambahkan tanggal cuti yang tidak ada di presensi
+        foreach ($hariCutiMap as $tanggalKey => $cutiInfo) {
+            if (!isset($presensiTanggalMap[$tanggalKey])) {
+                $tanggal = Carbon::parse($tanggalKey);
+                $hariKey = 'h' . $tanggal->day;
+                $bulan = $tanggal->month;
+                $jadwalPegawai = $allJadwalPegawai[$bulan] ?? null;
+                $shift = $jadwalPegawai ? ($jadwalPegawai->$hariKey ?? null) : null;
+
+                $jamMasukStd = null;
+                $jamPulangStd = null;
+                if ($shift && isset($jamMasukArray[$shift])) {
+                    $jamMasukData = $jamMasukArray[$shift];
+                    if (!empty($jamMasukData['jam_masuk'])) {
+                        $jamMasukStd = $tanggal->copy()->setTimeFromTimeString($jamMasukData['jam_masuk']);
+                        $jamPulangStd = !empty($jamMasukData['jam_pulang']) ? $tanggal->copy()->setTimeFromTimeString($jamMasukData['jam_pulang']) : null;
+                    }
+                }
+
+                $listPresensi[] = [
+                    'tanggal' => $tanggal->format('d-m-Y'),
+                    'tanggal_key' => $tanggalKey,
+                    'shift' => $shift,
+                    'jam_masuk_std' => $jamMasukStd ? $jamMasukStd->format('H:i') : null,
+                    'jam_pulang_std' => $jamPulangStd ? $jamPulangStd->format('H:i') : null,
+                    'jam_datang' => '-',
+                    'jam_pulang' => '-',
+                    'status' => 'Cuti',
+                    'keterlambatan' => '-',
+                    'status_db' => $cutiInfo['jenis'] . ' (' . $cutiInfo['status_cuti'] . ')',
+                    'tipe' => 'cuti',
+                    'jenis_cuti' => $cutiInfo['jenis'],
+                    'status_cuti' => $cutiInfo['status_cuti'],
+                    'periode_cuti' => $cutiInfo['periode'],
+                ];
+            }
+        }
+
+        // Sort berdasarkan tanggal
+        $listPresensi = collect($listPresensi)->sortBy('tanggal_key')->values();
+
+        // Tambahkan tanggal dengan jadwal kosong atau hari Minggu
+        $tanggalKosongMap = [];
+        $current = $startCarbon->copy();
+        while ($current->lte($endCarbon)) {
+            $tanggalKey = $current->format('Y-m-d');
+            $hari = $current->day;
+            $bulan = $current->month;
+            $hariKey = 'h' . $hari;
+            $isMinggu = $current->dayOfWeek === 0; // 0 = Sunday
+
+            // Skip jika sudah ada presensi atau cuti
+            if (isset($presensiTanggalMap[$tanggalKey]) || isset($hariCutiMap[$tanggalKey])) {
+                $current->addDay();
+                continue;
+            }
+
+            // Cek apakah ada jadwal untuk bulan ini dan apakah h{day} kosong
+            $jadwalBulan = $allJadwalPegawai[$bulan] ?? null;
+
+            // Tampilkan sebagai Libur jika:
+            // 1. Hari Minggu (tanggal merah), ATAU
+            // 2. Jadwal ada tapi h{day} kosong
+            if ($isMinggu || ($jadwalBulan && (($jadwalBulan->$hariKey ?? null) === null || $jadwalBulan->$hariKey === ''))) {
+                $tanggalKosongMap[$tanggalKey] = [
+                    'tanggal' => $current->format('d-m-Y'),
+                    'tanggal_key' => $tanggalKey,
+                    'shift' => null,
+                    'jam_masuk_std' => null,
+                    'jam_pulang_std' => null,
+                    'jam_datang' => '-',
+                    'jam_pulang' => '-',
+                    'status' => 'Libur',
+                    'keterlambatan' => '-',
+                    'status_db' => $isMinggu ? 'Tanggal Merah' : 'Libur',
+                    'tipe' => 'kosong',
+                    'is_minggu' => $isMinggu,
+                    'is_tanggal_merah' => $isMinggu,
+                ];
+            }
+
+            $current->addDay();
+        }
+
+        // Merge tanggal kosong ke list
+        foreach ($tanggalKosongMap as $kosongData) {
+            $listPresensi[] = $kosongData;
+        }
+
+        // Re-sort setelah menambahkan tanggal kosong
+        $listPresensi = collect($listPresensi)->sortBy('tanggal_key')->values();
+
+        // Statistik
+        $jmlTerlambat = $listPresensi->where('status', 'Terlambat')->count();
+        $jmlTepatWaktu = $listPresensi->where('status', 'Tepat Waktu')->count();
+        $totalKehadiran = $listPresensi->where('tipe', 'presensi')->count();
+        $totalCuti = $listPresensi->where('tipe', 'cuti')->count();
+        $totalKosong = $listPresensi->where('tipe', 'kosong')->count();
+
+        // Back URL
+        $backUrl = route('presensi.rekap_keterlambatan', array_filter([
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'departemen' => $departemen,
+        ]));
+
+        return view('presensi.rekap_keterlambatan_detail', compact(
+            'pegawai',
+            'startDate',
+            'endDate',
+            'departemen',
+            'backUrl',
+            'listPresensi',
+            'jmlTerlambat',
+            'jmlTepatWaktu',
+            'totalKehadiran',
+            'jumlahCuti',
+            'totalCuti',
+            'totalKosong'
         ));
     }
 }

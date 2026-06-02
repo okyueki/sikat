@@ -205,6 +205,9 @@
                                 <li class="slide">
                                     <a href="{{ route('kepegawaian.rekap_presensi.index') }}" class="side-menu__item {{ request()->routeIs('kepegawaian.rekap_presensi.*') ? 'active' : '' }}">Rekap Presensi</a>
                                 </li>
+                                <li class="slide">
+                                    <a href="{{ route('presensi.rekap_keterlambatan') }}" class="side-menu__item {{ request()->routeIs('presensi.rekap_keterlambatan*') ? 'active' : '' }}">Rekap Keterlambatan</a>
+                                </li>
                             </ul>
                         </li>
            

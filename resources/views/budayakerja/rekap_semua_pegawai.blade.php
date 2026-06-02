@@ -9,7 +9,7 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h4 class="card-title mb-0">
-                        Rekap Budaya Kerja Semua Pegawai
+                        Rekap Terpadu Semua Pegawai
                     </h4>
                     <div class="d-flex gap-2">
                         <a href="{{ route('budayakerja.rekap_pegawai_export', array_filter(['start_date' => $startDate, 'end_date' => $endDate, 'departemen' => $departemen ?? null])) }}" class="btn btn-success btn-sm">
@@ -71,29 +71,27 @@
         <div class="col-md-3">
             <div class="card bg-success text-white">
                 <div class="card-body">
-                    <h6 class="text-white-50 mb-2">Pegawai Dinilai</h6>
-                    <h3 class="mb-0">{{ $jumlahPegawaiDinilai }}</h3>
-                    <small class="text-white-50">Memiliki minimal 1 penilaian</small>
+                    <h6 class="text-white-50 mb-2">Pegawai Aktif</h6>
+                    <h3 class="mb-0">{{ $jumlahPegawaiTertib }}</h3>
+                    <small class="text-white-50">Score ≥ 70</small>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card bg-warning text-dark">
                 <div class="card-body">
-                    <h6 class="opacity-75 mb-2">Belum Dinilai</h6>
-                    <h3 class="mb-0">{{ $jumlahPegawaiBelumDinilai }}</h3>
-                    <small class="opacity-75">Belum ada penilaian pada periode ini</small>
+                    <h6 class="opacity-75 mb-2">Warning</h6>
+                    <h3 class="mb-0">{{ $jumlahPegawaiWarning }}</h3>
+                    <small class="opacity-75">Score 50-69</small>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-info text-white">
+            <div class="card bg-danger text-white">
                 <div class="card-body">
-                    <h6 class="text-white-50 mb-2">Tertib / Warning / Tidak tertib</h6>
-                    <h5 class="mb-0">Tertib: {{ $jumlahPegawaiTertib }}</h5>
-                    <h5 class="mb-0">Warning: {{ $jumlahPegawaiWarning }}</h5>
-                    <h5 class="mb-0">Tidak tertib: {{ $jumlahPegawaiTidakTertib }}</h5>
-                    <small class="text-white-50">Berdasarkan total pelanggaran (0=Tertib, 1-3=Warning, &gt;3=Tidak tertib)</small>
+                    <h6 class="text-white-50 mb-2">Tidak Aktif</h6>
+                    <h3 class="mb-0">{{ $jumlahPegawaiTidakTertib }}</h3>
+                    <small class="text-white-50">Score &lt; 50</small>
                 </div>
             </div>
         </div>
@@ -104,87 +102,90 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Daftar Pegawai dan Status Penilaian</h5>
-                    <small class="text-muted">Urut berdasarkan nama pegawai</small>
+                    <h5 class="card-title mb-0">Daftar Pegawai dan Status Kehadiran</h5>
+                    <small class="text-muted">Urut berdasarkan nama | Bobot: Presensi 30% | Sholat 25% | Budaya 25% | Agenda 20%</small>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover table-sm align-middle">
                             <thead>
-                                <tr>
+                                <tr class="text-center">
                                     <th style="width: 50px;">No</th>
                                     <th>NIK</th>
                                     <th>Nama</th>
                                     <th>Departemen</th>
-                                    <th>Jabatan</th>
-                                    <th class="text-center">Jumlah Penilaian</th>
-                                    <th class="text-center">Total Nilai</th>
-                                    <th class="text-center">Pelanggaran</th>
-                                    <th class="text-center">Rata-rata</th>
-                                    <th class="text-center">Tertinggi</th>
-                                    <th class="text-center">Terendah</th>
-                                    <th class="text-center">Status</th>
-                                    <th class="text-center">Hadir</th>
-                                    <th class="text-center">Tepat Waktu</th>
-                                    <th class="text-center">Terlambat</th>
-                                    <th class="text-center" title="Undangan acara/rapat">Diundang</th>
-                                    <th class="text-center" title="Hadir di acara">Hadir</th>
-                                    <th class="text-center">Ijin</th>
-                                    <th class="text-center">Cuti</th>
-                                    <th class="text-center">Tidak Hadir</th>
+                                    <th class="bg-dark text-white">Overall<br>Score</th>
+                                    <th class="bg-primary text-white">Status</th>
+                                    <th class="bg-info text-white">Presensi</th>
+                                    <th class="bg-info text-white">Sholat</th>
+                                    <th class="bg-info text-white">Budaya</th>
+                                    <th class="bg-info text-white">Agenda</th>
+                                    <th>Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($rekapanPegawai as $index => $row)
-                                <tr class="{{ $row['total_penilaian'] == 0 ? 'table-warning' : '' }}">
-                                    <td>{{ $index + 1 }}</td>
-                                    <td>{{ $row['nik'] }}</td>
+                                @foreach($dataWithScores as $index => $row)
+                                @php
+                                    $status = $row['status_keterlibatan'] ?? 'tidak_aktif';
+                                    $statusBadgeClass = match($status) {
+                                        'aktif' => 'success',
+                                        'warning' => 'warning text-dark',
+                                        'tidak_aktif' => 'danger',
+                                        default => 'secondary'
+                                    };
+                                    $statusLabel = match($status) {
+                                        'aktif' => 'Aktif',
+                                        'warning' => 'Warning',
+                                        'tidak_aktif' => 'Tidak Aktif',
+                                        default => 'N/A'
+                                    };
+                                    $breakdown = $row['score_breakdown'] ?? $row['breakdown'] ?? [];
+                                @endphp
+                                <tr class="{{ $status === 'tidak_aktif' ? 'table-danger' : ($status === 'warning' ? 'table-warning' : '') }}">
+                                    <td class="text-center">{{ $index + 1 }}</td>
+                                    <td><small>{{ $row['nik'] }}</small></td>
                                     <td>
                                         <a href="{{ route('budayakerja.rekap_pegawai_detail', array_filter(['nik' => $row['nik'], 'start_date' => $startDate, 'end_date' => $endDate, 'departemen' => $departemen ?? null])) }}" class="text-primary fw-bold text-decoration-none">
                                             {{ $row['nama'] }}
                                         </a>
                                     </td>
                                     <td><small>{{ $row['departemen'] ?? '-' }}</small></td>
-                                    <td><small>{{ $row['jabatan'] ?? '-' }}</small></td>
                                     <td class="text-center">
-                                        <span class="badge bg-{{ $row['total_penilaian'] > 0 ? 'info' : 'secondary' }}">
-                                            {{ $row['total_penilaian'] }}
+                                        <span class="badge bg-dark fs-6">{{ number_format($row['overall_score'] ?? 0, 1) }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-{{ $statusBadgeClass }}">{{ $statusLabel }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <small>{{ $breakdown['presensi']['score'] ?? 0 }}/100</small><br>
+                                        <span class="badge bg-{{ ($breakdown['presensi']['score'] ?? 0) >= 70 ? 'success' : (($breakdown['presensi']['score'] ?? 0) >= 50 ? 'warning text-dark' : 'danger') }} micro">
+                                            {{ number_format(($breakdown['presensi']['weighted'] ?? 0), 1) }}
                                         </span>
                                     </td>
-                                    <td class="text-center">{{ $row['total_nilai'] }}</td>
                                     <td class="text-center">
-                                        <span class="badge bg-{{ ($row['total_pelanggaran'] ?? 0) > 0 ? 'warning' : 'secondary' }}">{{ $row['total_pelanggaran'] ?? 0 }}</span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-{{ $row['status_tertib'] === 'Tertib' ? 'success' : ($row['status_tertib'] === 'Warning' ? 'warning' : ($row['total_penilaian'] > 0 ? 'danger' : 'secondary')) }}">
-                                            {{ $row['rata_rata_nilai'] }}/11
+                                        <small>{{ $breakdown['sholat']['score'] ?? 0 }}/100</small><br>
+                                        <span class="badge bg-{{ ($breakdown['sholat']['score'] ?? 0) >= 70 ? 'success' : (($breakdown['sholat']['score'] ?? 0) >= 50 ? 'warning text-dark' : 'danger') }} micro">
+                                            {{ number_format(($breakdown['sholat']['weighted'] ?? 0), 1) }}
                                         </span>
                                     </td>
-                                    <td class="text-center">{{ $row['nilai_tertinggi'] }}</td>
-                                    <td class="text-center">{{ $row['nilai_terendah'] }}</td>
                                     <td class="text-center">
-                                        @if($row['status_tertib'] === 'Tertib')
-                                            <span class="badge bg-success">Tertib</span>
-                                        @elseif($row['status_tertib'] === 'Warning')
-                                            <span class="badge bg-warning text-dark">Warning</span>
-                                        @elseif($row['status_tertib'] === 'Tidak tertib')
-                                            <span class="badge bg-danger">Tidak tertib</span>
-                                        @else
-                                            <span class="badge bg-secondary">Belum dinilai</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-center">{{ $row['jumlah_hadir'] ?? 0 }}</td>
-                                    <td class="text-center">
-                                        <span class="text-success">{{ $row['jumlah_tepat_waktu'] ?? 0 }}</span>
+                                        <small>{{ $breakdown['budaya']['score'] ?? 0 }}/100</small><br>
+                                        <span class="badge bg-{{ ($breakdown['budaya']['score'] ?? 0) >= 70 ? 'success' : (($breakdown['budaya']['score'] ?? 0) >= 50 ? 'warning text-dark' : 'danger') }} micro">
+                                            {{ number_format(($breakdown['budaya']['weighted'] ?? 0), 1) }}
+                                        </span>
                                     </td>
                                     <td class="text-center">
-                                        <span class="{{ ($row['jumlah_terlambat'] ?? 0) > 0 ? 'text-danger' : 'text-muted' }}">{{ $row['jumlah_terlambat'] ?? 0 }}</span>
+                                        <small>{{ $breakdown['agenda']['score'] ?? 0 }}/100</small><br>
+                                        <span class="badge bg-{{ ($breakdown['agenda']['score'] ?? 0) >= 70 ? 'success' : (($breakdown['agenda']['score'] ?? 0) >= 50 ? 'warning text-dark' : 'danger') }} micro">
+                                            {{ number_format(($breakdown['agenda']['weighted'] ?? 0), 1) }}
+                                        </span>
                                     </td>
-                                    <td class="text-center"><span class="badge bg-secondary">{{ $row['jumlah_diundang_agenda'] ?? 0 }}</span></td>
-                                    <td class="text-center"><span class="text-success">{{ $row['jumlah_hadir_agenda'] ?? 0 }}</span></td>
-                                    <td class="text-center"><span class="text-info">{{ $row['jumlah_ijin_agenda'] ?? 0 }}</span></td>
-                                    <td class="text-center"><span class="text-primary">{{ $row['jumlah_cuti_agenda'] ?? 0 }}</span></td>
-                                    <td class="text-center"><span class="{{ ($row['jumlah_tidak_hadir_agenda'] ?? 0) > 0 ? 'text-danger' : 'text-muted' }}">{{ $row['jumlah_tidak_hadir_agenda'] ?? 0 }}</span></td>
+                                    <td class="text-center">
+                                        <a href="{{ route('budayakerja.rekap_pegawai_detail', array_filter(['nik' => $row['nik'], 'start_date' => $startDate, 'end_date' => $endDate, 'departemen' => $departemen ?? null])) }}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> Detail
+                                        </a>
+                                    </td>
                                 </tr>
                                 @endforeach
                             </tbody>

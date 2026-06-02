@@ -394,6 +394,19 @@ Route::get('/kpi/penilaian/{id}/edit', [PenilaianIndividuController::class, 'edi
 Route::put('/kpi/penilaian/{id}', [PenilaianIndividuController::class, 'update'])->name('kpi.penilaian.update');
 Route::delete('/kpi/penilaian/{id}', [PenilaianIndividuController::class, 'destroy'])->name('kpi.penilaian.destroy');
 Route::get('/presensi/show', [PenilaianIndividuController::class, 'showPresensi'])->name('presensi.show');
+
+Route::get('/presensi/ringkasan-kehadiran', [BudayaKerjaController::class, 'ringkasanKehadiran'])
+    ->name('presensi.ringkasan_kehadiran')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
+Route::get('/presensi/rekap-keterlambatan', [BudayaKerjaController::class, 'rekapKeterlambatan'])
+    ->name('presensi.rekap_keterlambatan')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
+Route::get('/presensi/rekap-keterlambatan/export', [BudayaKerjaController::class, 'exportRekapKeterlambatan'])
+    ->name('presensi.rekap_keterlambatan_export')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
+Route::get('/presensi/rekap-keterlambatan/{nik}', [BudayaKerjaController::class, 'rekapKeterlambatanDetail'])
+    ->name('presensi.rekap_keterlambatan_detail')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
 Route::post('/penilaian/kepatuhan', [PenilaianIndividuController::class, 'getKepatuhan']);
 Route::post('/penilaian/nilai-agenda', [PenilaianIndividuController::class, 'getNilaiAgenda']);
 
