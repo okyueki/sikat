@@ -142,7 +142,16 @@ class JadwalPegawaiController extends Controller
         }
 
         if ($jadwal) {
-            $jadwal->update($payload);
+            // PK tabel = (id, tahun, bulan). Jangan pakai $jadwal->update() — hanya WHERE id.
+            $shiftData = [];
+            for ($i = 1; $i <= 31; $i++) {
+                $field = 'h' . $i;
+                $shiftData[$field] = $payload[$field];
+            }
+            JadwalPegawai::where('id', $pegawai->id)
+                ->where('bulan', $bulan)
+                ->where('tahun', $tahun)
+                ->update($shiftData);
         } else {
             JadwalPegawai::create($payload);
         }

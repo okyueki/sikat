@@ -151,6 +151,9 @@ class JadwalController extends Controller
             
         ]);
     
+        $bulan = str_pad((string) (int) $bulan, 2, '0', STR_PAD_LEFT);
+        $tahun = (int) $tahun;
+
         // Ambil jadwal pegawai
         $jadwalPegawai = JadwalPegawai::where('id', $id)
             ->where('bulan', $bulan)
@@ -162,16 +165,19 @@ class JadwalController extends Controller
             return redirect()->route('jadwal.index')
                 ->with('error', 'Anda tidak memiliki izin untuk mengupdate jadwal ini.');
         }
-    
-        // Loop untuk memastikan tidak ada null di kolom h1 sampai h31
+
+        $updateData = [];
         for ($i = 1; $i <= 31; $i++) {
             $field = 'h' . $i;
-            // Jika field tidak ada di request atau null, berikan string kosong sebagai default
-            $jadwalPegawai->$field = $request->$field ?? '';
+            $updateData[$field] = $request->$field ?? '';
         }
-    
-        // Simpan perubahan ke database
-        $jadwalPegawai->save();
+
+        // PK tabel = (id, tahun, bulan). Jangan pakai save() — Eloquent hanya WHERE id,
+        // sehingga semua bulan/tahun pegawai ikut ter-update.
+        JadwalPegawai::where('id', $id)
+            ->where('bulan', $bulan)
+            ->where('tahun', $tahun)
+            ->update($updateData);
     
         // Jika request adalah AJAX, return JSON
         if ($request->ajax() || $request->wantsJson()) {

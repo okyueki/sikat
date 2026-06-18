@@ -2,6 +2,11 @@
 
 API untuk presensi datang/pulang dari aplikasi mobile atau client lain. Autentikasi menggunakan **Laravel Sanctum** (Bearer token).
 
+> **Tim mobile — Verifikasi wajah (InsightFace):**  
+> - Panduan implementasi UI & capture: [`docs/FRONTEND_INSIGHTFACE_PRESENSI.md`](docs/FRONTEND_INSIGHTFACE_PRESENSI.md)  
+> - Ringkasan API di dokumen ini: [Panduan Tim Mobile](#verifikasi-wajah-insightface--panduan-tim-mobile)  
+> - Spesifikasi backend: [`docs/BACKEND_INSIGHTFACE_PRESENSI.md`](docs/BACKEND_INSIGHTFACE_PRESENSI.md)
+
 ---
 
 ## Testing dengan Postman
@@ -46,6 +51,9 @@ Atau gunakan **Authorization** tab → Type: **Bearer Token** → paste token (t
 | Status hari ini | `GET` `{{base_url}}/api/absensi/status-hari-ini` | Cek status: belum / datang / selesai |
 | Config lokasi | `GET` `{{base_url}}/api/absensi/config` | Titik & radius presensi |
 | Submit presensi | `POST` `{{base_url}}/api/absensi/submit` | Butuh body (lihat di bawah) |
+| Status enroll wajah | `GET` `{{base_url}}/api/absensi/face-status` | Cek sudah daftar wajah atau belum |
+| Enroll wajah | `POST` `{{base_url}}/api/absensi/enroll-face` | Daftar wajah referensi (opsional) |
+| Verifikasi wajah | `POST` `{{base_url}}/api/absensi/verify-face` | Cek wajah sebelum submit (tanpa simpan presensi) |
 | Riwayat | `GET` `{{base_url}}/api/absensi/riwayat?bulan=2&tahun=2026` | Riwayat per bulan |
 
 ### Langkah 4: Submit presensi (POST /api/absensi/submit)
@@ -79,6 +87,7 @@ Atau gunakan **Authorization** tab → Type: **Bearer Token** → paste token (t
 - **Lokasi:** Pastikan `latitude` dan `longitude` dalam radius yang diizinkan (lihat dari `GET /api/absensi/config`).
 - **Fake GPS:** Jika `is_mock_location: true`, server akan menolak (403).
 - **Rate limit:** Maks 10 submit per menit per IP; jika 429, tunggu sebentar.
+- **Verifikasi wajah:** Setelah login, uji `GET /api/absensi/face-status` lalu `POST /api/absensi/enroll-face` sebelum submit — lihat [Panduan Tim Mobile](#verifikasi-wajah-insightface--panduan-tim-mobile).
 - **Datang vs rekap:** Satu kali submit **pertama** (datang) → data masuk ke **temporary_presensi**. Cek response: jika `"tipe": "datang"` artinya masuk temporary. Jika Anda submit **dua kali**, request kedua dianggap **pulang** → data dipindah ke **rekap_presensi** dan dihapus dari temporary. Jadi kalau Anda lihat data cuma di rekap, kemungkinan submit sudah dua kali. Untuk uji datang saja: submit **sekali**, lalu cek tabel **temporary_presensi** (koneksi **server_74**, lihat `.env` / `config/database.php`).
 
 ### Timezone (WIB) dan keterlambatan
@@ -179,12 +188,21 @@ Mengecek dari `temporary_presensi` dulu (presensi via API/web yang belum pulang)
   "data": {
     "status": "belum",
     "jam_datang": null,
-    "jam_pulang": null
+    "jam_pulang": null,
+    "record_tertinggal": null,
+    "presensi_belum_pulang": null
   }
 }
 ```
 
 `status`: `belum` | `datang` | `selesai`
+
+**Field tambahan:**
+
+| Field | Keterangan |
+|-------|------------|
+| `record_tertinggal` | Ada presensi datang hari sebelumnya tanpa pulang; `{ ada, jam_datang, tanggal, shift }` atau `null` |
+| `presensi_belum_pulang` | Baris `temporary_presensi` terbuka (belum pulang); `{ jam_datang, jam_datang_time, tanggal, shift, status, keterlambatan }` atau `null` |
 
 ---
 
@@ -248,9 +266,60 @@ Atau kirim **file** dengan `Content-Type: multipart/form-data`:
     "jam_datang": "2026-01-30T07:15:00+07:00",
     "status": "Terlambat Toleransi",
     "keterlambatan": "00:15:00"
+  },
+  "face_verification": {
+    "nik": "278.21.11.2018",
+    "nama": "Ahmad Subagiyo",
+    "status": "match",
+    "score": 99,
+    "verified": true,
+    "message": "Wajah terverifikasi: Ahmad Subagiyo"
   }
 }
 ```
+
+*Field `face_verification` selalu ada jika fitur InsightFace aktif di server. Verifikasi membandingkan foto dengan wajah referensi **pegawai yang login** (`nik` / `nama` dari akun token). Fase 1 (**soft mode**): **tidak pernah memblokir** presensi — lihat [Panduan Verifikasi Wajah — Tim Mobile](#verifikasi-wajah-insightface--panduan-tim-mobile) di bawah.*
+
+| Field | Arti |
+|-------|------|
+| `nik` | NIK pegawai yang login (identitas yang dicek) |
+| `nama` | Nama pegawai yang login — **tampilkan di UI** saat `verified: true` |
+| `status` | `skipped` \| `match` \| `mismatch` \| `error` |
+| `score` | Similarity `0`–`100` atau `null` |
+| `verified` | `true` hanya jika wajah cocok dengan akun login |
+| `message` | Teks siap tampil (toast/label), bisa `null` pada `error` |
+| `audit_notice` | *(mode soft + mismatch saja)* Peringatan audit SDI — tampilkan dialog konfirmasi |
+| `show_confirm_dialog` | *(mode soft + mismatch saja)* `true` → mobile tampilkan "Apakah yakin lanjut?" |
+
+| `face_verification.status` | Arti | Presensi |
+|----------------------------|------|----------|
+| `skipped` | Belum enroll wajah via API, atau fitur nonaktif | Tetap sukses |
+| `match` | Wajah cocok dengan pegawai login (`score` ≥ threshold, default 70) | Tetap sukses |
+| `mismatch` | Wajah tidak cocok — presensi **tetap sukses** (soft); tampilkan `audit_notice` | Tetap sukses |
+| `error` | InsightFace timeout / down / foto tidak valid | Tetap sukses |
+
+**Contoh response mismatch (soft) — presensi sukses + peringatan:**
+
+```json
+{
+  "success": true,
+  "message": "Presensi datang berhasil dicatat.",
+  "data": { "tipe": "datang", "..." : "..." },
+  "face_verification": {
+    "nik": "278.21.11.2018",
+    "nama": "Ahmad Subagiyo",
+    "status": "mismatch",
+    "score": 38,
+    "verified": false,
+    "message": "Wajah tidak cocok dengan Ahmad Subagiyo",
+    "audit_notice": "Wajah tidak cocok dengan data profil Anda. Apakah Anda yakin ingin melanjutkan presensi? Seluruh aktivitas presensi dapat diaudit oleh SDI.",
+    "show_confirm_dialog": true
+  }
+}
+```
+
+*Catatan UX:* Di mode soft, verifikasi server jalan **setelah** presensi tersimpan. Dialog `audit_notice` efektif jika mobile juga cek wajah **sebelum** kirim (descriptor lokal). Jika mismatch terdeteksi server setelah submit, mobile tetap bisa tampilkan peringatan + catat log audit.
+
 *Catatan: `status` dengan `" & PSW"` muncul saat **pulang** jika jam pulang aktual sebelum jam pulang jadwal.*
 
 **Response sukses pulang (200):**
@@ -264,10 +333,18 @@ Atau kirim **file** dengan `Content-Type: multipart/form-data`:
     "jam_pulang": "2026-01-30T15:05:00+07:00",
     "durasi": "07:50:00",
     "status": "Tepat Waktu & PSW"
+  },
+  "face_verification": {
+    "nik": "278.21.11.2018",
+    "nama": "Ahmad Subagiyo",
+    "status": "match",
+    "score": 97,
+    "verified": true,
+    "message": "Wajah terverifikasi: Ahmad Subagiyo"
   }
 }
 ```
-*PSW muncul jika pulang sebelum jam pulang jadwal.*
+*PSW muncul jika pulang sebelum jam pulang jadwal. `face_verification` juga dikirim saat **pulang** (informatif, soft mode).*
 
 **Response sukses pulang (closing record tertinggal) (200):**
 
@@ -376,6 +453,12 @@ Urutan yang dilakukan backend saat user memanggil **POST /api/absensi/submit**:
      - **PSW:** Saat pulang, jika jam pulang aktual < jam pulang jadwal, status ditambah `" & PSW"` (Pulang Sebelum Waktunya).  
      - **File:** foto disimpan di `public/presensi/{nama_file}` (dari `image` request).
 
+7. **Verifikasi wajah (soft, di luar transaksi)**  
+   - Setelah `DB::commit()` sukses, backend memanggil InsightFace dengan foto dari request yang sama.  
+   - Hasil ditambahkan ke response sebagai `face_verification` — **tidak memblokir** presensi.  
+   - Jika pegawai belum enroll (`pegawai_face_profiles` kosong) → `status: skipped`.  
+   - Log disimpan ke tabel `face_verification_logs` (mysql, internal — mobile tidak perlu baca).
+
 **Ringkasan tabel**
 
 | Tabel / sumber        | Dipakai untuk                    | Operasi        |
@@ -387,6 +470,8 @@ Urutan yang dilakukan backend saat user memanggil **POST /api/absensi/submit**:
 | `temporary_presensi`  | Datang → insert; pulang → update lalu copy ke rekap | Baca + tulis + hapus |
 | `rekap_presensi`      | Riwayat final (setelah pulang)    | Tulis          |
 | `set_keterlambatan`   | Status datang (tepat/terlambat)   | Baca           |
+| `pegawai_face_profiles` | Status enroll wajah (mysql)     | Baca + tulis (enroll) |
+| `face_verification_logs` | Log verify per presensi (mysql) | Tulis (internal) |
 | Config `presensi.*`   | Titik & radius lokasi             | Baca           |
 
 **PSW (Pulang Sebelum Waktunya)**  
@@ -436,7 +521,200 @@ Dengan demikian: **proteksi utama ada di backend**; front end hanya untuk pengal
 
 ---
 
-### 5. Riwayat presensi
+### 5. Enroll wajah (opsional — InsightFace)
+
+```http
+POST /api/absensi/enroll-face
+Authorization: Bearer {token}
+```
+
+Mendaftarkan wajah referensi pegawai yang login. Digunakan untuk verifikasi informatif saat presensi datang **dan** pulang.
+
+**Tidak wajib** — pegawai yang belum enroll tetap bisa absen (`face_verification.status = skipped`).
+
+**Body:** sama persis dengan submit presensi:
+
+| Field | Tipe | Wajib | Keterangan |
+|-------|------|-------|------------|
+| `image` | file atau string base64 | Ya | JPEG/PNG, max 2MB. Wajah harus terlihat jelas, menghadap kamera |
+
+**Opsi A — JSON base64:**
+```json
+{
+  "image": "data:image/jpeg;base64,/9j/4AAQ..."
+}
+```
+
+**Opsi B — multipart/form-data:**
+- Key `image`: type **File**, pilih foto selfie
+
+**Response sukses (200):**
+```json
+{
+  "success": true,
+  "message": "Wajah berhasil didaftarkan.",
+  "data": {
+    "nik": "278.21.11.2018",
+    "nama": "Ahmad Subagiyo",
+    "face_enrolled": true,
+    "enrolled_at": "2026-06-07T10:00:00+07:00"
+  }
+}
+```
+
+**Response validasi gagal (422):**
+```json
+{
+  "success": false,
+  "message": "Data tidak valid.",
+  "errors": {
+    "image": ["Foto wajah wajib diunggah."]
+  }
+}
+```
+
+**Response enroll gagal (422):**
+```json
+{
+  "success": false,
+  "message": "Gagal mendaftarkan wajah. Pastikan wajah terlihat jelas."
+}
+```
+
+Pesan `message` lain yang mungkin muncul:
+
+| Pesan | Penyebab |
+|-------|----------|
+| `Fitur verifikasi wajah belum diaktifkan.` | `INSIGHTFACE_ENABLED=false` di server |
+| `Layanan verifikasi wajah tidak tersedia.` | Server InsightFace down / timeout |
+| `Gagal mendaftarkan wajah. Pastikan wajah terlihat jelas.` | Foto tidak terdeteksi wajah |
+
+**Re-enroll (ganti foto wajah):** panggil endpoint yang sama lagi dengan foto baru. Backend otomatis menghapus wajah lama di InsightFace lalu upload ulang (overwrite).
+
+---
+
+### 6. Verifikasi wajah (sebelum presensi)
+
+```http
+POST /api/absensi/verify-face
+Authorization: Bearer {token}
+```
+
+Memanggil InsightFace **tanpa menyimpan presensi** — untuk cek wajah **sebelum** `POST /submit`. Mobile panggil endpoint ini setelah liveness + ambil foto, lalu baru kirim submit jika `face_verification.verified === true` (atau tampilkan dialog audit jika mismatch di mode soft).
+
+**Body:** sama seperti enroll/submit — field `image` (multipart file atau base64 JSON).
+
+**Response — wajah cocok (200):**
+```json
+{
+  "success": true,
+  "message": "Wajah terverifikasi: Ahmad Subagiyo",
+  "min_score": 70,
+  "data": {
+    "nik": "278.21.11.2018",
+    "nama": "Ahmad Subagiyo",
+    "status": "match",
+    "score": 92,
+    "verified": true,
+    "message": "Wajah terverifikasi: Ahmad Subagiyo"
+  },
+  "face_verification": { "...": "sama dengan data (backward compat)" }
+}
+```
+
+**Response — wajah tidak cocok (200, preview — bukan gate submit):**
+```json
+{
+  "success": true,
+  "message": "Wajah tidak cocok dengan Ahmad Subagiyo",
+  "data": {
+    "status": "mismatch",
+    "score": 38,
+    "verified": false,
+    "audit_notice": "...",
+    "show_confirm_dialog": true
+  }
+}
+```
+
+**Response — belum enroll (200):**
+```json
+{
+  "success": true,
+  "message": "Wajah belum didaftarkan. Daftarkan wajah di Profil terlebih dahulu.",
+  "face_verification": {
+    "status": "skipped",
+    "verified": false
+  }
+}
+```
+
+| Field | Keterangan |
+|-------|------------|
+| `min_score` | Ambang server (`INSIGHTFACE_MIN_SCORE`) — skala **0–100**, bukan 0–1 |
+| `face_verification` | Struktur sama dengan field di response `submit` |
+
+**Alur mobile disarankan:**
+
+```
+1. Liveness (kedip, tekstur) di kamera
+2. POST /api/absensi/verify-face  ← cek di sini
+3. Jika verified → POST /api/absensi/submit
+4. Jika mismatch + soft → dialog audit_notice, user putuskan lanjut/tidak
+```
+
+**Tips enroll vs absen:** Jika verify-face sering `mismatch` padahal wajah sendiri, **re-enroll** di Profil dengan selfie yang mirip kondisi saat absen (cahaya, sudut, kacamata).
+
+---
+
+### 7. Status enroll wajah
+
+```http
+GET /api/absensi/face-status
+Authorization: Bearer {token}
+```
+
+Cek apakah pegawai yang login sudah mendaftarkan wajah. Tidak perlu kirim body.
+
+**Response — sudah enroll (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "nik": "278.21.11.2018",
+    "nama": "Ahmad Subagiyo",
+    "face_enrolled": true,
+    "enrolled_at": "2026-06-07T10:00:00+07:00",
+    "verify_mode": "soft"
+  }
+}
+```
+
+**Response — belum enroll (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "nik": "278.21.11.2018",
+    "nama": "Ahmad Subagiyo",
+    "face_enrolled": false,
+    "enrolled_at": null,
+    "verify_mode": "soft"
+  }
+}
+```
+
+| Field | Tipe | Keterangan |
+|-------|------|------------|
+| `nik` | string | NIK pegawai yang login |
+| `nama` | string | Nama lengkap pegawai — untuk label di screen Profil |
+| `face_enrolled` | boolean | `true` jika pegawai pernah sukses `POST /enroll-face` |
+| `enrolled_at` | string ISO8601 atau `null` | Waktu enroll terakhir (timezone WIB, contoh `+07:00`) |
+| `verify_mode` | string | Fase 1 selalu `"soft"` — verifikasi **informatif**, tidak memblokir presensi |
+
+---
+
+### 8. Riwayat presensi
 
 ```http
 GET /api/absensi/riwayat?bulan=1&tahun=2026
@@ -469,6 +747,321 @@ Query: `bulan` (1-12), `tahun`. Default: bulan dan tahun saat ini.
 
 ---
 
+## Verifikasi Wajah (InsightFace) — Panduan Tim Mobile
+
+> **Dokumen lengkap frontend:** [`docs/FRONTEND_INSIGHTFACE_PRESENSI.md`](docs/FRONTEND_INSIGHTFACE_PRESENSI.md) — capture shutter in-memory, alur UX, liveness, contoh TypeScript, checklist QA.  
+> Spesifikasi backend & status implementasi: [`docs/BACKEND_INSIGHTFACE_PRESENSI.md`](docs/BACKEND_INSIGHTFACE_PRESENSI.md).  
+> Referensi uji lab Python (verify 1:1): [`docs/refpytonbyverif.md`](docs/refpytonbyverif.md).
+
+Dokumen ini untuk **tim frontend mobile** yang mengintegrasikan fitur verifikasi wajah ke aplikasi presensi.
+
+### Ringkasan fitur
+
+| Aspek | Perilaku fase 1 (production saat ini) |
+|-------|---------------------------------------|
+| Enroll wajah | **Opsional** — pegawai boleh absen tanpa enroll |
+| Kapan verify | Setiap **datang** dan **pulang** (setelah presensi sukses) |
+| Mode | **`soft`** — mismatch/error **tidak memblokir** presensi |
+| Threshold | Skor similarity `0–100`; default server: **≥ 70** = match |
+| Auth | Bearer token Sanctum (sama dengan presensi) |
+| Format foto | Sama dengan submit presensi: JPEG/PNG, max 2MB, base64 atau multipart |
+
+### Alur UX yang disarankan
+
+```mermaid
+flowchart TD
+    A[Buka Profil / Pengaturan] --> B{GET /face-status}
+    B -->|face_enrolled: false| C[Tampilkan banner: Daftarkan wajah]
+    B -->|face_enrolled: true| D[Tampilkan: Wajah terdaftar + tanggal]
+    C --> E[Tombol: Daftarkan Wajah]
+    E --> F[Ambil foto selfie]
+    F --> G[POST /enroll-face]
+    G -->|success| H[Toast: Wajah berhasil didaftarkan]
+    G -->|error| I[Toast error + coba lagi]
+    J[Tombol Presensi] --> K[POST /submit foto + lokasi]
+    K --> L{face_verification.status}
+    L -->|match| M[Toast info: Verifikasi wajah OK]
+    L -->|mismatch| N[Toast peringatan soft — presensi tetap sukses]
+    L -->|skipped| O[Tidak perlu toast khusus]
+    L -->|error| P[Abaikan atau toast ringan — presensi tetap sukses]
+```
+
+**Prioritas implementasi:**
+
+1. **Wajib:** tidak mengubah alur submit presensi yang sudah ada — tetap kirim `image`, `latitude`, `longitude`.
+2. **Disarankan:** screen Profil dengan enroll + status wajah.
+3. **Opsional:** toast informatif setelah submit berdasarkan `face_verification`.
+
+### Endpoint yang dipakai mobile
+
+| Urutan | Method | Endpoint | Kapan dipanggil |
+|--------|--------|----------|-----------------|
+| 1 | `GET` | `/api/absensi/face-status` | Saat buka Profil; optional sebelum presensi |
+| 2 | `POST` | `/api/absensi/enroll-face` | Saat pegawai daftar / ganti foto wajah |
+| 3 | `POST` | `/api/absensi/verify-face` | **Sebelum submit** — cek wajah tanpa simpan presensi |
+| 4 | `POST` | `/api/absensi/submit` | Presensi datang/pulang (foto + lokasi) |
+
+Semua endpoint memerlukan header:
+
+```http
+Authorization: Bearer {token}
+```
+
+### Format field `image` (enroll & submit)
+
+Mobile app **boleh** memakai salah satu format (konsisten dengan presensi yang sudah jalan):
+
+**Multipart (disarankan untuk React Native / Flutter):**
+```
+Content-Type: multipart/form-data
+
+image: [file binary]
+latitude: -7.4856        ← hanya untuk submit, bukan enroll
+longitude: 112.6527      ← hanya untuk submit
+```
+
+**JSON base64:**
+```json
+{
+  "image": "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
+}
+```
+
+| Aturan | Nilai |
+|--------|-------|
+| Format | JPEG, JPG, PNG |
+| Ukuran max | 2 MB |
+| Enroll | Satu wajah menghadap kamera, pencahayaan cukup, tidak pakai masker/kacamata gelap |
+| Submit | Foto selfie saat presensi (backend simpan ke `public/presensi/` **dan** kirim ke InsightFace untuk verify) |
+
+### Field `face_verification` pada response submit
+
+Setelah presensi **berhasil** (`success: true`, HTTP 200), response JSON memiliki field tambahan di root:
+
+```json
+{
+  "success": true,
+  "message": "Presensi datang berhasil dicatat.",
+  "data": { "tipe": "datang", ... },
+  "face_verification": {
+    "nik": "278.21.11.2018",
+    "nama": "Ahmad Subagiyo",
+    "status": "match",
+    "score": 99,
+    "verified": true,
+    "message": "Wajah terverifikasi: Ahmad Subagiyo"
+  }
+}
+```
+
+**Penting untuk mobile:**
+
+- Verifikasi membandingkan foto dengan wajah referensi **akun yang login** — `nik` dan `nama` selalu identitas pegawai tersebut, bukan orang lain.
+- Verifikasi dijalankan **setelah** presensi tersimpan — presensi **tidak pernah** dibatalkan karena wajah tidak cocok.
+- Field ini ada untuk **datang** dan **pulang** (jika pegawai sudah enroll).
+- Jangan gunakan `face_verification` untuk menentukan sukses/gagal presensi — gunakan `success` seperti biasa.
+- Untuk menampilkan nama di UI: pakai `face_verification.message` atau `face_verification.nama` jika `verified === true`.
+
+**Contoh handling di client (pseudo-code):**
+
+```javascript
+const res = await submitPresensi(formData);
+if (!res.success) {
+  showError(res.message);
+  return;
+}
+// Presensi sukses — tampilkan pesan utama
+showSuccess(res.message);
+
+const fv = res.face_verification;
+if (fv?.verified) {
+  // Tampilkan nama pegawai yang terverifikasi
+  showInfo(fv.message); // "Wajah terverifikasi: Ahmad Subagiyo"
+  // atau: showBadge(`✓ ${fv.nama} (${fv.score}%)`);
+} else if (fv?.status === 'mismatch') {
+  showWarning(fv.message ?? `Wajah tidak cocok dengan ${fv.nama}`);
+}
+// skipped / error → tidak perlu aksi khusus
+```
+
+### Mapping status → UI
+
+| `face_verification.status` | `verified` | Tampilan UI disarankan | Blokir presensi? |
+|----------------------------|------------|------------------------|------------------|
+| `match` | `true` | Toast/badge: `message` atau "✓ {nama}" | Tidak |
+| `mismatch` | `false` | Peringatan: `message` | **Tidak** |
+| `skipped` | `false` | Banner enroll di Profil (`nama` tetap ada) | Tidak |
+| `error` | `false` | Abaikan atau toast abu-abu ringan | Tidak |
+
+### Screen Profil — enroll wajah
+
+**Saat mount / focus:**
+1. `GET /api/absensi/face-status`
+2. Jika `face_enrolled === false` → tampilkan CTA "Daftarkan Wajah"
+3. Jika `face_enrolled === true` → tampilkan "Terdaftar sejak {enrolled_at}" + tombol "Perbarui Foto Wajah"
+
+**Saat submit enroll:**
+1. Ambil foto dari kamera (front camera)
+2. `POST /api/absensi/enroll-face` dengan field `image`
+3. Sukses → refresh `face-status`, tampilkan `message` dari response
+4. Gagal → tampilkan `message` (422)
+
+**Re-enroll:** panggil `POST /enroll-face` lagi — tidak perlu endpoint hapus terpisah.
+
+### Yang **tidak** perlu dilakukan mobile
+
+- ❌ Memanggil server InsightFace (`192.168.10.44:6700`) langsung — semua lewat Laravel API
+- ❌ Memblokir tombol presensi jika `face_enrolled === false`
+- ❌ Membatalkan / hide sukses presensi jika `face_verification.status === 'mismatch'`
+- ❌ Mengirim NIK manual — backend pakai NIK pegawai dari token login
+- ❌ Endpoint terpisah untuk verify — verify otomatis di dalam `submit`
+
+### Testing checklist (QA mobile)
+
+| # | Skenario | Expected |
+|---|----------|----------|
+| 1 | Login → `GET face-status` belum enroll | `face_enrolled: false` |
+| 2 | `POST enroll-face` foto valid | HTTP 200, `face_enrolled: true` |
+| 3 | `GET face-status` setelah enroll | `face_enrolled: true`, `enrolled_at` terisi |
+| 4 | `POST submit` datang (foto sama) | `success: true`, `face_verification.status: match`, `score` tinggi |
+| 5 | `POST submit` pulang | Sama, ada `face_verification` |
+| 6 | Pegawai belum enroll → submit | `face_verification.status: skipped` |
+| 7 | Re-enroll foto baru → submit | Tetap `match` jika wajah sama |
+| 8 | Enroll tanpa foto | HTTP 422, errors.image |
+
+### Contoh cURL (untuk debugging)
+
+**Face status:**
+```bash
+curl -s -H "Authorization: Bearer {token}" \
+  "https://sikat.example.com/api/absensi/face-status"
+```
+
+**Enroll (multipart):**
+```bash
+curl -s -X POST -H "Authorization: Bearer {token}" \
+  -F "image=@selfie.jpg" \
+  "https://sikat.example.com/api/absensi/enroll-face"
+```
+
+**Submit presensi (sudah ada — dengan face verify otomatis):**
+```bash
+curl -s -X POST -H "Authorization: Bearer {token}" \
+  -F "image=@selfie.jpg" \
+  -F "latitude=-7.4856" \
+  -F "longitude=112.6527" \
+  -F "is_mock_location=false" \
+  "https://sikat.example.com/api/absensi/submit"
+```
+
+### Mode `strict` (selaras dengan app mobile ketat)
+
+Jika server `.env` memakai `FACE_VERIFY_MODE=strict`, backend **menolak** presensi sebelum data ditulis ke database:
+
+```env
+FACE_VERIFY_MODE=strict
+```
+
+| Situasi | HTTP | `success` | Presensi tersimpan? |
+|---------|------|-----------|---------------------|
+| Belum enroll wajah | 403 | `false` | ❌ |
+| Wajah tidak cocok (`mismatch`) | 403 | `false` | ❌ |
+| InsightFace error | 403 | `false` | ❌ |
+| Wajah cocok (`verified: true`) | 200 | `true` | ✅ |
+
+**Response ditolak (403):**
+```json
+{
+  "success": false,
+  "message": "Wajah tidak cocok dengan Ahmad Subagiyo",
+  "face_rejected": true,
+  "face_verification": {
+    "nik": "278.21.11.2018",
+    "nama": "Ahmad Subagiyo",
+    "status": "mismatch",
+    "score": 42,
+    "verified": false,
+    "message": "Wajah tidak cocok dengan Ahmad Subagiyo"
+  }
+}
+```
+
+**Koordinasi frontend ↔ backend:**
+
+| Lapisan | Tanggung jawab |
+|---------|----------------|
+| Mobile — liveness (kedip, tekstur) | Anti foto cetak **sebelum** foto dikirim |
+| Mobile — descriptor 1:1 lokal | Blokir submit di UI jika tidak cocok |
+| Backend — `strict` | Tolak di server jika InsightFace mismatch / belum enroll |
+| Backend — InsightFace | Verifikasi 1:1 terhadap NIK login (bukan deteksi foto cetak) |
+
+**Rekomendasi deploy:** aktifkan `strict` di server **setelah** mayoritas pegawai enroll wajah + app mobile versi liveness sudah production.
+
+Mode `soft` (default) tetap tersedia untuk rollback.
+
+---
+
+## Uji mode `soft` (verifikasi + peringatan audit)
+
+Pastikan `.env`:
+
+```env
+FACE_VERIFY_MODE=soft
+INSIGHTFACE_ENABLED=true
+INSIGHTFACE_MIN_SCORE=70
+```
+
+```bash
+php artisan config:clear
+```
+
+### Skenario uji
+
+| # | Langkah | Hasil yang diharapkan |
+|---|---------|------------------------|
+| 1 | Login → `GET /api/absensi/face-status` | `verify_mode: "soft"` |
+| 2 | `POST /api/absensi/enroll-face` (foto A) | `face_enrolled: true` |
+| 3 | `POST /api/absensi/submit` (foto A sama) | `success: true`, `verified: true`, `status: match` |
+| 4 | `POST /api/absensi/submit` (foto orang lain B) | `success: true`, `verified: false`, `status: mismatch`, ada `audit_notice` |
+| 5 | Pegawai belum enroll → submit | `success: true`, `status: skipped` (tanpa `audit_notice`) |
+
+Presensi **selalu sukses** di skenario 3–5; yang beda hanya isi `face_verification`.
+
+### Contoh cURL uji mismatch
+
+```bash
+TOKEN="Bearer ..."
+# Enroll wajah sendiri
+curl -s -X POST -H "Authorization: $TOKEN" \
+  -F "image=@foto_saya.jpg" \
+  "https://domain/api/absensi/enroll-face"
+
+# Submit dengan foto orang lain (uji mismatch)
+curl -s -X POST -H "Authorization: $TOKEN" \
+  -F "image=@foto_orang_lain.jpg" \
+  -F "latitude=-7.4856" \
+  -F "longitude=112.6527" \
+  "https://domain/api/absensi/submit"
+```
+
+Cek response: `face_verification.audit_notice` dan `show_confirm_dialog: true`.
+
+### Peringatan audit SDI (mobile)
+
+Backend mengirim teks peringatan saat mismatch (soft). Mobile **disarankan**:
+
+1. **Sebelum submit** — jika descriptor lokal tidak cocok, tampilkan dialog:
+   > "Maaf, wajah tidak cocok. Apakah Anda yakin melanjutkan? Anda dapat diaudit oleh SDI."
+2. **Setelah submit** — jika `show_confirm_dialog: true`, tampilkan `audit_notice` (meski presensi sudah sukses — efek psikologis + jejak audit).
+
+Teks peringatan bisa diubah di `.env`:
+
+```env
+FACE_SOFT_MISMATCH_AUDIT_NOTICE="Maaf wajah tidak cocok. Apakah Anda yakin akan mengirimnya? Apakah Anda siap jika dilakukan audit oleh SDI?"
+```
+
+---
+
 ## Ringkasan endpoint
 
 | Method | Endpoint | Keterangan |
@@ -478,7 +1071,10 @@ Query: `bulan` (1-12), `tahun`. Default: bulan dan tahun saat ini.
 | GET | `/api/absensi/jadwal-hari-ini` | Jadwal shift hari ini |
 | GET | `/api/absensi/status-hari-ini` | Status presensi hari ini |
 | GET | `/api/absensi/config` | Titik presensi & radius |
-| POST | `/api/absensi/submit` | Submit presensi (foto + lokasi + is_mock_location) |
+| POST | `/api/absensi/submit` | Submit presensi (foto + lokasi + is_mock_location); response opsional `face_verification` |
+| POST | `/api/absensi/enroll-face` | Enroll wajah (InsightFace) |
+| POST | `/api/absensi/verify-face` | Verifikasi wajah saja — sebelum submit, tanpa simpan presensi |
+| GET | `/api/absensi/face-status` | Status enroll + `verify_mode` |
 | GET | `/api/absensi/riwayat` | Riwayat presensi (query: bulan, tahun) |
 
 Semua endpoint di bawah `/api/absensi/` dan `/api/logout` memerlukan header `Authorization: Bearer {token}`.
@@ -571,3 +1167,4 @@ Dengan token dari login di atas, pegawai juga bisa mengakses:
 - **API Profil** — lihat dan ubah profil pegawai (data pribadi, foto, berkas): [API_PROFIL.md](API_PROFIL.md)
 - **API Surat Masuk** — baca daftar dan detail surat masuk (read-only): [API_SURAT_MASUK.md](API_SURAT_MASUK.md)
 - **API Absensi Agenda** — scan barcode/QR untuk kehadiran rapat: [API_ABSENSI_AGENDA.md](API_ABSENSI_AGENDA.md)
+- **Verifikasi wajah (InsightFace, soft mode)** — panduan mobile: [`docs/FRONTEND_INSIGHTFACE_PRESENSI.md`](docs/FRONTEND_INSIGHTFACE_PRESENSI.md) · ringkasan API: [Panduan Tim Mobile](#verifikasi-wajah-insightface--panduan-tim-mobile) · backend: [`docs/BACKEND_INSIGHTFACE_PRESENSI.md`](docs/BACKEND_INSIGHTFACE_PRESENSI.md)

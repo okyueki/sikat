@@ -19,7 +19,8 @@ class MasjidTokenController extends Controller
      */
     public function index(Request $request)
     {
-        $tokenAktif = MasjidToken::where('valid_until', '>', now())
+        $tokenAktif = MasjidToken::where('is_active', true)
+            ->where('valid_until', '>', now())
             ->orderBy('valid_until', 'desc')
             ->first();
 
@@ -53,12 +54,13 @@ class MasjidTokenController extends Controller
         $validUntil = Carbon::parse($request->valid_until)->endOfDay();
 
         // Nonaktifkan semua token lama (supaya hanya satu yang aktif)
-        MasjidToken::query()->update(['valid_until' => now()]);
+        MasjidToken::query()->update(['is_active' => false]);
 
         $token = Str::random(48);
         MasjidToken::create([
             'token' => $token,
             'valid_until' => $validUntil,
+            'is_active' => true,
         ]);
 
         return redirect()

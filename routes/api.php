@@ -65,6 +65,9 @@ Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('absensi')->gro
     Route::get('/config', [App\Http\Controllers\Api\AbsensiController::class, 'config']);
     Route::get('/riwayat', [App\Http\Controllers\Api\AbsensiController::class, 'riwayat']);
     Route::post('/submit', [App\Http\Controllers\Api\AbsensiController::class, 'submit']);
+    Route::post('/enroll-face', [App\Http\Controllers\Api\AbsensiController::class, 'enrollFace']);
+    Route::post('/verify-face', [App\Http\Controllers\Api\AbsensiController::class, 'verifyFace']);
+    Route::get('/face-status', [App\Http\Controllers\Api\AbsensiController::class, 'faceStatus']);
 });
 
 // API Absensi Sholat (QR + geolocation masjid) - config dari config/masjid.php

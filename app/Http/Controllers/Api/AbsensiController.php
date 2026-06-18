@@ -18,6 +18,7 @@ use App\Models\JadwalPegawai;
 use App\Models\JadwalTambahan;
 use App\Models\SetKeterlambatan;
 use App\Models\AuditTrail;
+use App\Services\FaceVerificationService;
 use Carbon\Carbon;
 
 class AbsensiController extends Controller
@@ -225,6 +226,13 @@ class AbsensiController extends Controller
             ], 400);
         }
 
+        $faceService = app(FaceVerificationService::class);
+        $faceGate = $faceService->gateSubmit($pegawai, $request);
+        if (!$faceGate['allowed']) {
+            return response()->json($faceGate['response'], 403);
+        }
+        $preVerifiedFace = $faceGate['face_verification'] ?? null;
+
         DB::beginTransaction();
         try {
             $today = Carbon::today('Asia/Jakarta');
@@ -334,6 +342,10 @@ class AbsensiController extends Controller
             }
 
             DB::commit();
+
+            // Face verify — strict: sudah dicek sebelum transaksi; soft: informatif setelah commit
+            $result = $faceService->finalizeSubmitResponse($pegawai, $request, $result, $preVerifiedFace);
+
             return response()->json($result);
 
         } catch (\Exception $e) {
@@ -348,6 +360,92 @@ class AbsensiController extends Controller
                 'message' => 'Terjadi kesalahan saat memproses presensi.',
             ], 500);
         }
+    }
+
+    /**
+     * POST /api/absensi/enroll-face
+     * Enroll wajah referensi (opsional). Body image: file atau base64 (sama seperti submit).
+     */
+    public function enrollFace(Request $request)
+    {
+        $pegawai = $this->getPegawaiFromAuth();
+        if ($pegawai instanceof \Illuminate\Http\JsonResponse) {
+            return $pegawai;
+        }
+
+        $validator = Validator::make($request->all(), [
+            'image' => 'required',
+        ], [
+            'image.required' => 'Foto wajah wajib diunggah.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data tidak valid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $result = app(FaceVerificationService::class)->enroll($pegawai, $request);
+        $status = $result['success'] ? 200 : 422;
+
+        return response()->json($result, $status);
+    }
+
+    /**
+     * POST /api/absensi/verify-face
+     * Cek wajah vs InsightFace tanpa simpan presensi (panggil sebelum submit).
+     */
+    public function verifyFace(Request $request)
+    {
+        $pegawai = $this->getPegawaiFromAuth();
+        if ($pegawai instanceof \Illuminate\Http\JsonResponse) {
+            return $pegawai;
+        }
+
+        $validator = Validator::make($request->all(), [
+            'image' => 'required',
+        ], [
+            'image.required' => 'Foto wajah wajib diunggah.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Foto tidak valid atau wajah tidak terdeteksi.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $result = app(FaceVerificationService::class)->verifyOnly($pegawai, $request);
+        $fv = $result['face_verification'] ?? [];
+
+        // Preview UI: selalu HTTP 200 (kecuali 422) — match/mismatch/skipped/error
+        return response()->json([
+            'success' => (bool) ($result['success'] ?? true),
+            'message' => $result['message'] ?? '',
+            'data' => $fv,
+            'face_verification' => $fv,
+            'min_score' => $result['min_score'] ?? (float) config('insightface.min_score', 70),
+        ], 200);
+    }
+
+    /**
+     * GET /api/absensi/face-status
+     * Status enroll wajah + verify_mode.
+     */
+    public function faceStatus(Request $request)
+    {
+        $pegawai = $this->getPegawaiFromAuth();
+        if ($pegawai instanceof \Illuminate\Http\JsonResponse) {
+            return $pegawai;
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => app(FaceVerificationService::class)->statusPayload($pegawai),
+        ]);
     }
 
     /**

@@ -10,6 +10,9 @@ class JadwalPegawai extends Model
     protected $connection = 'server_74';
     protected $table = 'jadwal_pegawai';
     public $timestamps = false;
+    public $incrementing = false;
+
+    /** @var string Primary key DB: (id, tahun, bulan) — jangan pakai save()/update() pada instance model. */
 
     // Kolom yang bisa diisi secara massal
     protected $fillable = [
