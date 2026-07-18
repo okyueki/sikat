@@ -49,19 +49,16 @@
                                     <i class="fas fa-chart-bar"></i> Rekap Absensi
                                 </a>
                                 @endcan
-                                <a href="{{ route('agenda.pdf', $agenda->id) }}" target="_blank" class="btn btn-danger">
-                                    <i class="fas fa-file-pdf"></i> Download PDF
-                                </a>
                             @else
                                 @can('absensi_agenda.access')
                                 <span class="btn btn-info me-2 disabled" title="Tersedia setelah acara selesai">
                                     <i class="fas fa-chart-bar"></i> Rekap Absensi
                                 </span>
                                 @endcan
-                                <span class="btn btn-danger disabled" title="Tersedia setelah acara selesai">
-                                    <i class="fas fa-file-pdf"></i> Download PDF
-                                </span>
                             @endif
+                            <a href="{{ route('agenda.pdf', $agenda->id) }}" target="_blank" class="btn btn-danger">
+                                <i class="fas fa-file-pdf"></i> Download Undangan
+                            </a>
                         </div>
                     </div>
 

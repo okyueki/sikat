@@ -24,6 +24,7 @@ class Agenda extends Model
         'pimpinan_rapat',
         'notulen',
         'yang_terundang',
+        'kepada_undangan',
         'foto',
         'materi',
         'keterangan',
@@ -129,5 +130,17 @@ class Agenda extends Model
     public function semuaMateri()
     {
         return $this->hasMany(AgendaMateri::class, 'agenda_id');
+    }
+
+    public static function defaultKepadaUndangan(): string
+    {
+        return "Kepada Yth.\nYang tersebut dalam lampiran surat ini\ndi tempat";
+    }
+
+    public function kepadaUndanganForPdf(): string
+    {
+        $text = trim((string) ($this->kepada_undangan ?? ''));
+
+        return $text !== '' ? $text : self::defaultKepadaUndangan();
     }
 }

@@ -3,6 +3,10 @@
 @section('pageTitle', isset($pageTitle) ? $pageTitle . $title :  $title)
 
 @section('content')
+@php
+    $kirimProsesRoute = $kirimProsesRoute ?? route('surat_keluar.kirimSuratProses');
+    $isMemoInternal = $isMemoInternal ?? false;
+@endphp
         <div class="row">
             <div class="col-xl-12">
                 <div class="card custom-card">
@@ -11,7 +15,7 @@
                             <li class="nav-item">
                                 <a class="nav-link active" data-bs-toggle="tab" href="#home" role="tab">
                                     <span class="d-block d-sm-none"><i class="fas fa-home"></i></span>
-                                    <span class="d-none d-sm-block">Kirim Surat Keluar</span>    
+                                    <span class="d-none d-sm-block">{{ $isMemoInternal ? 'Kirim Memo Internal' : 'Kirim Surat Keluar' }}</span>
                                 </a>
                              </li>
                             <li class="nav-item">
@@ -111,10 +115,12 @@
                                                 </div>
                                             </li>
                                         </ol>
+                                        @unless($isMemoInternal)
                                         <a class="btn btn-info waves-effect waves-light edit" href="{{ route('surat_keluar.edit', $surat->id_surat) }}"><i class="far fa-edit"></i> Edit Surat</a>
+                                        @endunless
                                     </div>
                                     <hr>
-                                    <form action="{{ route('surat_keluar.kirimSuratProses') }}" method="POST" enctype="multipart/form-data">
+                                    <form action="{{ $kirimProsesRoute }}" method="POST" enctype="multipart/form-data">
                                         @csrf
                                 
                                         <input type="hidden" name="id_surat" value="{{ $surat->id_surat }}">

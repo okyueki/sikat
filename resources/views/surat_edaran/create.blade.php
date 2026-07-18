@@ -3,7 +3,10 @@
 @section('pageTitle', isset($pageTitle) ? $pageTitle . $title : $title)
 
 @section('content')
-@php($routePrefix = $routePrefix ?? 'surat_edaran')
+@php
+    $routePrefix = $routePrefix ?? 'surat_edaran';
+    $numberHint = $numberFormatHint ?? "RS'ASF/EDR/urut/III.6.AU/I/bulan/tahun";
+@endphp
 <div class="row">
     <div class="col-xl-12">
         <div class="card custom-card">
@@ -29,9 +32,20 @@
                                 <input type="text" name="judul_surat" id="judul_surat" class="form-control" value="{{ old('judul_surat') }}" required>
                             </div>
                             <div class="mb-3">
-                                <label for="nomor_surat" class="form-label">Nomor Surat</label>
-                                <input type="text" name="nomor_surat" id="nomor_surat" class="form-control" value="{{ old('nomor_surat') }}">
+                                <label for="preview_nomor_surat" class="form-label">Nomor Surat</label>
+                                <input type="text" id="preview_nomor_surat" class="form-control bg-light" value="{{ $previewNomorSurat ?? '' }}" readonly>
+                                <small class="text-muted">Dibuat otomatis saat simpan. Format: {{ $numberHint }}</small>
                             </div>
+                            @if(!empty($hasMasaBerlaku))
+                            <div class="mb-3">
+                                <label for="tanggal_mulai_berlaku" class="form-label">Tanggal mulai berlaku <span class="text-danger">*</span></label>
+                                <input type="date" name="tanggal_mulai_berlaku" id="tanggal_mulai_berlaku" class="form-control" value="{{ old('tanggal_mulai_berlaku') }}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="tanggal_berakhir_berlaku" class="form-label">Tanggal berakhir berlaku <span class="text-danger">*</span></label>
+                                <input type="date" name="tanggal_berakhir_berlaku" id="tanggal_berakhir_berlaku" class="form-control" value="{{ old('tanggal_berakhir_berlaku') }}" required>
+                            </div>
+                            @endif
                             <div class="mb-3">
                                 <label for="tanggal" class="form-label">Tanggal <span class="text-danger">*</span></label>
                                 <input type="date" name="tanggal" id="tanggal" class="form-control" value="{{ old('tanggal', date('Y-m-d')) }}" required>
@@ -98,6 +112,7 @@
                                     <div class="text-danger small mt-1">{{ $message }}</div>
                                 @enderror
                             </div>
+                            @include('surat_edaran.partials.stirling-ui-panel')
                         </div>
                     </div>
                     <hr>

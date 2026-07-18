@@ -27,4 +27,9 @@ class FaceVerificationLog extends Model
         'jam_datang' => 'datetime',
         'created_at' => 'datetime',
     ];
+
+    public function resolvePegawai(): ?Pegawai
+    {
+        return Pegawai::find($this->pegawai_id);
+    }
 }

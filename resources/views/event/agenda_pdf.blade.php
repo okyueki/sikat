@@ -7,12 +7,31 @@
     <style>
         @page {
             size: A4;
-            margin: 0 1.2cm;
+            margin: 0 1.1cm 1.6cm 1.1cm;
         }
         body {
             font-family: 'Times New Roman', serif;
             font-size: 12pt;
             line-height: 0.9;
+        }
+        /* ===================================================== */
+        /* FOOTER ALAMAT — muncul otomatis di SETIAP halaman.     */
+        /* dompdf mendukung position: fixed untuk elemen yang     */
+        /* diulang di tiap halaman (beda dari CSS Paged Media     */
+        /* standar @page margin box yang tidak didukung dompdf).  */
+        /* ===================================================== */
+        .page-footer {
+            position: fixed;
+            bottom: -1.3cm;
+            left: 0;
+            right: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 9pt;
+            font-family: 'Times New Roman', serif;
+            color: #333333;
+            border-top: 1px solid #888888;
+            padding-top: 0.2cm;
         }
         .container-fluid {
             width: 100%;
@@ -65,7 +84,7 @@
         p, h3, h4 {
             padding: 0;
             margin: 0;
-            line-height: 1.6;
+            line-height: 1.5;
         }
         .table-borderless {
             width: 100%;
@@ -97,24 +116,31 @@
             font-weight: bold;
             text-align: center;
         }
-        .two-columns {
-            display: flex;
-            flex-wrap: wrap;
+        /* PENTING untuk dompdf: th harus diulang di setiap halaman baru,
+           dan baris (tr) tidak boleh terpotong di tengah antar halaman */
+        .table-bordered thead {
+            display: table-header-group;
         }
-        .column {
-            flex: 1;
-            min-width: 45%;
-            padding: 0 10px;
+        .table-bordered tr {
+            page-break-inside: avoid;
         }
         .indent {
-            text-indent: 2.5cm;
+            text-indent: 1cm;
         }
         .signature-section {
             margin-top: 1.5rem;
         }
+        /* Pemisah halaman lampiran: elemen kosong terpisah,
+           BUKAN membungkus judul+tabel jadi satu blok */
+        .page-break {
+            page-break-before: always;
+        }
     </style>
 </head>
 <body>
+    <div class="page-footer">
+        Jl. Raya Kenongo No.14, RT.01/RW.01, Kenongo, Kec. Tulangan, Kabupaten Sidoarjo, Jawa Timur 61273
+    </div>
     <div class="a4">
         <div class="container-fluid">
             <div class="row mt-3">
@@ -127,8 +153,8 @@
                 <div class="col-12">
                     <table class="table-borderless">
                         <tr>
-                            <td style="width: 100px;">Nomor</td>
-                            <td style="width: 20px;">:</td>
+                            <td style="width: 50px;">Nomor</td>
+                            <td style="width: 10px;">:</td>
                             <td>{{ $agenda->nomor_agenda }}</td>
                         </tr>
                         <tr>
@@ -148,15 +174,17 @@
             
             <div class="row">
                 <div class="col-12">
-                    <p>Kepada Yth.</p>
-                    <p class="indent">Yang tersebut dalam lampiran surat ini</p>
-                    <p class="indent">di tempat</p>
+                    @foreach(preg_split('/\r\n|\r|\n/', $kepada_undangan) as $index => $line)
+                        @if(trim($line) !== '')
+                            <p @if($index > 0) class="indent" @endif>{{ $line }}</p>
+                        @endif
+                    @endforeach
                 </div>
             </div>
             
             <div class="row mt-1">
                 <div class="col-12">
-                    <p>Dengan hormat,</p>
+                    <p>assalamualaikum warahmatullahi wabarakatuh,</p>
                 </div>
             </div>
             
@@ -240,106 +268,66 @@
                 </div>
             </div>
             
-            <!-- Lampiran: Daftar Yang Terundang -->
-            <div style="page-break-before: always; margin-top: 2cm;">
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <h4 class="text-center text-decoration-underline">LAMPIRAN</h4>
-                        <p class="text-center"><strong>Daftar Yang Terundang</strong></p>
-                        <p class="text-center">Surat Undangan Nomor: {{ $agenda->nomor_agenda }}</p>
-                        <br>
-                    </div>
+            <!-- ============================================ -->
+            <!-- Lampiran: Daftar Yang Terundang               -->
+            <!-- PERBAIKAN: page-break ditaruh di div kosong   -->
+            <!-- terpisah, bukan membungkus judul + tabel jadi -->
+            <!-- satu blok besar. Ini mencegah dompdf "menarik"-->
+            <!-- seluruh blok (termasuk tabel panjang) turun   -->
+            <!-- ke halaman berikutnya.                        -->
+            <!-- ============================================ -->
+            <div class="page-break"></div>
+
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h4 class="text-center text-decoration-underline">LAMPIRAN</h4>
+                    <p class="text-center"><strong>Daftar Yang Terundang</strong></p>
+                    <p class="text-center">Surat Undangan Nomor: {{ $agenda->nomor_agenda }}</p>
+                    <br>
                 </div>
-                
-                @if($is_all)
-                <div class="row">
-                    <div class="col-12">
-                        <p><strong>Semua Pegawai Aktif ({{ $jumlah_terundang }} orang)</strong></p>
-                    </div>
-                </div>
-                @endif
-                
-                @if(count($list_terundang) > 0)
-                <div class="row">
-                    <div class="col-12">
-                        @php
-                            $itemsPerColumn = ceil(count($list_terundang) / 2);
-                            $column1 = array_slice($list_terundang, 0, $itemsPerColumn);
-                            $column2 = array_slice($list_terundang, $itemsPerColumn);
-                        @endphp
-                        
-                        @if($is_all || count($list_terundang) > 15)
-                            {{-- Tampilkan 2 kolom untuk semua pegawai atau jika lebih dari 15 --}}
-                            <table style="width: 100%; border: none; border-collapse: separate; border-spacing: 0 0;">
-                                <tr>
-                                    <td style="width: 49%; padding: 0; vertical-align: top; border: none;">
-                                        <table class="table-bordered" style="width: 100%; border-collapse: collapse; margin: 0;">
-                                            <thead>
-                                                <tr>
-                                                    <th style="width: 12%; text-align: center; padding: 0.4rem;">No</th>
-                                                    <th style="width: 50%; padding: 0.4rem;">Nama</th>
-                                                    <th style="width: 38%; padding: 0.4rem;">Unit Kerja</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach($column1 as $index => $item)
-                                                <tr>
-                                                    <td style="text-align: center; padding: 0.3rem;">{{ $index + 1 }}</td>
-                                                    <td style="padding: 0.3rem;">{{ $item['nama'] }}</td>
-                                                    <td style="padding: 0.3rem;">{{ $item['unit'] }}</td>
-                                                </tr>
-                                                @endforeach
-                                            </tbody>
-                                        </table>
-                                    </td>
-                                    <td style="width: 2%; border: none;"></td>
-                                    <td style="width: 49%; padding: 0; vertical-align: top; border: none;">
-                                        <table class="table-bordered" style="width: 100%; border-collapse: collapse; margin: 0;">
-                                            <thead>
-                                                <tr>
-                                                    <th style="width: 12%; text-align: center; padding: 0.4rem;">No</th>
-                                                    <th style="width: 50%; padding: 0.4rem;">Nama</th>
-                                                    <th style="width: 38%; padding: 0.4rem;">Unit Kerja</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach($column2 as $index => $item)
-                                                <tr>
-                                                    <td style="text-align: center; padding: 0.3rem;">{{ $index + $itemsPerColumn + 1 }}</td>
-                                                    <td style="padding: 0.3rem;">{{ $item['nama'] }}</td>
-                                                    <td style="padding: 0.3rem;">{{ $item['unit'] }}</td>
-                                                </tr>
-                                                @endforeach
-                                            </tbody>
-                                        </table>
-                                    </td>
-                                </tr>
-                            </table>
-                        @else
-                            {{-- Tampilkan 1 kolom lengkap jika kurang dari 15 --}}
-                            <table class="table-bordered" style="width: 100%;">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 8%; text-align: center;">No</th>
-                                        <th style="width: 50%;">Nama</th>
-                                        <th style="width: 42%;">Unit Kerja</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($list_terundang as $index => $item)
-                                    <tr>
-                                        <td style="text-align: center;">{{ $index + 1 }}</td>
-                                        <td>{{ $item['nama'] }}</td>
-                                        <td>{{ $item['unit'] }}</td>
-                                    </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        @endif
-                    </div>
-                </div>
-                @endif
             </div>
+            
+            @if($is_all)
+            <div class="row">
+                <div class="col-12">
+                    <p><strong>Semua Pegawai Aktif ({{ $jumlah_terundang }} orang)</strong></p>
+                </div>
+            </div>
+            @endif
+            
+            @if(count($list_terundang) > 0)
+            <div class="row">
+                <div class="col-12">
+                    <!-- ============================================ -->
+                    <!-- PERBAIKAN: selalu 1 kolom, 1 tabel utuh.      -->
+                    <!-- dompdf TIDAK BISA memecah halaman di dalam   -->
+                    <!-- <td> (nested table 2 kolom), tapi BISA       -->
+                    <!-- memecah antar <tr> pada tabel biasa.         -->
+                    <!-- Maka daftar nama, seberapa panjang pun,      -->
+                    <!-- akan mengalir rapi ke halaman selanjutnya    -->
+                    <!-- dengan header tabel ikut terulang otomatis.  -->
+                    <!-- ============================================ -->
+                    <table class="table-bordered" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="width: 8%; text-align: center;">No</th>
+                                <th style="width: 50%;">Nama</th>
+                                <th style="width: 42%;">Unit Kerja</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($list_terundang as $index => $item)
+                            <tr>
+                                <td style="text-align: center;">{{ $index + 1 }}</td>
+                                <td>{{ $item['nama'] }}</td>
+                                <td>{{ $item['unit'] }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            @endif
         </div>
     </div>
 </body>

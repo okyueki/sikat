@@ -3,13 +3,17 @@
 @section('pageTitle', isset($pageTitle) ? $pageTitle . $title : $title)
 
 @section('content')
-@php($routePrefix = $routePrefix ?? 'surat_edaran')
+@php
+    $routePrefix = $routePrefix ?? 'surat_edaran';
+    $docLabel = $documentLabel ?? (!empty($isSpo) ? 'SPO' : 'Surat Edaran');
+    $colspan = 7 + (!empty($isSpo) ? 2 : 0) + (!empty($hasMasaBerlaku) ? 1 : 0);
+@endphp
 <div class="row">
     <div class="col-xl-12">
         <div class="card custom-card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">{{ $title }}</h5>
-                <a href="{{ route($routePrefix . '.create') }}" class="btn btn-success btn-sm">Tambah {{ !empty($isSpo) ? 'SPO' : 'Surat Edaran' }}</a>
+                <a href="{{ route($routePrefix . '.create') }}" class="btn btn-success btn-sm">Tambah {{ $docLabel }}</a>
             </div>
             <div class="card-body">
                 @if (session('success'))
@@ -26,6 +30,9 @@
                                 <th>Judul Surat</th>
                                 <th>Nomor</th>
                                 <th>Tanggal</th>
+                                @if(!empty($hasMasaBerlaku))
+                                    <th>Masa Berlaku</th>
+                                @endif
                                 <th>Status</th>
                                 <th>Yang menyetujui</th>
                                 @if(!empty($isSpo))
@@ -42,6 +49,23 @@
                                     <td>{{ $item->judul_surat }}</td>
                                     <td>{{ $item->nomor_surat ?? '-' }}</td>
                                     <td>{{ $item->tanggal ? $item->tanggal->format('d-m-Y') : '-' }}</td>
+                                    @if(!empty($hasMasaBerlaku))
+                                        <td>
+                                            @if($item->tanggal_mulai_berlaku && $item->tanggal_berakhir_berlaku)
+                                                <div class="small">{{ $item->tanggal_mulai_berlaku->format('d-m-Y') }} – {{ $item->tanggal_berakhir_berlaku->format('d-m-Y') }}</div>
+                                                @php($masaStatus = method_exists($item, 'masaBerlakuStatus') ? $item->masaBerlakuStatus() : 'unknown')
+                                                @if($masaStatus === 'aktif')
+                                                    <span class="badge bg-success">Aktif</span>
+                                                @elseif($masaStatus === 'belum')
+                                                    <span class="badge bg-info text-dark">Belum berlaku</span>
+                                                @elseif($masaStatus === 'berakhir')
+                                                    <span class="badge bg-secondary">Berakhir</span>
+                                                @endif
+                                            @else
+                                                -
+                                            @endif
+                                        </td>
+                                    @endif
                                     <td>
                                         @if($item->tanggal_ditandatangani)
                                             <div class="d-flex align-items-center">
@@ -82,7 +106,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ !empty($isSpo) ? 9 : 7 }}" class="text-center text-muted">Belum ada data {{ !empty($isSpo) ? 'SPO' : 'Surat Edaran' }}.</td>
+                                    <td colspan="{{ $colspan }}" class="text-center text-muted">Belum ada data {{ $docLabel }}.</td>
                                 </tr>
                             @endforelse
                         </tbody>

@@ -47,4 +47,20 @@ return [
         'channel_id' => env('QONTAK_CHANNEL_ID'),
     ],
 
+    'portalsifast' => [
+        'url' => env('PORTALSIFAST_URL', 'https://portalsifast.rsaisyiyahsitifatimah.com'),
+        'sso_secret' => env('PORTALSIFAST_SIKAT_SSO_SECRET'),
+    ],
+
+    'stirling_pdf' => [
+        'url' => rtrim(env('STIRLING_PDF_URL', ''), '/'),
+        'api_key' => env('STIRLING_PDF_API_KEY'),
+        'timeout' => (int) env('STIRLING_PDF_TIMEOUT', 120),
+        'embed_enabled' => filter_var(env('STIRLING_PDF_EMBED_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+    ],
+
+    'document_signing' => [
+        'nomor_font_path' => env('DOCUMENT_NUMBER_FONT_PATH'),
+    ],
+
 ];

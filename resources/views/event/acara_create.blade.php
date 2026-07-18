@@ -83,6 +83,12 @@
                             @endforeach
                         </select>
                     </div>
+
+                    <div class="form-group">
+                        <label>Kepada (teks undangan PDF)</label>
+                        <textarea name="kepada_undangan" class="form-control" rows="4" placeholder="Satu baris = satu baris di surat. Baris pertama tanpa indent, baris berikutnya menjorok.">{{ old('kepada_undangan', \App\Models\Agenda::defaultKepadaUndangan()) }}</textarea>
+                        <small class="text-muted">Teks bagian &quot;Kepada Yth.&quot; di PDF undangan. Kosongkan untuk pakai teks standar lampiran.</small>
+                    </div>
                     
                     <!--    
                     <div class="form-group">

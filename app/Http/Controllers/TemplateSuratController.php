@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\TemplateSurat;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 
 class TemplateSuratController extends Controller
 {
@@ -61,6 +62,8 @@ class TemplateSuratController extends Controller
             'file_template' => $filePath,
         ]);
 
+        Cache::forget('template_surat_list');
+
        return redirect()->route('template_surat.index')->with('success', 'Template Surat berhasil ditambahkan.');
     }
 
@@ -103,6 +106,8 @@ class TemplateSuratController extends Controller
             'deskripsi' => $request->deskripsi,
         ]);
 
+        Cache::forget('template_surat_list');
+
         return redirect()->route('template_surat.index')->with('success', 'Template Surat berhasil diperbarui.');
     }
 
@@ -119,6 +124,8 @@ class TemplateSuratController extends Controller
         }
 
         $templateSurat->delete();
+
+        Cache::forget('template_surat_list');
 
         return redirect()->route('template_surat.index')->with('success', 'Template Surat berhasil dihapus.');
     }

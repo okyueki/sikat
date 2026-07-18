@@ -15,8 +15,12 @@ use App\Http\Controllers\{
     VerifikasiPengajuanLemburController,
     StrukturOrganisasiController,
     SuratKeluarController,
+    MemoInternalController,
+    DocumentVerifyRedirectController,
     SuratMasukController,
     SuratEdaranController,
+    PeraturanDirekturController,
+    KeputusanDirekturController,
     SpoController,
     MasterTandaTanganController,
     MasterStempelController,
@@ -43,6 +47,8 @@ use App\Http\Controllers\Kepegawaian\{
     ItemPenilaianController,
     JadwalController,
     RekapPresensiController,
+    FotoAbsensiController,
+    InsightFaceAdminController,
     BudayaKerjaController
 };
 use App\Http\Controllers\Inventaris\{
@@ -91,6 +97,9 @@ Route::get('/', function () {
     return view('auth.login');
 });
 Route::get('/logout', [LogoutController::class, 'logout'])->name('logout');
+
+Route::get('/sso/portalsifast', [App\Http\Controllers\PortalSifastSsoController::class, 'handle'])
+    ->name('sso.portalsifast');
 
 Auth::routes(['register' => true]);
 
@@ -179,6 +188,19 @@ Route::get('/kepegawaian/rekap-presensi', [RekapPresensiController::class, 'inde
 Route::get('/kepegawaian/rekap-presensi/data', [RekapPresensiController::class, 'getData'])
     ->name('kepegawaian.rekap_presensi.data')
     ->middleware(['auth', 'checkAccess:rekap.view']);
+Route::get('/kepegawaian/foto-absensi', [FotoAbsensiController::class, 'index'])
+    ->name('presensi.foto_absensi')
+    ->middleware(['auth', 'checkAccess:rekap.view']);
+
+Route::prefix('kepegawaian/insightface')->name('insightface.')->middleware(['auth', 'checkAccess:insightface.admin'])->group(function () {
+    Route::get('/', [InsightFaceAdminController::class, 'index'])->name('index');
+    Route::get('/logs', [InsightFaceAdminController::class, 'logs'])->name('logs');
+    Route::get('/enroll', [InsightFaceAdminController::class, 'enrollSearch'])->name('enroll_search');
+    Route::get('/log/{logId}', [InsightFaceAdminController::class, 'logDetail'])->name('log_detail');
+    Route::get('/{pegawaiId}', [InsightFaceAdminController::class, 'show'])->name('show');
+    Route::post('/{pegawaiId}/enroll', [InsightFaceAdminController::class, 'enroll'])->name('enroll');
+    Route::delete('/{pegawaiId}', [InsightFaceAdminController::class, 'destroy'])->name('destroy');
+});
 
 Route::middleware(['auth', 'checkAccess:inventaris.access'])->group(function () {
     // inventaris-barang: `kode_barang` bisa mengandung '/', jadi gunakan route_key_encode() pada URL.
@@ -278,6 +300,21 @@ Route::get('/surat_keluar/detail/{encryptedKodeSurat}', [SuratKeluarController::
 Route::get('/surat_keluar/kirimsurat/{encryptedKodeSurat}', [SuratKeluarController::class, 'kirimsurat'])->name('surat_keluar.kirimsurat')->middleware('auth');
 Route::post('/surat_keluar/kirimsuratproses', [SuratKeluarController::class, 'kirimSuratProses'])->name('surat_keluar.kirimSuratProses')->middleware('auth');
 
+Route::get('/v/{doc}/{id}', DocumentVerifyRedirectController::class)->name('document.verify.short');
+
+Route::get('/memo_internal/preview-nomor', [MemoInternalController::class, 'previewNomor'])->name('memo_internal.previewNomor')->middleware('auth');
+Route::get('/memo_internal/{memo_internal}/pdf', [MemoInternalController::class, 'streamPdf'])->name('memo_internal.streamPdf')->middleware('auth');
+Route::get('/memo_internal/{memo_internal}/tanda-tangani', [MemoInternalController::class, 'tandaTangani'])->name('memo_internal.tandaTangani')->middleware('auth');
+Route::post('/memo_internal/{memo_internal}/save-signature', [MemoInternalController::class, 'saveSignatureAndPlacements'])->name('memo_internal.saveSignature')->middleware('auth');
+Route::get('/memo_internal/{memo_internal}/generate-signed-pdf', [MemoInternalController::class, 'generateSignedPdf'])->name('memo_internal.generateSignedPdf')->middleware('auth');
+Route::get('/memo_internal/{memo_internal}/verifikasi-qr', [MemoInternalController::class, 'verificationQrPng'])->name('memo_internal.verifyQr');
+Route::get('/memo_internal/{memo_internal}/verifikasi', [MemoInternalController::class, 'verifyAuthenticity'])->name('memo_internal.verify');
+Route::get('/memo_internal/kirimsurat/{encryptedKodeSurat}', [MemoInternalController::class, 'kirimsurat'])->name('memo_internal.kirimsurat')->middleware('auth');
+Route::post('/memo_internal/kirimsuratproses', [MemoInternalController::class, 'kirimSuratProses'])->name('memo_internal.kirimSuratProses')->middleware('auth');
+Route::get('/memo_internal/detail/{encryptedKodeSurat}', [MemoInternalController::class, 'detail'])->name('memo_internal.detail')->middleware('auth');
+Route::delete('/memo_internal/{memo_internal}', [MemoInternalController::class, 'destroy'])->name('memo_internal.destroy')->middleware('auth');
+Route::resource('memo_internal', MemoInternalController::class)->middleware('auth')->only(['index', 'create', 'store', 'show']);
+
 Route::resource('surat_masuk', SuratMasukController::class)->middleware('auth')->middleware('auth')->except('show');;
 Route::get('/surat_masuk/verifikasi/{encryptedKodeSurat}', [SuratMasukController::class, 'verifikasi'])->name('surat_masuk.verifikasi')->middleware('auth');
 Route::put('/surat_masuk/verifikasiproses/{id}', [SuratMasukController::class, 'verifikasiProses'])->name('surat_masuk.verifikasiProses')->middleware('auth');
@@ -297,6 +334,18 @@ Route::post('/surat_edaran/{surat_edaran}/save-signature', [SuratEdaranControlle
 Route::get('/surat_edaran/{surat_edaran}/generate-signed-pdf', [SuratEdaranController::class, 'generateSignedPdf'])->name('surat_edaran.generateSignedPdf')->middleware('auth');
 Route::get('/surat_edaran/{surat_edaran}/verifikasi', [SuratEdaranController::class, 'verifyAuthenticity'])->name('surat_edaran.verify');
 Route::get('/surat_edaran/{surat_edaran}/verifikasi-qr', [SuratEdaranController::class, 'verificationQrPng'])->name('surat_edaran.verifyQr');
+Route::get('/peraturan_direktur/{peraturan_direktur}/pdf', [PeraturanDirekturController::class, 'streamPdf'])->name('peraturan_direktur.streamPdf')->middleware('auth');
+Route::get('/peraturan_direktur/{peraturan_direktur}/tanda-tangani', [PeraturanDirekturController::class, 'tandaTangani'])->name('peraturan_direktur.tandaTangani')->middleware('auth');
+Route::post('/peraturan_direktur/{peraturan_direktur}/save-signature', [PeraturanDirekturController::class, 'saveSignatureAndPlacements'])->name('peraturan_direktur.saveSignature')->middleware('auth');
+Route::get('/peraturan_direktur/{peraturan_direktur}/generate-signed-pdf', [PeraturanDirekturController::class, 'generateSignedPdf'])->name('peraturan_direktur.generateSignedPdf')->middleware('auth');
+Route::get('/peraturan_direktur/{peraturan_direktur}/verifikasi', [PeraturanDirekturController::class, 'verifyAuthenticity'])->name('peraturan_direktur.verify');
+Route::get('/peraturan_direktur/{peraturan_direktur}/verifikasi-qr', [PeraturanDirekturController::class, 'verificationQrPng'])->name('peraturan_direktur.verifyQr');
+Route::get('/keputusan_direktur/{keputusan_direktur}/pdf', [KeputusanDirekturController::class, 'streamPdf'])->name('keputusan_direktur.streamPdf')->middleware('auth');
+Route::get('/keputusan_direktur/{keputusan_direktur}/tanda-tangani', [KeputusanDirekturController::class, 'tandaTangani'])->name('keputusan_direktur.tandaTangani')->middleware('auth');
+Route::post('/keputusan_direktur/{keputusan_direktur}/save-signature', [KeputusanDirekturController::class, 'saveSignatureAndPlacements'])->name('keputusan_direktur.saveSignature')->middleware('auth');
+Route::get('/keputusan_direktur/{keputusan_direktur}/generate-signed-pdf', [KeputusanDirekturController::class, 'generateSignedPdf'])->name('keputusan_direktur.generateSignedPdf')->middleware('auth');
+Route::get('/keputusan_direktur/{keputusan_direktur}/verifikasi', [KeputusanDirekturController::class, 'verifyAuthenticity'])->name('keputusan_direktur.verify');
+Route::get('/keputusan_direktur/{keputusan_direktur}/verifikasi-qr', [KeputusanDirekturController::class, 'verificationQrPng'])->name('keputusan_direktur.verifyQr');
 Route::get('/spo/{spo}/pdf', [SpoController::class, 'streamPdf'])->name('spo.streamPdf')->middleware('auth');
 Route::get('/spo/{spo}/tanda-tangani', [SpoController::class, 'tandaTangani'])->name('spo.tandaTangani')->middleware('auth');
 Route::post('/spo/{spo}/save-signature', [SpoController::class, 'saveSignatureAndPlacements'])->name('spo.saveSignature')->middleware('auth');
@@ -307,6 +356,8 @@ Route::post('/master-tanda-tangan', [MasterTandaTanganController::class, 'store'
 Route::get('/master-stempel', [MasterStempelController::class, 'edit'])->name('master_stempel.edit')->middleware('auth');
 Route::put('/master-stempel', [MasterStempelController::class, 'update'])->name('master_stempel.update')->middleware('auth');
 Route::resource('surat_edaran', SuratEdaranController::class)->middleware('auth');
+Route::resource('peraturan_direktur', PeraturanDirekturController::class)->middleware('auth');
+Route::resource('keputusan_direktur', KeputusanDirekturController::class)->middleware('auth');
 Route::resource('spo', SpoController::class)->middleware('auth');
 
 Route::resource('tickets', TicketController::class);

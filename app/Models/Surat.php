@@ -29,11 +29,28 @@ class Surat extends Model
 
     public function verifikasi()
     {
-        return $this->hasOne(VerifikasiSurat::class, 'id_surat');
+        return $this->hasMany(VerifikasiSurat::class, 'id_surat', 'id_surat');
     }
+
     public function disposisi()
     {
-        return $this->hasOne(DisposisiSurat::class, 'id_surat');
+        return $this->hasMany(DisposisiSurat::class, 'id_surat', 'id_surat');
+    }
+
+    public function latestVerifikasiFor(string $nik): ?VerifikasiSurat
+    {
+        return $this->verifikasi()
+            ->where('nik_verifikator', $nik)
+            ->orderByDesc('id_verifikasi_surat')
+            ->first();
+    }
+
+    public function latestDisposisiFor(string $nik): ?DisposisiSurat
+    {
+        return $this->disposisi()
+            ->where('nik_penerima', $nik)
+            ->orderByDesc('id_disposisi_surat')
+            ->first();
     }
     public function klasifikasi_surat()
     {
@@ -52,5 +69,22 @@ class Surat extends Model
     public function agenda()
     {
         return $this->hasOne(Agenda::class, 'id_surat_keluar', 'id_surat');
+    }
+
+    public function memoInternal()
+    {
+        return $this->hasOne(MemoInternal::class, 'id_surat', 'id_surat');
+    }
+
+    public function tandaTangan()
+    {
+        return $this->hasMany(TandaTangan::class, 'id_surat', 'id_surat');
+    }
+
+    public function isMemoInternal(): bool
+    {
+        return $this->relationLoaded('memoInternal')
+            ? $this->memoInternal !== null
+            : $this->memoInternal()->exists();
     }
 }

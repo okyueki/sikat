@@ -10,9 +10,11 @@
                 <div class="card custom-card">
                     <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
+                        @unless(config('surat.disable_keluar_create'))
                         <a href="{{ route('surat_keluar.create') }}" class="btn btn-success me-2">
                             Create Surat Keluar
                         </a>
+                        @endunless
                         <div class="btn-group">
                             <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                                 Template Surat
@@ -55,43 +57,5 @@
         </div>
 
 <!-- End Page-content -->
-<script>
-        $(document).ready(function() {
-    $('#suratTable').DataTable({
-        processing: true,
-        serverSide: true,
-        ajax: '/surat_keluar',
-        columns: [
-            
-             { data: null, searchable: false, orderable: false, render: function (data, type, row, meta) {
-                return meta.row + 1;
-            }},
-            { data: 'nama_pegawai', name: 'nama_pegawai' },
-            { data: 'perihal', name: 'perihal' },
-            { data: 'tanggal_surat', name: 'tanggal_surat' },
-            { data: 'action', name: 'action', orderable: false, searchable: false }
-        ],
-        order: [[3, 'desc']] // Urutkan kolom ke-4 (index 3, yaitu tanggal_surat) secara descending
-    });
-
-    $('#suratTable').on('click', '.deletesurat', function (e) {
-        e.preventDefault();
-        const form = $(this).closest('form');
-        Swal.fire({
-            title: 'Apakah Anda yakin?',
-            text: 'Anda tidak akan dapat mengembalikan ini!',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Ya, hapus!'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                form.submit();
-            }
-        });
-    });
-
-});
-</script>
+@include('surat_keluar.partials.index-script')
 @endsection

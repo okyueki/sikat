@@ -23,12 +23,26 @@
         var pageHeight = 0,
             pageWidth = 0;
         var MM_TO_PX = 2.83465;
+        var NOMOR_DEFAULT_PT = 11;
+        function nomorDefaultHeightMm() { return NOMOR_DEFAULT_PT / 72 * 25.4; }
+        function nomorFontPtFromHeightMm(heightMm) {
+            if (!heightMm || heightMm <= 0) return NOMOR_DEFAULT_PT;
+            var pt = heightMm * 72 / 25.4;
+            return Math.max(6, Math.min(24, pt));
+        }
         var placements = Array.isArray(cfg.placements) ? cfg.placements : [];
+        placements.forEach(function (p) {
+            if (p.field_type === "nomor_surat" && nomorSurat) {
+                p.value = nomorSurat;
+            }
+        });
         var stempelUrl = cfg.stempelUrl || null;
+        var qrPreviewUrl = cfg.qrPreviewUrl || null;
+        var nomorSurat = cfg.nomorSurat || "";
         var selectedBox = null;
         var resizing = null;
         var teksEditPlacementIndex = -1;
-        var LABELS = { signature: "Tanda tangan", inisial: "Inisial", nama: "Nama", tanggal: "Tanggal", teks: "Teks", stempel: "Stempel" };
+        var LABELS = { signature: "Tanda tangan", inisial: "Inisial", nama: "Nama", tanggal: "Tanggal", teks: "Teks", stempel: "Stempel", qr_verifikasi: "QR Verifikasi", nomor_surat: "Nomor Surat" };
         var isDirty = false;
         var dragGhost = document.getElementById("drag-ghost");
         var currentDragging = null;
@@ -41,6 +55,7 @@
             if (fieldType === "inisial") return document.getElementById("inisial").value || "Inisial";
             if (fieldType === "nama") return document.getElementById("nama_lengkap").value || "Nama penandatangan";
             if (fieldType === "tanggal") return new Date().toLocaleDateString("id-ID");
+            if (fieldType === "nomor_surat") return nomorSurat || "Nomor Surat";
             return LABELS[fieldType] || fieldType;
         }
 
@@ -320,8 +335,17 @@
                 box.className = "placement-box" + (globalIdx === selectedPlacementIndex ? " selected" : "");
                 box.style.left = mmToPx(p.x) + "px";
                 box.style.top = mmToPx(p.y) + "px";
-                box.style.width = (p.width ? mmToPx(p.width) : 80) + "px";
-                box.style.height = (p.height ? mmToPx(p.height) : 20) + "px";
+                var wMm = (p.width ? mmToPx(p.width) : 80);
+                var hMm = (p.height ? mmToPx(p.height) : 20);
+                if (p.field_type === "qr_verifikasi") {
+                    var qrMinPx = mmToPx(20);
+                    var qrMaxPx = mmToPx(28);
+                    var qrSizePx = Math.max(qrMinPx, Math.min(qrMaxPx, Math.max(wMm, hMm)));
+                    wMm = qrSizePx;
+                    hMm = qrSizePx;
+                }
+                box.style.width = wMm + "px";
+                box.style.height = hMm + "px";
                 box.style.pointerEvents = "auto";
                 box.dataset.placementIndex = globalIdx;
                 var text = p.value !== null && p.value !== "" ? p.value : getDisplayValue(p.field_type);
@@ -336,8 +360,19 @@
                 } else if (p.field_type === "signature" && style.type === "image" && style.imageUrl) {
                     box.classList.add("image-placement");
                     content = '<img src="' + style.imageUrl + '" alt="TTD" class="placement-signature-img">';
+                } else if (p.field_type === "qr_verifikasi" && qrPreviewUrl) {
+                    box.classList.add("image-placement");
+                    content = '<img src="' + qrPreviewUrl + '" alt="QR Verifikasi" class="placement-signature-img">';
+                } else if (p.field_type === "qr_verifikasi") {
+                    content = '<span class="placement-text" style="font-size:11px;color:#198754;">QR Verifikasi</span>';
                 } else {
-                    content = '<span class="placement-text' + fontClass + '" style="' + colorStyle + '">' + (p.field_type === "stempel" ? "Stempel" : (text || LABELS[p.field_type])) + "</span>";
+                    var extraStyle = colorStyle;
+                    if (p.field_type === "nomor_surat") {
+                        var nomorBoxHPx = p.height ? mmToPx(p.height) : mmToPx(nomorDefaultHeightMm());
+                        var nomorFontPx = Math.max(6, Math.round(nomorBoxHPx * 0.88));
+                        extraStyle = (colorStyle ? colorStyle + ";" : "") + "font-family:'Times New Roman',Times,serif;font-size:" + nomorFontPx + "px;font-weight:400;white-space:nowrap;line-height:1;";
+                    }
+                    content = '<span class="placement-text' + fontClass + '" style="' + extraStyle + '">' + (p.field_type === "stempel" ? "Stempel" : (text || LABELS[p.field_type])) + "</span>";
                 }
                 box.innerHTML = '<button type="button" class="placement-remove" title="Hapus">&times;</button>' + content +
                     '<span class="placement-resize-handle nw" data-corner="nw"></span><span class="placement-resize-handle ne" data-corner="ne"></span><span class="placement-resize-handle sw" data-corner="sw"></span><span class="placement-resize-handle se" data-corner="se"></span>';
@@ -440,6 +475,10 @@
             if (!fieldType) return;
             var coords = getDropCoordinates(e, dropZone);
             var w = 40, h = (fieldType === "signature" || fieldType === "inisial") ? 10 : 8;
+            if (fieldType === "qr_verifikasi") { w = 25; h = 25; }
+            if (fieldType === "nomor_surat") { w = 95; h = nomorDefaultHeightMm(); }
+            if (fieldType === "stempel") { w = 30; h = 30; }
+            if (fieldType === "signature" && document.getElementById("signature_type").value === "image") { w = 60; h = 25; }
             if (fieldType === "teks") {
                 pendingTeksDrop = { x: coords.x, y: coords.y, page: currentPage, w: w, h: h };
                 document.getElementById("modal_teks_value").value = "";
@@ -448,7 +487,17 @@
                 else { modalTeks.classList.add("show"); modalTeks.style.display = "block"; }
                 return;
             }
-            placements.push({ field_type: fieldType, page: currentPage, x: coords.x, y: coords.y, width: w, height: h, value: fieldType === "tanggal" ? new Date().toLocaleDateString("id-ID") : (displayValue || null) });
+            placements.push({
+                field_type: fieldType,
+                page: currentPage,
+                x: coords.x,
+                y: coords.y,
+                width: w,
+                height: h,
+                value: fieldType === "tanggal"
+                    ? new Date().toLocaleDateString("id-ID")
+                    : (fieldType === "nomor_surat" ? (nomorSurat || null) : (displayValue || null))
+            });
             isDirty = true;
             renderPlacementBoxes();
         });
@@ -520,7 +569,8 @@
             var mouseMmY = pxToMm(e.clientY - layerRect.top);
             if (resizing) {
                 var p = placements[resizing.index];
-                var minMm = 5;
+                var minMm = p.field_type === "qr_verifikasi" ? 20 : (p.field_type === "nomor_surat" ? 2.5 : 5);
+                var maxMm = p.field_type === "qr_verifikasi" ? 28 : null;
                 var dxMm = mouseMmX - resizing.startMmX;
                 var dyMm = mouseMmY - resizing.startMmY;
                 var w = resizing.startW, h = resizing.startH, x = resizing.startLeft, y = resizing.startTop;
@@ -529,6 +579,11 @@
                     case "sw": w = Math.max(minMm, resizing.startW - dxMm); h = Math.max(minMm, resizing.startH + dyMm); x = resizing.startLeft + dxMm; break;
                     case "ne": w = Math.max(minMm, resizing.startW + dxMm); h = Math.max(minMm, resizing.startH - dyMm); y = resizing.startTop + dyMm; break;
                     case "nw": w = Math.max(minMm, resizing.startW - dxMm); h = Math.max(minMm, resizing.startH - dyMm); x = resizing.startLeft + dxMm; y = resizing.startTop + dyMm; break;
+                }
+                if (p.field_type === "qr_verifikasi") {
+                    var qrSize = Math.max(minMm, Math.min(maxMm, Math.max(w, h)));
+                    w = qrSize;
+                    h = qrSize;
                 }
                 p.width = snapToGrid(Math.round(w * 100) / 100);
                 p.height = snapToGrid(Math.round(h * 100) / 100);
@@ -609,7 +664,13 @@
                 cropped_signature_image: document.getElementById("cropped_signature_image").value || "",
                 finalize: !!finalizeDocument,
                 placements: placements.map(function (p) {
-                    return { field_type: p.field_type, page: p.page, x: p.x, y: p.y, width: p.width || 40, height: p.height || 8, value: p.value, options: {} };
+                    var row = { field_type: p.field_type, page: p.page, x: p.x, y: p.y, width: p.width || 40, height: p.height || 8, value: p.value, options: {} };
+                    if (p.field_type === "nomor_surat") {
+                        row.value = nomorSurat || p.value;
+                        row.height = p.height || nomorDefaultHeightMm();
+                        row.options = { font_size_pt: nomorFontPtFromHeightMm(row.height) };
+                    }
+                    return row;
                 }),
             };
             fetch(document.getElementById("save-url").value, {
@@ -629,7 +690,7 @@
                     Swal.fire({
                         icon: "success",
                         title: "Dokumen Berhasil Ditandatangani!",
-                        html: "<p class=\"mb-0\">Dokumen telah sah dan PDF bertanda tangan tersimpan.</p><p class=\"small text-muted mb-0 mt-2\">QR verifikasi keabsahan otomatis tertempel di <strong>halaman terakhir</strong> PDF (pojok bawah). Di halaman detail juga ada QR untuk scan cepat.</p>",
+                        html: '<p class="mb-0">Dokumen telah sah dan PDF bertanda tangan tersimpan.</p><p class="small text-muted mb-0 mt-2">QR verifikasi tertanam <strong>di dalam file PDF</strong> pada posisi kotak QR (atau pojok kanan bawah halaman terakhir jika tidak ada kotak QR).</p>',
                         confirmButtonText: "Lihat Dokumen",
                         confirmButtonColor: "#198754",
                         allowOutsideClick: false,

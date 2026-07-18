@@ -110,6 +110,7 @@ class AgendaController extends Controller
             'notulen' => ['required', 'string', new ExistsInServer74('pegawai', 'nik', 'Notulen yang dipilih tidak valid.')],
             'yang_terundang' => 'nullable|array',
             'yang_terundang.*' => 'nullable|string',
+            'kepada_undangan' => 'nullable|string|max:2000',
             'foto' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
             'materi' => 'nullable|array',
             'materi.*' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
@@ -176,6 +177,10 @@ class AgendaController extends Controller
             $validatedData['yang_terundang'] = json_encode($semuaNik);
         } else {
             $validatedData['yang_terundang'] = json_encode($request->yang_terundang ?? []);
+        }
+
+        if (array_key_exists('kepada_undangan', $validatedData) && trim((string) $validatedData['kepada_undangan']) === '') {
+            $validatedData['kepada_undangan'] = null;
         }
     
         // Upload file
@@ -321,6 +326,7 @@ class AgendaController extends Controller
             'pimpinan_rapat' => ['required', 'string', new ExistsInServer74('pegawai', 'nik', 'Pimpinan rapat yang dipilih tidak valid.')],
             'notulen' => ['required', 'string', new ExistsInServer74('pegawai', 'nik', 'Notulen yang dipilih tidak valid.')],
             'yang_terundang' => 'nullable|array',
+            'kepada_undangan' => 'nullable|string|max:2000',
             'foto' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
             'materi' => 'nullable|array',
             'materi.*' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
@@ -364,6 +370,10 @@ class AgendaController extends Controller
             $validatedData['yang_terundang'] = json_encode($semuaNik);
         } else {
             $validatedData['yang_terundang'] = json_encode($request->yang_terundang ?? []);
+        }
+
+        if (array_key_exists('kepada_undangan', $validatedData) && trim((string) $validatedData['kepada_undangan']) === '') {
+            $validatedData['kepada_undangan'] = null;
         }
 
         // Handle relasi surat keluar di update
@@ -964,44 +974,18 @@ class AgendaController extends Controller
             return strcmp($a['nama'], $b['nama']);
         });
         
-        // Ambil barcode pimpinan rapat untuk tanda tangan digital
+        // QR verifikasi agenda: URL halaman detail acara (bukan NIK/barcode pegawai)
         $barcodeBase64 = null;
-        if ($agenda->pimpinan) {
-            try {
-                $barcodeText = null;
-                
-                // Coba ambil barcode dari tabel barcode berdasarkan ID pegawai
-                $barcodeData = \App\Models\Barcode::on('server_74')
-                    ->where('id', $agenda->pimpinan->id)
-                    ->first();
-                
-                if ($barcodeData && !empty($barcodeData->barcode)) {
-                    // Gunakan barcode dari database
-                    $barcodeText = $barcodeData->barcode;
-                } else {
-                    // Fallback: Generate barcode dari kombinasi data unik
-                    // Format: NIK + Nama + Nomor Agenda + Tanggal
-                    $barcodeText = ($agenda->pimpinan->nik ?? 'NIK') . '|' . 
-                                  str_replace(' ', '', $agenda->pimpinan->nama ?? 'Pimpinan') . '|' . 
-                                  ($agenda->nomor_agenda ?? 'AGD-' . $agenda->id) . '|' . 
-                                  Carbon::parse($agenda->created_at)->format('YmdHis');
-                }
-                
-                // Selalu generate QR Code jika ada pimpinan
-                if ($barcodeText) {
-                    // Generate QR Code dari barcode text
-                    $qrCode = QrCode::format('png')
-                        ->size(150)
-                        ->margin(1)
-                        ->generate($barcodeText);
-                    
-                    // Encode QR Code ke base64 untuk embed di PDF
-                    $barcodeBase64 = 'data:image/png;base64,' . base64_encode($qrCode);
-                }
-            } catch (\Exception $e) {
-                // Jika error, tetap lanjutkan tanpa barcode
-                \Log::error('Error generating barcode for PDF: ' . $e->getMessage());
-            }
+        try {
+            $agendaUrl = route('acara_show', $agenda->id);
+            $qrCode = QrCode::format('png')
+                ->size(150)
+                ->margin(1)
+                ->generate($agendaUrl);
+
+            $barcodeBase64 = 'data:image/png;base64,' . base64_encode($qrCode);
+        } catch (\Throwable $e) {
+            \Log::error('Error generating agenda URL QR for PDF: ' . $e->getMessage());
         }
         
         $data = [
@@ -1015,7 +999,8 @@ class AgendaController extends Controller
             'list_terundang' => $listTerundang,
             'is_all' => $isAll,
             'jumlah_terundang' => count($listTerundang),
-            'barcode_pimpinan' => $barcodeBase64
+            'barcode_pimpinan' => $barcodeBase64,
+            'kepada_undangan' => $agenda->kepadaUndanganForPdf(),
         ];
         
         $pdf = Pdf::loadView('event.agenda_pdf', $data);

@@ -8,8 +8,10 @@ use App\Models\SuratEdaran;
 use App\Models\SuratEdaranPlacement;
 use App\Models\AuditTrail;
 use App\Models\Pegawai;
+use App\Services\SuratEdaranNumberService;
 use App\Services\SuratEdaranPdfService;
 use App\Support\DocumentVerificationQr;
+use App\Support\DocumentVerificationUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -32,21 +34,23 @@ class SuratEdaranController extends Controller
     {
         $title = 'Tambah Surat Edaran';
         $pegawai = Pegawai::where('stts_aktif', 'AKTIF')->orderBy('nama')->get();
-        return view('surat_edaran.create', compact('title', 'pegawai'));
+        $previewNomorSurat = SuratEdaranNumberService::previewNext(
+            \Carbon\Carbon::parse(old('tanggal', now()->toDateString()))
+        );
+
+        return view('surat_edaran.create', compact('title', 'pegawai', 'previewNomorSurat'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'judul_surat' => 'required|string|max:255',
-            'nomor_surat' => 'nullable|string|max:100',
             'deskripsi' => 'nullable|string',
             'tanggal' => 'required|date',
             'nik_penandatangan' => 'nullable|string|max:50',
             'file_pdf' => 'required|file|mimes:pdf|max:20480',
         ], [], [
             'judul_surat' => 'Judul Surat',
-            'nomor_surat' => 'Nomor Surat',
             'deskripsi' => 'Deskripsi',
             'tanggal' => 'Tanggal',
             'nik_penandatangan' => 'Yang menyetujui',
@@ -65,7 +69,11 @@ class SuratEdaranController extends Controller
             ]);
         }
 
-        $created = SuratEdaran::create($validated);
+        $created = DB::transaction(function () use ($validated) {
+            $payload = SuratEdaranNumberService::assignOnCreate($validated);
+
+            return SuratEdaran::create($payload);
+        });
         AuditTrail::logCreate(
             'surat_edaran',
             'surat_edaran',
@@ -81,9 +89,9 @@ class SuratEdaranController extends Controller
     {
         $surat_edaran->load(['penandatangan', 'placements']);
         $title = 'Detail Surat Edaran';
-        $verifyUrl = route('surat_edaran.verify', $surat_edaran);
+        $verifyUrl = DocumentVerificationUrl::qrVerifyUrl('surat_edaran', $surat_edaran);
         $verificationQrUrl = $surat_edaran->tanggal_ditandatangani
-            ? route('surat_edaran.verifyQr', $surat_edaran)
+            ? DocumentVerificationUrl::qrImageUrl('surat_edaran', $surat_edaran)
             : null;
         $verificationQrDataUri = $surat_edaran->tanggal_ditandatangani
             ? DocumentVerificationQr::dataUri($verifyUrl)
@@ -98,10 +106,7 @@ class SuratEdaranController extends Controller
      */
     public function verificationQrPng(SuratEdaran $surat_edaran)
     {
-        if (! $surat_edaran->tanggal_ditandatangani) {
-            abort(404);
-        }
-        $verifyUrl = route('surat_edaran.verify', $surat_edaran);
+        $verifyUrl = DocumentVerificationUrl::qrVerifyUrl('surat_edaran', $surat_edaran);
         try {
             $png = DocumentVerificationQr::pngBinary($verifyUrl);
         } catch (\Throwable $e) {
@@ -114,7 +119,7 @@ class SuratEdaranController extends Controller
 
         return response($png, 200, [
             'Content-Type' => 'image/png',
-            'Cache-Control' => 'public, max-age=86400',
+            'Cache-Control' => 'no-cache, must-revalidate',
         ]);
     }
 
@@ -133,14 +138,12 @@ class SuratEdaranController extends Controller
 
         $validated = $request->validate([
             'judul_surat' => 'required|string|max:255',
-            'nomor_surat' => 'nullable|string|max:100',
             'deskripsi' => 'nullable|string',
             'tanggal' => 'required|date',
             'nik_penandatangan' => 'nullable|string|max:50',
             'file_pdf' => 'nullable|file|mimes:pdf|max:20480',
         ], [], [
             'judul_surat' => 'Judul Surat',
-            'nomor_surat' => 'Nomor Surat',
             'deskripsi' => 'Deskripsi',
             'tanggal' => 'Tanggal',
             'nik_penandatangan' => 'Yang menyetujui',
@@ -226,7 +229,7 @@ class SuratEdaranController extends Controller
         if ($perluSimpanSigned && $surat_edaran->file_pdf && Storage::disk('public')->exists($surat_edaran->file_pdf)) {
             try {
                 $oldPath = $surat_edaran->file_pdf;
-                $signedContent = SuratEdaranPdfService::generateSignedPdfContent($surat_edaran);
+                $signedContent = SuratEdaranPdfService::generateSignedPdfContent($surat_edaran, true);
                 $newPath = 'surat_edaran/' . $surat_edaran->id . '_signed.pdf';
                 Storage::disk('public')->put($newPath, $signedContent);
                 Storage::disk('public')->delete($oldPath);
@@ -263,6 +266,10 @@ class SuratEdaranController extends Controller
         }
 
         $surat_edaran->load(['penandatangan', 'placements']);
+        if (! $surat_edaran->nomor_surat) {
+            SuratEdaranNumberService::assignTo($surat_edaran);
+            $surat_edaran->refresh();
+        }
         $title = 'Tanda tangani PDF';
         $pdfUrl = route('surat_edaran.streamPdf', $surat_edaran);
         $pegawai = $surat_edaran->penandatangan;
@@ -286,7 +293,8 @@ class SuratEdaranController extends Controller
         $masterTandaTanganList = auth()->user()->masterTandaTangan()->orderByDesc('is_default')->orderBy('id')->get();
         $masterStempel = MasterStempel::getPerusahaan();
 
-        return view('surat_edaran.tanda_tangani', compact('title', 'surat_edaran', 'pdfUrl', 'signatureDetail', 'placementsForJs', 'masterTandaTanganList', 'masterStempel'));
+        $verifyUrl = DocumentVerificationUrl::qrVerifyUrl('surat_edaran', $surat_edaran);
+        return view('surat_edaran.tanda_tangani', compact('title', 'surat_edaran', 'pdfUrl', 'signatureDetail', 'placementsForJs', 'masterTandaTanganList', 'masterStempel', 'verifyUrl'));
     }
 
     /**
@@ -312,7 +320,7 @@ class SuratEdaranController extends Controller
             'cropped_signature_image' => 'nullable|string|max:4000000',
             'finalize' => 'nullable|boolean',
             'placements' => 'nullable|array',
-            'placements.*.field_type' => 'required|string|in:signature,inisial,nama,tanggal,teks,stempel',
+            'placements.*.field_type' => 'required|string|in:signature,inisial,nama,tanggal,teks,stempel,qr_verifikasi,nomor_surat',
             'placements.*.page' => 'required|integer|min:1',
             'placements.*.x' => 'required|numeric',
             'placements.*.y' => 'required|numeric',
@@ -380,14 +388,28 @@ class SuratEdaranController extends Controller
         $surat_edaran->placements()->delete();
         if (! empty($validated['placements'])) {
             foreach ($validated['placements'] as $i => $p) {
+                $width = isset($p['width']) ? (float) $p['width'] : null;
+                $height = isset($p['height']) ? (float) $p['height'] : null;
+                if (($p['field_type'] ?? '') === 'qr_verifikasi') {
+                    [$width, $height] = SuratEdaranPdfService::normalizeQrDimensionsMm(
+                        $width ?? 0,
+                        $height ?? 0
+                    );
+                }
+
+                $placementValue = $p['value'] ?? null;
+                if (($p['field_type'] ?? '') === 'nomor_surat') {
+                    $placementValue = $surat_edaran->nomor_surat;
+                }
+
                 $surat_edaran->placements()->create([
                     'field_type' => $p['field_type'],
                     'page' => (int) $p['page'],
                     'x' => (float) $p['x'],
                     'y' => (float) $p['y'],
-                    'width' => isset($p['width']) ? (float) $p['width'] : null,
-                    'height' => isset($p['height']) ? (float) $p['height'] : null,
-                    'value' => $p['value'] ?? null,
+                    'width' => $width,
+                    'height' => $height,
+                    'value' => $placementValue,
                     'options' => $p['options'] ?? null,
                     'sort_order' => $i,
                 ]);
@@ -412,12 +434,24 @@ class SuratEdaranController extends Controller
         }
 
         // Finalisasi: sahkan dokumen dan simpan PDF bertanda tangan
+        if (! $surat_edaran->nomor_surat) {
+            SuratEdaranNumberService::assignTo($surat_edaran);
+            $surat_edaran->refresh();
+        }
+
         $oldPath = $surat_edaran->file_pdf;
+        $sourceRelative = SuratEdaranPdfService::sourcePdfRelativePath((int) $surat_edaran->id);
         $newPath = 'surat_edaran/' . $surat_edaran->id . '_signed.pdf';
+
+        if (! Storage::disk('public')->exists($sourceRelative)) {
+            if ($oldPath && ! str_ends_with($oldPath, '_signed.pdf') && Storage::disk('public')->exists($oldPath)) {
+                Storage::disk('public')->copy($oldPath, $sourceRelative);
+            }
+        }
 
         try {
             $surat_edaran->load('placements');
-            $signedContent = SuratEdaranPdfService::generateSignedPdfContent($surat_edaran);
+            $signedContent = SuratEdaranPdfService::generateSignedPdfContent($surat_edaran, true);
             Storage::disk('public')->put($newPath, $signedContent);
 
             DB::transaction(function () use ($surat_edaran, $newPath) {
@@ -428,7 +462,7 @@ class SuratEdaranController extends Controller
                 ]);
             });
 
-            if ($oldPath && $oldPath !== $newPath && Storage::disk('public')->exists($oldPath)) {
+            if ($oldPath && $oldPath !== $newPath && $oldPath !== $sourceRelative && Storage::disk('public')->exists($oldPath)) {
                 Storage::disk('public')->delete($oldPath);
             }
         } catch (\Throwable $e) {
@@ -438,11 +472,11 @@ class SuratEdaranController extends Controller
             report($e);
             $errorMessage = 'Gagal memfinalisasi dokumen. Draft posisi tanda tangan tetap tersimpan.';
             $errorStatus = 500;
-            if (str_contains(strtolower($e->getMessage()), 'pdf tidak kompatibel') ||
-                str_contains(strtolower($e->getMessage()), 'pdf menggunakan kompresi/struktur') ||
-                str_contains(strtolower($e->getMessage()), 'not supported by the free parser shipped with fpdi')) {
-                $errorMessage = 'Finalisasi gagal karena file PDF tidak kompatibel dengan parser sistem. ' .
-                    'Silakan simpan ulang PDF sebagai PDF standar (Print to PDF), lalu upload ulang.';
+            if (str_contains(strtolower($e->getMessage()), 'stirling pdf') ||
+                str_contains(strtolower($e->getMessage()), 'pdf tidak dapat diproses') ||
+                str_contains(strtolower($e->getMessage()), 'pdf tidak kompatibel')) {
+                $errorMessage = 'Finalisasi gagal: layanan Stirling PDF tidak dapat memproses dokumen ini. ' .
+                    'Pastikan Stirling PDF berjalan dan coba upload ulang PDF asli.';
                 $errorStatus = 422;
             }
             return $this->jsonError($errorMessage, $errorStatus, false);
@@ -471,7 +505,7 @@ class SuratEdaranController extends Controller
     public function generateSignedPdf(SuratEdaran $surat_edaran)
     {
         $surat_edaran->load(['penandatangan', 'placements']);
-        $pdfContent = SuratEdaranPdfService::generateSignedPdfContent($surat_edaran);
+        $pdfContent = SuratEdaranPdfService::generateSignedPdfContent($surat_edaran, (bool) $surat_edaran->tanggal_ditandatangani);
         if ($surat_edaran->tanggal_ditandatangani && $surat_edaran->file_pdf) {
             Storage::disk('public')->put($surat_edaran->file_pdf, $pdfContent);
         }

@@ -95,6 +95,12 @@ Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('ijin')->group(
     Route::put('/{id}', [App\Http\Controllers\Api\IjinController::class, 'update']);
     Route::delete('/{id}', [App\Http\Controllers\Api\IjinController::class, 'destroy']);
 });
+// API Persetujuan cuti/ijin (untuk atasan memvalidasi pengajuan bawahan) - butuh token Bearer
+Route::middleware(['auth:sanctum', 'throttle:api-auth'])->prefix('persetujuan-libur')->group(function () {
+    Route::get('/', [App\Http\Controllers\Api\PersetujuanLiburController::class, 'index']);
+    Route::get('/{id}', [App\Http\Controllers\Api\PersetujuanLiburController::class, 'show']);
+    Route::put('/{id}', [App\Http\Controllers\Api\PersetujuanLiburController::class, 'update']);
+});
 // Daftar pegawai (untuk dropdown atasan di form cuti/ijin). Cache 10 menit.
 Route::middleware(['auth:sanctum', 'throttle:api-auth'])->get('/pegawai-atasan', function () {
     $list = Cache::remember('api.pegawai_atasan', 600, function () {

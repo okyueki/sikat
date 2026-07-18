@@ -1,0 +1,30 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\PeraturanDirektur;
+use App\Services\Signing\DocumentNumberService;
+use Carbon\CarbonInterface;
+
+final class PeraturanDirekturNumberService
+{
+    private static function svc(): DocumentNumberService
+    {
+        return new DocumentNumberService(PeraturanDirektur::class, "RS'ASF/PER");
+    }
+
+    public static function previewNext(CarbonInterface $tanggal): string
+    {
+        return self::svc()->previewNext($tanggal);
+    }
+
+    public static function assignTo(PeraturanDirektur $doc): string
+    {
+        return self::svc()->assignTo($doc);
+    }
+
+    public static function assignOnCreate(array $attributes): array
+    {
+        return self::svc()->assignOnCreate($attributes);
+    }
+}

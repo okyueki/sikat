@@ -19,156 +19,48 @@ use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\Settings;
 use PhpOffice\PhpWord\TemplateProcessor;
 use Carbon\Carbon;
-use SimpleSoftwareIO\QrCode\Facades\QrCode; // Import QRCode
+use App\Http\Requests\Surat\StoreSuratMasukRequest;
+use App\Http\Requests\Surat\UpdateSuratMasukRequest;
+use App\Services\Surat\SuratMasukActionResolver;
+use App\Services\Surat\SuratMasukIndexService;
+use App\Services\Surat\SuratPegawaiNameFilter;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class SuratMasukController extends Controller
 {
+    public function __construct(
+        private SuratMasukIndexService $indexService,
+        private SuratMasukActionResolver $actionResolver,
+    ) {
+    }
+
     public function index(Request $request)
     {
         $title = 'Surat Masuk';
         $nik = Auth::user()->username;
-        $level = Auth::user()->level; // Mendapatkan NIK user yang sedang login
-        // $strukturOrganisasi = StrukturOrganisasi::where('nik', $nik)->first();
-    // Hitung jumlah verifikasi yang belum dibaca (status_surat masih NULL atau kosong)
-    $jumlahVerifikasiBelumDibaca = VerifikasiSurat::where('nik_verifikator', $nik)
-        ->where(function($q) {
-            $q->whereNull('status_surat')
-              ->orWhere('status_surat', 'Dikirim');
-        })
-        ->count();
+        $user = Auth::user();
+        $unread = $this->indexService->unreadCounts($nik);
+        $jumlahVerifikasiBelumDibaca = $unread['verifikasi'];
+        $jumlahDisposisiBelumDibaca = $unread['disposisi'];
 
-    // Hitung jumlah disposisi yang belum dibaca (status_disposisi masih NULL atau kosong)
-    $jumlahDisposisiBelumDibaca = DisposisiSurat::where('nik_penerima', $nik)
-        ->where(function($q) {
-            $q->whereNull('status_disposisi')
-              ->orWhere('status_disposisi', 'Dikirim');
-        })
-        ->count();
-        
         if ($request->ajax()) {
-            // Mengambil data surat yang sesuai dengan verifikator (nik_verifikator) dan status 'Dikirim'
-            $surat = Surat::with(['pegawai', 'verifikasi', 'klasifikasi_surat', 'sifat_surat', 'disposisi'])
-                ->whereHas('verifikasi', function($query) use ($nik) {
-                    $query->where('nik_verifikator', $nik);
-                })
-                ->orWhereHas('disposisi', function($query) use ($nik) {
-                    $query->where('nik_penerima', $nik);
-                })
-                ->get();
-        
-            return DataTables::of($surat)
-                ->addIndexColumn() // Menambahkan kolom index
-                ->addColumn('nama_pegawai', function ($row) {
-    if (is_null($row->nik_pengirim) || $row->nik_pengirim == '') {
-        return !empty($row->pengirim_external) ? $row->pengirim_external : '-';
-    } else {
-        return $row->pegawai ? $row->pegawai->nama : '-';
-    }
-})
+            $query = $this->indexService->indexQuery($nik);
 
-                ->addColumn('status_verifikasi', function ($row) use ($nik){
-                   $verifikasi = $row->verifikasi()
-                    ->where('nik_verifikator', $nik)
-                    ->where('id_surat', $row->id_surat) // Perbaikan: gunakan $row->id_surat
-                    ->orderBy('id_verifikasi_surat', 'DESC')
-                    ->first();
-                    return $verifikasi ? $verifikasi->status_surat : '-';
+            return DataTables::of($query)
+                ->addColumn('nama_pegawai', fn ($row) => $this->indexService->pengirimLabel($row))
+                ->addColumn('status_verifikasi', fn ($row) => $row->user_verifikasi_status ?? '-')
+                ->addColumn('status_disposisi', fn ($row) => $row->user_disposisi_status ?? '-')
+                ->addColumn('action', fn ($row) => $this->actionResolver->render($row, $user))
+                ->filterColumn('nama_pegawai', function ($query, $keyword) {
+                    SuratPegawaiNameFilter::apply($query, $keyword, true);
                 })
-                ->addColumn('status_disposisi', function ($row) use ($nik){
-                    $disposisi = $row->disposisi()->where('nik_penerima', $nik)->where('id_surat', $row->id_surat)->where('id_surat', $row->id_surat)->orderBy('id_disposisi_surat', 'DESC')->first();
-                    return $disposisi ? $disposisi->status_disposisi : '-';
-                })
-                ->addColumn('action', function ($row) use ( $nik, $level) {
-                 $verifikasi = $row->verifikasi()
-                        ->where('id_surat', $row->id_surat)
-                        ->where('nik_verifikator', $nik)  // Pastikan mengambil verifikasi oleh pengguna yang login (Kabag/Kabid)
-                        ->orderBy('id_verifikasi_surat', 'DESC')
-                        ->first();
-                    
-                    $disposisi = $row->disposisi()
-                        ->where('nik_penerima', $nik)
-                        ->orderBy('id_disposisi_surat', 'DESC')
-                        ->first();
-                    
-                    if ($level == "Direktur") {
-                        // Jika user adalah direktur
-                        if ($verifikasi && isset($verifikasi->status_surat) && trim($verifikasi->status_surat) == "Disetujui") {
-                            // Jika surat sudah disetujui oleh Kabag
-                            return ' <a class="btn btn-primary waves-effect waves-light" href="' . route('surat_masuk.detail', encrypt($row->kode_surat)) . '"><i class="far fa-eye"></i></a>';
-                        } else {
-                            // Jika surat belum disetujui, tampilkan tombol disposisi dan detail
-                            return '<a class="btn btn-info waves-effect waves-light edit" href="' . route('surat_masuk.disposisi', encrypt($row->kode_surat)) . '"><i class="far fa-edit"></i></a> ' .
-                                   ' <a class="btn btn-primary waves-effect waves-light" href="' . route('surat_masuk.detail', encrypt($row->kode_surat)) . '"><i class="far fa-eye"></i></a>';
-                        }
-                    } elseif ($level == "Kabag" || $level == "Kabid") {
-                       // Jika Kabag atau Kabid
-                        if ($verifikasi && isset($verifikasi->status_surat) && trim($verifikasi->status_surat) == "Disetujui") {
-                            // Jika Kabag sudah melakukan verifikasi dan surat disetujui
-                            if ($disposisi) {
-                                // Jika Kabag sudah menerima disposisi
-                                if ($disposisi->status_disposisi == null || $disposisi->status_disposisi != "Ditindaklanjuti" && $disposisi->status_disposisi != "Selesai") {
-                                    // Jika disposisi belum ditindaklanjuti, tampilkan tombol tindak lanjut dan detail
-                                    return '<a class="btn btn-info waves-effect waves-light edit" href="' . route('surat_masuk.tindaklanjut', encrypt($row->kode_surat)) . '"><i class="far fa-edit"></i></a> ' .
-                                           ' <a class="btn btn-primary waves-effect waves-light" href="' . route('surat_masuk.detail', encrypt($row->kode_surat)) . '"><i class="far fa-eye"></i></a>';
-                                } else {
-                                    // Jika disposisi sudah ditindaklanjuti atau selesai, hanya tampilkan tombol detail
-                                    return ' <a class="btn btn-primary waves-effect waves-light" href="' . route('surat_masuk.detail', encrypt($row->kode_surat)) . '"><i class="far fa-eye"></i></a>';
-                                }
-                            } else {
-                                // Jika Kabag belum menerima disposisi, hanya tampilkan tombol detail
-                                return ' <a class="btn btn-primary waves-effect waves-light" href="' . route('surat_masuk.detail', encrypt($row->kode_surat)) . '"><i class="far fa-eye"></i></a>';
-                            }
-                        } else {
-                            // Jika Kabag belum melakukan verifikasi atau surat belum disetujui
-                            return '<a class="btn btn-info waves-effect waves-light edit" href="' . route('surat_masuk.verifikasidisposisi', encrypt($row->kode_surat)) . '"><i class="far fa-edit"></i></a> ' .
-                                   ' <a class="btn btn-primary waves-effect waves-light" href="' . route('surat_masuk.detail', encrypt($row->kode_surat)) . '"><i class="far fa-eye"></i></a>';
-                        }
-                    }elseif($level == "Kasie"){
-                        // Jika Kabag atau Kabid
-                        if ($verifikasi && isset($verifikasi->status_surat) && trim($verifikasi->status_surat) == "Disetujui") {
-                            // Jika Kabag sudah melakukan verifikasi dan surat disetujui
-                            if ($disposisi) {
-                                // Jika Kabag sudah menerima disposisi
-                                if ($disposisi->status_disposisi == null || $disposisi->status_disposisi != "Ditindaklanjuti" && $disposisi->status_disposisi != "Selesai") {
-                                    // Jika disposisi belum ditindaklanjuti, tampilkan tombol tindak lanjut dan detail
-                                    return '<a class="btn btn-info waves-effect waves-light edit" href="' . route('surat_masuk.tindaklanjut', encrypt($row->kode_surat)) . '"><i class="far fa-edit"></i></a> ' .
-                                           ' <a class="btn btn-primary waves-effect waves-light" href="' . route('surat_masuk.detail', encrypt($row->kode_surat)) . '"><i class="far fa-eye"></i></a>';
-                                } else {
-                                    // Jika disposisi sudah ditindaklanjuti atau selesai, hanya tampilkan tombol detail
-                                    return ' <a class="btn btn-primary waves-effect waves-light" href="' . route('surat_masuk.detail', encrypt($row->kode_surat)) . '"><i class="far fa-eye"></i></a>';
-                                }
-                            } else {
-                                // Jika Kabag belum menerima disposisi, hanya tampilkan tombol detail
-                                return ' <a class="btn btn-primary waves-effect waves-light" href="' . route('surat_masuk.detail', encrypt($row->kode_surat)) . '"><i class="far fa-eye"></i></a>';
-                            }
-                        } else {
-                            // Jika Kabag belum melakukan verifikasi atau surat belum disetujui
-                            return '<a class="btn btn-info waves-effect waves-light edit" href="' . route('surat_masuk.verifikasi', encrypt($row->kode_surat)) . '"><i class="far fa-edit"></i></a> ' .
-                                   ' <a class="btn btn-primary waves-effect waves-light" href="' . route('surat_masuk.detail', encrypt($row->kode_surat)) . '"><i class="far fa-eye"></i></a>';
-                        }
-                    }else{
-                        if ($disposisi) {
-                                // Jika Kabag sudah menerima disposisi
-                                if ($disposisi->status_disposisi == null || $disposisi->status_disposisi != "Ditindaklanjuti" && $disposisi->status_disposisi != "Selesai") {
-                                    // Jika disposisi belum ditindaklanjuti, tampilkan tombol tindak lanjut dan detail
-                                    return '<a class="btn btn-info waves-effect waves-light edit" href="' . route('surat_masuk.tindaklanjut', encrypt($row->kode_surat)) . '"><i class="far fa-edit"></i></a> ' .
-                                           ' <a class="btn btn-primary waves-effect waves-light" href="' . route('surat_masuk.detail', encrypt($row->kode_surat)) . '"><i class="far fa-eye"></i></a>';
-                                } else {
-                                    // Jika disposisi sudah ditindaklanjuti atau selesai, hanya tampilkan tombol detail
-                                    return ' <a class="btn btn-primary waves-effect waves-light" href="' . route('surat_masuk.detail', encrypt($row->kode_surat)) . '"><i class="far fa-eye"></i></a>';
-                                }
-                            } else {
-                                // Jika Kabag belum menerima disposisi, hanya tampilkan tombol detail
-                                return ' <a class="btn btn-primary waves-effect waves-light" href="' . route('surat_masuk.detail', encrypt($row->kode_surat)) . '"><i class="far fa-eye"></i></a>';
-                            }
-                    }
-                })
-                ->rawColumns(['action']) // Mengizinkan HTML di kolom action
-                ->make(true); // Mengirim response JSON ke DataTables
+                ->rawColumns(['action'])
+                ->make(true);
         }
-    
-        return view('surat_masuk.index', compact('title', 'jumlahVerifikasiBelumDibaca', 'jumlahDisposisiBelumDibaca')); // Menampilkan view index
+
+        return view('surat_masuk.index', compact('title', 'jumlahVerifikasiBelumDibaca', 'jumlahDisposisiBelumDibaca'));
     }
+
     public function create()
     {
         $title = 'Create Surat Masuk';
@@ -178,32 +70,21 @@ class SuratMasukController extends Controller
         
         return view('surat_masuk.create', compact('title', 'klasifikasiSurat', 'sifatSurat', 'pegawai'));
     }
-    public function store(Request $request)
+    public function store(StoreSuratMasukRequest $request)
     {
         $nik = Auth::user()->username;
         $kodeSurat = 'SRT-' . date('Ymd') . '-' . strtoupper(Str::random(5));
-        $request->validate([
-            'id_klasifikasi_surat' => 'required',
-            'id_sifat_surat' => 'required',
-            'perihal' => 'required',
-            'nomor_surat' => 'required',
-            'pengirim_external' => 'required',
-            'tanggal_surat' => 'required|date',
-            'tanggal_surat_diterima' => 'required|date',
-            'lampiran' => 'required',
-            'file_surat' => 'required|file|mimes:pdf',
-            'file_lampiran' => 'nullable|file|mimes:pdf',
-        ]);
+        $validated = $request->validated();
 
         $surat = Surat::create([
-            'id_klasifikasi_surat' => $request->id_klasifikasi_surat,
-            'id_sifat_surat' => $request->id_sifat_surat,
-            'perihal' => $request->perihal,
-            'nomor_surat' => $request->nomor_surat,
-            'pengirim_external' => $request->pengirim_external,
-            'tanggal_surat' => $request->tanggal_surat,
-            'lampiran' => $request->lampiran,
-            'tanggal_surat_diterima' => $request->tanggal_surat_diterima,
+            'id_klasifikasi_surat' => $validated['id_klasifikasi_surat'],
+            'id_sifat_surat' => $validated['id_sifat_surat'],
+            'perihal' => $validated['perihal'],
+            'nomor_surat' => $validated['nomor_surat'],
+            'pengirim_external' => $validated['pengirim_external'],
+            'tanggal_surat' => $validated['tanggal_surat'],
+            'lampiran' => $validated['lampiran'],
+            'tanggal_surat_diterima' => $validated['tanggal_surat_diterima'],
             'kode_surat' => $kodeSurat,
         ]);
 
@@ -241,34 +122,20 @@ class SuratMasukController extends Controller
         return view('surat_masuk.edit', compact('title', 'surat', 'klasifikasiSurat', 'sifatSurat', 'pegawai'));
     }
 
-    public function update(Request $request, $id)
+    public function update(UpdateSuratMasukRequest $request, $id)
     {
-        $nik = Auth::user()->username;
-        $request->validate([
-            'id_klasifikasi_surat' => 'required',
-            'id_sifat_surat' => 'required',
-            'perihal' => 'required',
-            'nomor_surat' => 'required',
-            'pengirim_external' => 'required',
-            'tanggal_surat' => 'required|date',
-            'tanggal_surat_diterima' => 'required|date',
-            'lampiran' => 'required',
-            'file_surat' => 'nullable|file|mimes:pdf',
-            'file_lampiran' => 'nullable|file|mimes:pdf',
-        ]);
+        $validated = $request->validated();
 
         $surat = Surat::findOrFail($id);
-        // Update data surat
         $surat->update([
-            'id_klasifikasi_surat' => $request->id_klasifikasi_surat,
-            'id_sifat_surat' => $request->id_sifat_surat,
-            'pengirim_external' => $request->pengirim_external,
-            'perihal' => $request->perihal,
-            'tanggal_surat' => $request->tanggal_surat,
-            'lampiran' => $request->lampiran,
-            'nomor_surat' => $request->nomor_surat,
-            'tanggal_surat_diterima' => $request->tanggal_surat_diterima,
-            'tanggal_surat' => $request->tanggal_surat,
+            'id_klasifikasi_surat' => $validated['id_klasifikasi_surat'],
+            'id_sifat_surat' => $validated['id_sifat_surat'],
+            'pengirim_external' => $validated['pengirim_external'],
+            'perihal' => $validated['perihal'],
+            'tanggal_surat' => $validated['tanggal_surat'],
+            'lampiran' => $validated['lampiran'],
+            'nomor_surat' => $validated['nomor_surat'],
+            'tanggal_surat_diterima' => $validated['tanggal_surat_diterima'],
         ]);
 
         if ($request->hasFile('file_surat')) {
@@ -385,14 +252,18 @@ class SuratMasukController extends Controller
         $kode_surat = decrypt($encryptedKodeSurat);
     
         // Mengambil data surat berdasarkan kode surat
-        $surat = Surat::with('pegawai', 'verifikasi', 'klasifikasi_surat', 'sifat_surat')
+        $surat = Surat::with('pegawai', 'verifikasi', 'klasifikasi_surat', 'sifat_surat', 'memoInternal')
             ->where('kode_surat', $kode_surat)
             ->firstOrFail();
+
+        $this->authorize('viewMasuk', $surat);
 
         $tanggalSurat = Carbon::parse($surat->tanggal_surat)->translatedFormat('d F Y');
         $verifikasiSurat = VerifikasiSurat::with('pegawai')->where('id_surat',$surat->id_surat)->get();
     
-        if ($surat->nik_pengirim!=""){
+        if ($surat->memoInternal && $surat->memoInternal->tanggal_ditandatangani) {
+            $pdfUrl = route('memo_internal.streamPdf', $surat->memoInternal);
+        } elseif ($surat->nik_pengirim!=""){
         // Mengambil template DOCX dari storage
         $templatePath = storage_path('app/public/' . $surat->file_surat);
         if (!file_exists($templatePath)) {

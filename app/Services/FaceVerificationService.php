@@ -48,15 +48,20 @@ class FaceVerificationService
     }
 
     /**
-     * @return array{face_enrolled: bool, enrolled_at: string|null, verify_mode: string, nik: string, nama: string}
+     * @return array{face_enrolled: bool, enrolled_at: string|null, verify_mode: string, face_verification_enabled: bool, nik: string, nama: string}
      */
     public function statusPayload(Pegawai $pegawai): array
     {
         $profile = $this->getProfile($pegawai->id);
+        $enabled = $this->insightFace->isEnabled();
+
         return array_merge($this->identityFields($pegawai), [
             'face_enrolled' => $profile !== null,
             'enrolled_at' => $profile?->enrolled_at?->toIso8601String(),
             'verify_mode' => config('insightface.verify_mode', 'soft'),
+            // Frontend: jika false, skip face-api + /verify-face; langsung submit foto biasa.
+            'face_verification_enabled' => $enabled,
+            'enabled' => $enabled,
         ]);
     }
 
@@ -103,21 +108,26 @@ class FaceVerificationService
     {
         $minScore = (float) config('insightface.min_score', 70);
 
+        // Fitur dimatikan: jangan blokir frontend (terutama user yang sudah enroll).
+        // Kembalikan skipped + success agar mobile bisa lanjut ke submit foto biasa.
         if (!$this->insightFace->isEnabled()) {
-            $fv = $this->verificationPayload($pegawai, 'error', null);
+            $fv = $this->verificationPayload($pegawai, 'skipped', null);
+            $fv['message'] = 'Verifikasi wajah sementara dinonaktifkan.';
+            $fv['verified'] = false;
             return [
-                'success' => false,
-                'message' => 'Layanan verifikasi wajah sementara tidak tersedia. Coba lagi.',
+                'success' => true,
+                'message' => 'Verifikasi wajah sementara dinonaktifkan. Lanjutkan presensi tanpa cek wajah.',
                 'face_verification' => $fv,
                 'min_score' => $minScore,
             ];
         }
 
         if (!$this->isReady()) {
-            $fv = $this->verificationPayload($pegawai, 'error', null);
+            $fv = $this->verificationPayload($pegawai, 'skipped', null);
+            $fv['message'] = 'Verifikasi wajah sementara tidak tersedia.';
             return [
-                'success' => false,
-                'message' => 'Layanan verifikasi wajah sementara tidak tersedia. Coba lagi.',
+                'success' => true,
+                'message' => 'Verifikasi wajah sementara tidak tersedia. Lanjutkan presensi tanpa cek wajah.',
                 'face_verification' => $fv,
                 'min_score' => $minScore,
             ];
@@ -228,11 +238,18 @@ class FaceVerificationService
      */
     private function appendSoftSubmitResponse(Pegawai $pegawai, Request $request, array $presensiResult): array
     {
+        // Saat fitur off: jangan panggil InsightFace sama sekali (hindari latency).
+        if (!$this->insightFace->isEnabled() || !$this->isReady()) {
+            $presensiResult['face_verification'] = $this->verificationPayload($pegawai, 'skipped', null);
+            $presensiResult['face_verification']['message'] = 'Verifikasi wajah sementara dinonaktifkan.';
+            return $presensiResult;
+        }
+
         $tipe = $presensiResult['data']['tipe'] ?? null;
         $executed = $this->executeVerification($pegawai, $request);
         $fv = $executed['payload'];
 
-        if (!$this->isStrictMode() && $this->insightFace->isEnabled() && $this->isReady()) {
+        if (!$this->isStrictMode()) {
             if (!$this->hasEnrollment($pegawai->id) && $fv['status'] === 'skipped') {
                 $this->safeLog($pegawai, $tipe, 'skipped', null, $presensiResult['data'] ?? [], null);
             } else {

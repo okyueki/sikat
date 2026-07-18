@@ -9,7 +9,6 @@ use App\Models\VerifikasiSurat;
 use App\Models\SifatSurat;
 use App\Models\DisposisiSurat;
 use App\Models\TandaTangan;
-use App\Models\TemplateSurat;
 use Illuminate\Http\Request;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Storage;
@@ -19,44 +18,43 @@ use PhpOffice\PhpWord\TemplateProcessor;
 use Carbon\Carbon;
 use SimpleSoftwareIO\QrCode\Facades\QrCode; // Import QRCode
 use Illuminate\Support\Facades\Log;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Http\Requests\Surat\StoreSuratKeluarRequest;
+use App\Http\Requests\Surat\UpdateSuratKeluarRequest;
+use App\Services\Surat\SuratKeluarActionResolver;
+use App\Services\Surat\SuratKeluarIndexService;
+use App\Services\Surat\SuratPegawaiNameFilter;
 
 
 class SuratKeluarController extends Controller
 {
-    public function index()
+    public function __construct(
+        private SuratKeluarIndexService $indexService,
+        private SuratKeluarActionResolver $actionResolver,
+    ) {
+    }
+
+    public function index(Request $request)
     {
         $title = 'Surat Keluar';
         $nik = Auth::user()->username;
-        $templateSurat=TemplateSurat::all();
-        if (request()->ajax()) {
-            $surat = Surat::with('pegawai', 'verifikasi', 'klasifikasi_surat', 'sifat_surat')
-                ->where('nik_pengirim', $nik)
-                ->get();
+        $templateSurat = $this->indexService->templates();
 
-            return DataTables::of($surat)
-                ->addIndexColumn()
+        if ($request->ajax()) {
+            $query = $this->indexService->indexQuery($nik);
+
+            return DataTables::of($query)
                 ->addColumn('nama_pegawai', function ($row) {
                     return $row->pegawai ? $row->pegawai->nama : '-';
                 })
-                ->addColumn('action', function ($row) {
-                    $verifikasi = $row->verifikasi()->orderBy('id_verifikasi_surat', 'ASC')->first();
-                    if ($verifikasi && $verifikasi->status_surat == "Disetujui") {
-                        return '<a class="btn btn-primary waves-effect waves-light" href="'.route('surat_keluar.detail', encrypt($row->kode_surat)).'"><i class="far fa-eye"></i></a>';
-                    }else{
-                    return '<a class="btn btn-info waves-effect waves-light edit" href="'.route('surat_keluar.kirimsurat', encrypt($row->kode_surat)).'"><i class="far fa-edit"></i></a> ' .
-                           '<form action="'.route('surat_keluar.destroy', $row->id_surat).'" method="POST" style="display:inline;">' .
-                           '<input type="hidden" name="_token" value="'.csrf_token().'">' .
-                           '<input type="hidden" name="_method" value="DELETE">' .
-                           '<button type="submit" class="btn btn-danger waves-effect waves-light deletesurat"><i class="far fa-trash-alt"></i></button></form>' .
-                           ' <a class="btn btn-primary waves-effect waves-light" href="'.route('surat_keluar.detail', encrypt($row->kode_surat)).'"><i class="far fa-eye"></i></a>';
-                    }
+                ->addColumn('action', fn ($row) => $this->actionResolver->render($row))
+                ->filterColumn('nama_pegawai', function ($query, $keyword) {
+                    SuratPegawaiNameFilter::apply($query, $keyword);
                 })
                 ->rawColumns(['action'])
                 ->make(true);
         }
 
-        return view('surat_keluar.index', compact('title','templateSurat'));
+        return view('surat_keluar.index', compact('title', 'templateSurat'));
     }
 
     public function create()
@@ -69,41 +67,29 @@ class SuratKeluarController extends Controller
         return view('surat_keluar.create', compact('title', 'klasifikasiSurat', 'sifatSurat', 'pegawai'));
     }
 
-    public function store(Request $request)
+    public function store(StoreSuratKeluarRequest $request)
     {
         $nik = Auth::user()->username;
-        $request->validate([
-            'id_klasifikasi_surat' => 'required',
-            'id_sifat_surat' => 'required',
-            'perihal' => 'required',
-            'tanggal_surat' => 'required|date',
-            'lampiran' => 'required',
-            'file_surat' => 'required|file|mimes:docx',
-            'file_lampiran' => 'nullable|file|mimes:pdf',
-            'ttd_utama' => 'required', // Validasi untuk tanda tangan utama
-            'ttd_2' => 'nullable', // Validasi untuk tanda tangan tambahan 1
-            'ttd_3' => 'nullable', // Validasi untuk tanda tangan tambahan 2
-            'ttd_4' => 'nullable', // Validasi untuk tanda tangan tambahan 3
-        ]);
+        $validated = $request->validated();
 
         // Generate kode_surat dan nomor_surat
         $kodeSurat = 'SRT-' . date('Ymd') . '-' . strtoupper(Str::random(5));
         $lastSurat = Surat::orderBy('no_urut', 'desc')->first();
         $nomorSurat = $lastSurat ? intval($lastSurat->no_urut) + 1 : 1;
         // echo $nomorSurat;
-        $klasifikasi = KlasifikasiSurat::find($request->id_klasifikasi_surat);
+        $klasifikasi = KlasifikasiSurat::find($validated['id_klasifikasi_surat']);
         $depatemenPegawai = Pegawai::select('departemen')->where('nik', $nik)->first();
-        $tahun = date('Y', strtotime($request->tanggal_surat));
+        $tahun = date('Y', strtotime($validated['tanggal_surat']));
         $fullNomorSurat = "RS'ASF/" . $nomorSurat . "/" . $klasifikasi->kode_klasifikasi_surat ."/". $depatemenPegawai->departemen ."/". $tahun;
 
         // Menyimpan data surat ke database
         $surat = Surat::create([
-            'id_klasifikasi_surat' => $request->id_klasifikasi_surat,
-            'id_sifat_surat' => $request->id_sifat_surat,
+            'id_klasifikasi_surat' => $validated['id_klasifikasi_surat'],
+            'id_sifat_surat' => $validated['id_sifat_surat'],
             'nik_pengirim' => $nik,
-            'perihal' => $request->perihal,
-            'tanggal_surat' => $request->tanggal_surat,
-            'lampiran' => $request->lampiran,
+            'perihal' => $validated['perihal'],
+            'tanggal_surat' => $validated['tanggal_surat'],
+            'lampiran' => $validated['lampiran'],
             'kode_surat' => $kodeSurat,
             'nomor_surat' => $fullNomorSurat,
             'no_urut' => $nomorSurat,
@@ -122,10 +108,10 @@ class SuratKeluarController extends Controller
 
         // Menyimpan tanda tangan
         $tandaTangan = [
-            ['id_surat' => $surat->id_surat, 'nik_penandatangan' => $request->ttd_utama, 'status_ttd' => 'qrcode'],
-            ['id_surat' => $surat->id_surat, 'nik_penandatangan' => $request->ttd_2, 'status_ttd' => 'qrcode_2'],
-            ['id_surat' => $surat->id_surat, 'nik_penandatangan' => $request->ttd_3, 'status_ttd' => 'qrcode_3'],
-            ['id_surat' => $surat->id_surat, 'nik_penandatangan' => $request->ttd_4, 'status_ttd' => 'qrcode_4'],
+            ['id_surat' => $surat->id_surat, 'nik_penandatangan' => $validated['ttd_utama'], 'status_ttd' => 'qrcode'],
+            ['id_surat' => $surat->id_surat, 'nik_penandatangan' => $validated['ttd_2'] ?? null, 'status_ttd' => 'qrcode_2'],
+            ['id_surat' => $surat->id_surat, 'nik_penandatangan' => $validated['ttd_3'] ?? null, 'status_ttd' => 'qrcode_3'],
+            ['id_surat' => $surat->id_surat, 'nik_penandatangan' => $validated['ttd_4'] ?? null, 'status_ttd' => 'qrcode_4'],
         ];
 
         foreach ($tandaTangan as $ttd) {
@@ -224,25 +210,11 @@ class SuratKeluarController extends Controller
     ));
 }
 
-    public function update(Request $request, $id)
+    public function update(UpdateSuratKeluarRequest $request, $id)
 {
-    $nik = Auth::user()->username;
-    $request->validate([
-        'id_klasifikasi_surat' => 'required',
-        'id_sifat_surat' => 'required',
-        'perihal' => 'required',
-        'tanggal_surat' => 'required|date',
-        'lampiran' => 'required',
-        'file_surat' => 'nullable|file|mimes:docx',
-        'file_lampiran' => 'nullable|file|mimes:pdf,jpg,jpeg,png',
-        'ttd_utama' => 'required', // Validasi untuk tanda tangan utama
-        'ttd_2' => 'nullable', // Validasi untuk tanda tangan tambahan 1
-        'ttd_3' => 'nullable', // Validasi untuk tanda tangan tambahan 2
-        'ttd_4' => 'nullable', // Validasi untuk tanda tangan tambahan 3
-    ]);
-
+    $validated = $request->validated();
     $surat = Surat::findOrFail($id);
-    $klasifikasi = KlasifikasiSurat::find($request->id_klasifikasi_surat);
+    $klasifikasi = KlasifikasiSurat::find($validated['id_klasifikasi_surat']);
 
    
 
@@ -314,8 +286,8 @@ class SuratKeluarController extends Controller
 
     public function destroy($id)
     {
-        // Temukan surat berdasarkan ID
         $surat = Surat::findOrFail($id);
+        $this->authorize('deleteKeluar', $surat);
         // Hapus file surat jika ada
         if ($surat->file_surat) {
             Storage::disk('public')->delete($surat->file_surat);
@@ -344,6 +316,9 @@ class SuratKeluarController extends Controller
         $surat = Surat::with('pegawai', 'verifikasi', 'klasifikasi_surat', 'sifat_surat')
             ->where('kode_surat', $kode_surat)
             ->firstOrFail();
+
+        $this->authorize('viewKeluar', $surat);
+
         $tanggalSurat = Carbon::parse($surat->tanggal_surat)->translatedFormat('d F Y');
         $verifikasiSurat = VerifikasiSurat::with('pegawai')->where('id_surat', $surat->id_surat)->get();
         $disposisiAll = DisposisiSurat::with('pegawai')->where('id_surat', $surat->id_surat)->get();

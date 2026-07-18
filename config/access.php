@@ -23,6 +23,9 @@ return [
 
         'rekap.view' => ['Direktur', 'Programmer', 'HRD', 'Kabag', 'Kasie'],
 
+        /** Admin InsightFace: daftar enroll, log verifikasi, re-enroll / hapus wajah */
+        'insightface.admin' => ['Direktur', 'Programmer', 'HRD', 'Kabag', 'Kasie'],
+
         'berkas_pegawai.manage' => ['Direktur', 'Programmer', 'HRD', 'Kabag', 'Kasie'],
 
         /** Sifat surat & klasifikasi (mengganti checkLevel:Kabag) */

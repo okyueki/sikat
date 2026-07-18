@@ -38,6 +38,22 @@
                             <div class="col-md-4 text-muted">Tanggal Dokumen</div>
                             <div class="col-md-8">{{ $surat_edaran->tanggal ? $surat_edaran->tanggal->format('d-m-Y') : '-' }}</div>
                         </div>
+                        @if(!empty($hasMasaBerlaku) && $surat_edaran->tanggal_mulai_berlaku && $surat_edaran->tanggal_berakhir_berlaku)
+                        <div class="row mb-2">
+                            <div class="col-md-4 text-muted">Masa Berlaku</div>
+                            <div class="col-md-8">
+                                {{ $surat_edaran->tanggal_mulai_berlaku->format('d-m-Y') }} – {{ $surat_edaran->tanggal_berakhir_berlaku->format('d-m-Y') }}
+                                @php($masaStatus = method_exists($surat_edaran, 'masaBerlakuStatus') ? $surat_edaran->masaBerlakuStatus() : 'unknown')
+                                @if($masaStatus === 'aktif')
+                                    <span class="badge bg-success ms-1">Aktif</span>
+                                @elseif($masaStatus === 'belum')
+                                    <span class="badge bg-info text-dark ms-1">Belum berlaku</span>
+                                @elseif($masaStatus === 'berakhir')
+                                    <span class="badge bg-secondary ms-1">Berakhir</span>
+                                @endif
+                            </div>
+                        </div>
+                        @endif
                         <div class="row mb-2">
                             <div class="col-md-4 text-muted">Penandatangan</div>
                             <div class="col-md-8">

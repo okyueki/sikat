@@ -58,6 +58,22 @@
                                     <div class="col-sm-4 text-muted">Tanggal</div>
                                     <div class="col-sm-8">{{ $surat_edaran->tanggal ? $surat_edaran->tanggal->format('d-m-Y') : '-' }}</div>
                                 </div>
+                                @if(!empty($hasMasaBerlaku) && $surat_edaran->tanggal_mulai_berlaku && $surat_edaran->tanggal_berakhir_berlaku)
+                                <div class="row mb-3">
+                                    <div class="col-sm-4 text-muted">Masa berlaku</div>
+                                    <div class="col-sm-8">
+                                        {{ $surat_edaran->tanggal_mulai_berlaku->format('d-m-Y') }} – {{ $surat_edaran->tanggal_berakhir_berlaku->format('d-m-Y') }}
+                                        @php($masaStatus = method_exists($surat_edaran, 'masaBerlakuStatus') ? $surat_edaran->masaBerlakuStatus() : 'unknown')
+                                        @if($masaStatus === 'aktif')
+                                            <span class="badge bg-success ms-1">Aktif</span>
+                                        @elseif($masaStatus === 'belum')
+                                            <span class="badge bg-info text-dark ms-1">Belum berlaku</span>
+                                        @elseif($masaStatus === 'berakhir')
+                                            <span class="badge bg-secondary ms-1">Berakhir</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                @endif
                                 <div class="row mb-3">
                                     <div class="col-sm-4 text-muted">Yang menyetujui</div>
                                     <div class="col-sm-8">{{ $surat_edaran->penandatangan ? $surat_edaran->penandatangan->nama . ' (' . $surat_edaran->penandatangan->nik . ')' : '-' }}</div>
@@ -151,9 +167,17 @@
                         <div class="row align-items-center">
                             <div class="col-md-3 text-center">
                                 @if(!empty($verificationQrUrl))
-                                    <img src="{{ $verificationQrUrl }}" alt="QR Verifikasi" class="img-fluid" style="max-width: 180px;">
+                                    <div class="d-inline-block p-2 bg-white border rounded" style="line-height:0;">
+                                        <img src="{{ $verificationQrUrl }}" alt="QR Verifikasi" width="260" height="260" style="display:block; width:260px; height:260px; image-rendering: crisp-edges;">
+                                    </div>
                                 @elseif(!empty($verificationQrDataUri))
-                                    <img src="{{ $verificationQrDataUri }}" alt="QR Verifikasi" class="img-fluid" style="max-width: 180px;">
+                                    <div class="d-inline-block p-2 bg-white border rounded" style="line-height:0;">
+                                        <img src="{{ $verificationQrDataUri }}" alt="QR Verifikasi" width="260" height="260" style="display:block; width:260px; height:260px; image-rendering: crisp-edges;">
+                                    </div>
+                                @elseif(!empty($verifyUrl))
+                                    <div class="qr-verify-svg-wrap d-inline-block p-2 bg-white border rounded" style="max-width:280px;">
+                                        {!! \App\Support\DocumentVerificationQr::svgMarkup($verifyUrl) !!}
+                                    </div>
                                 @else
                                     <div class="text-muted small">Gambar QR tidak dapat dibuat otomatis. Gunakan tombol di samping untuk membuka halaman verifikasi.</div>
                                 @endif
@@ -162,10 +186,10 @@
                                 <p class="mb-2">
                                     Scan QR ini untuk memverifikasi bahwa dokumen ini sah dan melihat jejak audit aktivitas dokumen. Kode yang sama di-embed ke halaman terakhir PDF yang sah.
                                 </p>
-                                <a href="{{ $verifyUrl }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                <a href="{{ route($routePrefix . '.verify', $surat_edaran) }}" target="_blank" class="btn btn-outline-primary btn-sm">
                                     Buka Halaman Verifikasi
                                 </a>
-                                <div class="small text-muted mt-2">{{ $verifyUrl }}</div>
+                                <div class="small text-muted mt-2">Isi QR: {{ $verifyUrl }}</div>
                             </div>
                         </div>
                     </div>
@@ -175,4 +199,7 @@
         </div>
     </div>
 </div>
+<style>
+.qr-verify-svg-wrap svg { width: 260px; height: 260px; display: block; }
+</style>
 @endsection

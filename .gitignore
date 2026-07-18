@@ -45,3 +45,6 @@ yarn-error.log
 !/storage/framework/sessions/.gitignore
 /storage/framework/testing/*
 !/storage/framework/testing/.gitignore
+
+.claude
+.cursor

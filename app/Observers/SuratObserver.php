@@ -18,7 +18,7 @@ class SuratObserver
     {
         \Log::info("Observer Surat jalan, id_surat={$surat->id_surat}");
     
-        $verifikasi = $surat->verifikasi;
+        $verifikasi = $surat->verifikasi()->orderByDesc('id_verifikasi_surat')->first();
         if (!$verifikasi) {
             \Log::warning("Surat {$surat->id_surat} belum punya verifikasi.");
             return;

@@ -23,7 +23,7 @@
                 <div class="main-dashboard-header-right d-flex gap-3">
                     <div>
                         <label class="fs-13 text-muted">TOTAL PEGAWAI RS</label>
-                        <h5 class="mb-0 fw-semibold">{{ $jumlahPegawai->sum() }} orang</h5>
+                        <h5 class="mb-0 fw-semibold">{{ $totalPegawaiAktif }} orang</h5>
                     </div>
                     <div>
                         <label class="fs-13 text-muted">JUMLAH DOKTER</label>
@@ -197,388 +197,149 @@
         </div>
     </div>
 
-    <!-- Statistik Cards -->
-    <div class="row g-3">
-         <div class="col-xl-3 col-lg-6 col-md-6 col-xm-12">
-                <div class="card overflow-hidden sales-card bg-warning-gradient">
-                    <div class="px-3 pt-3 pb-2 pt-0">
-                        <div>
-                            <h6 class="mb-3 fs-12 text-fixed-white">JUMLAH PASIEN RAWAT JALAN HARI INI</h6>
-                        </div>
-                        <div class="pb-0 mt-0">
-                            <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h4 class="fs-20 fw-bold mb-1 text-fixed-white">{{ $jumlahPasienHariIni }} orang</h4>
-                            <p class="mb-0 fs-12 text-fixed-white op-7">Pasien Diperiksa</p>
-                        </div>
-                        <span class="ms-auto">
-                            @if($pertumbuhanPasien > 0)
-                                <i class="fas fa-arrow-circle-up text-fixed-white"></i>
-                                <span class="text-fixed-white op-7"> +{{ $pertumbuhanPasien }} dari kemarin</span>
-                            @elseif($pertumbuhanPasien < 0)
-                                <i class="fas fa-arrow-circle-down text-fixed-white"></i>
-                                <span class="text-fixed-white op-7"> {{ $pertumbuhanPasien }} dari kemarin</span>
-                            @else
-                                <i class="fas fa-minus-circle text-fixed-white"></i>
-                                <span class="text-fixed-white op-7"> Sama dengan kemarin</span>
-                            @endif
-                        </span>
-                    </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-3 col-lg-6 col-md-6 col-xm-12">
-                <div class="card overflow-hidden sales-card bg-primary-gradient">
-                    <div class="px-3 pt-3 pb-2 pt-0">
-                        <div>
-                            <h6 class="mb-3 fs-12 text-fixed-white">TOTAL PEGAWAI AKTIF</h6>
-                        </div>
-                        <div class="pb-0 mt-0">
-                            <div class="d-flex">
-                                <div>
-                                    <h4 class="fs-20 fw-bold mb-1 text-fixed-white">{{ $jumlahPegawai->sum() }} orang</h4>
-                                    <p class="mb-0 fs-12 text-fixed-white op-7">Pegawai aktif saat ini</p>
-                                </div>
-                                <span class="float-end my-auto ms-auto">
-                                    <i class="fas fa-user-friends text-fixed-white"></i>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-3 col-lg-6 col-md-6 col-xm-12">
-                <div class="card overflow-hidden sales-card bg-danger-gradient">
-                    <div class="px-3 pt-3 pb-2 pt-0">
-                        <div>
-                            <h6 class="mb-3 fs-12 text-fixed-white">JUMLAH PASIEN RAWAT INAP</h6>
-                        </div>
-                        <div class="pb-0 mt-0">
-                            <div class="d-flex">
-                                <div>
-                                    <h4 class="fs-20 fw-bold mb-1 text-fixed-white">{{ $jumlahPasienRawatInap }} orang</h4>
-                                    <p class="mb-0 fs-12 text-fixed-white op-7">Pasien rawat inap dengan lama < 6 hari</p>
-                                </div>
-                                <span class="float-end my-auto ms-auto">
-                                    <i class="fas fa-procedures text-fixed-white"></i>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-3 col-lg-6 col-md-6 col-xm-12">
-                <div class="card overflow-hidden sales-card bg-success-gradient">
-                    <div class="px-3 pt-3 pb-2 pt-0">
-                        <div>
-                            <h6 class="mb-3 fs-12 text-fixed-white">JUMLAH PASIEN IGD HARI INI</h6>
-                        </div>
-                        <div class="pb-0 mt-0">
-                            <div class="d-flex">
-                                <div>
-                                    <h4 class="fs-20 fw-bold mb-1 text-fixed-white">{{ $jumlahPasienIGD }} orang</h4>
-                                    <p class="mb-0 fs-12 text-fixed-white op-7">Pasien terdaftar di IGD</p>
-                                </div>
-                                <span class="float-end my-auto ms-auto">
-                                    <i class="fas fa-hospital-alt text-fixed-white"></i>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Ranking Tim Paling Rajin & Paling Sering Terlambat -->
+    <!-- Surat Menyurat -->
     <div class="row g-3 mb-3">
-        <!-- Tim Paling Rajin -->
-        <div class="col-xl-6 col-md-12">
-            <div class="card custom-card">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-trophy me-2"></i>Top 10 Tim Paling Rajin (Bulan Ini)
-                    </h5>
-                    <small class="text-white-50">Ranking berdasarkan: Kehadiran 100%, Durasi Kerja Tertinggi, Tidak pernah terlambat</small>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead>
-                                <tr>
-                                    <th width="50">Rank</th>
-                                    <th>Nama Pegawai</th>
-                                    <th>Departemen</th>
-                                    <th class="text-center">Wajib</th>
-                                    <th class="text-center">Hadir</th>
-                                    <th class="text-center">% Hadir</th>
-                                    <th class="text-center">Durasi Kerja</th>
-                                    <th class="text-center">Terlambat</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($timPalingRajin as $index => $tim)
-                                <tr>
-                                    <td>
-                                        @if($index == 0)
-                                            <span class="badge bg-warning text-dark">🥇</span>
-                                        @elseif($index == 1)
-                                            <span class="badge bg-secondary">🥈</span>
-                                        @elseif($index == 2)
-                                            <span class="badge bg-danger">🥉</span>
-                                        @else
-                                            <span class="badge bg-light text-dark">#{{ $index + 1 }}</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <strong>{{ $tim['nama'] }}</strong>
-                                    </td>
-                                    <td>
-                                        <small class="text-muted">{{ $tim['departemen'] ?? '-' }}</small>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-info">{{ $tim['wajib_masuk'] }}</span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-success">{{ $tim['kehadiran'] }}</span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-{{ $tim['persen_kehadiran'] >= 100 ? 'success' : ($tim['persen_kehadiran'] >= 80 ? 'warning' : 'danger') }}">
-                                            {{ $tim['persen_kehadiran'] }}%
-                                        </span>
-                                    </td>
-                                    <td class="text-center">
-                                        <small class="text-primary">
-                                            <i class="fas fa-clock me-1"></i>{{ $tim['total_durasi_formatted'] }}
-                                        </small>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-success">
-                                            <i class="fas fa-check me-1"></i>0
-                                        </span>
-                                    </td>
-                                </tr>
-                                @empty
-                                <tr>
-                                    <td colspan="8" class="text-center text-muted py-4">
-                                        <i class="fas fa-info-circle me-2"></i>Belum ada data ranking
-                                    </td>
-                                </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
+        <div class="col-12">
+            <h5 class="mb-0 text-muted"><i class="fas fa-envelope-open-text me-2"></i>Surat Menyurat</h5>
+        </div>
+        @foreach($suratMenyuratCards as $card)
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-6">
+            <a href="{{ route($card['route']) }}" class="text-decoration-none d-block h-100 dashboard-surat-card-link">
+                <div class="card overflow-hidden sales-card {{ $card['gradient'] }} h-100 mb-0">
+                    <div class="px-3 pt-3 pb-3">
+                        <div class="d-flex align-items-start justify-content-between">
+                            <div>
+                                <h6 class="mb-2 fs-12 text-fixed-white text-uppercase">{{ $card['label'] }}</h6>
+                                <h4 class="fs-24 fw-bold mb-1 text-fixed-white">{{ number_format($card['count']) }}</h4>
+                                <p class="mb-0 fs-12 text-fixed-white op-7">{{ $card['subtitle'] }}</p>
+                            </div>
+                            <span class="dashboard-surat-card-icon">
+                                <i class="fas {{ $card['icon'] }} text-fixed-white"></i>
+                            </span>
+                        </div>
+                        <p class="mb-0 mt-2 fs-11 text-fixed-white op-8">
+                            <i class="fas fa-arrow-right me-1"></i>Klik untuk buka menu
+                        </p>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
+        @endforeach
+    </div>
 
-        <!-- Tim Paling Sering Terlambat 
-        <div class="col-xl-6 col-md-12">
-            <div class="card custom-card">
-                <div class="card-header bg-danger text-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-exclamation-triangle me-2"></i>Top 10 Tim Paling Sering Terlambat (Bulan Ini)
-                    </h5>
-                    <small class="text-white-50">Ranking berdasarkan: Jumlah Kali Terlambat Tertinggi (Frekuensi)</small>
+    <!-- Statistik Surat -->
+    <div class="row g-3 mb-3">
+        <div class="col-12">
+            <h5 class="mb-0 text-muted"><i class="fas fa-chart-pie me-2"></i>Statistik Surat</h5>
+            <p class="small text-muted mb-0">Klasifikasi: semua surat tercatat. Departemen: surat keluar/memo berdasarkan unit kerja pengirim.</p>
+        </div>
+        <div class="col-lg-5">
+            <div class="card custom-card h-100">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">Jumlah per Klasifikasi</h6>
                 </div>
                 <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead>
-                                <tr>
-                                    <th width="50">Rank</th>
-                                    <th>Nama Pegawai</th>
-                                    <th>Departemen</th>
-                                    <th class="text-center">Wajib</th>
-                                    <th class="text-center">Hadir</th>
-                                    <th class="text-center">Terlambat</th>
-                                    <th class="text-center">Total Telat</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($timPalingSeringTerlambat as $index => $tim)
-                                <tr>
-                                    <td>
-                                        <span class="badge bg-danger">#{{ $index + 1 }}</span>
-                                    </td>
-                                    <td>
-                                        <strong>{{ $tim['nama'] }}</strong>
-                                    </td>
-                                    <td>
-                                        <small class="text-muted">{{ $tim['departemen'] ?? '-' }}</small>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-info">{{ $tim['wajib_masuk'] }}</span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-{{ $tim['kehadiran'] < $tim['wajib_masuk'] ? 'warning' : 'success' }}">
-                                            {{ $tim['kehadiran'] }}
-                                        </span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-danger">{{ $tim['jumlah_terlambat'] }}</span>
-                                    </td>
-                                    <td class="text-center">
-                                        <small class="text-danger fw-bold">
-                                            <i class="fas fa-clock me-1"></i>{{ $tim['total_keterlambatan_formatted'] }}
-                                        </small>
-                                    </td>
-                                </tr>
-                                @empty
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">
-                                        <i class="fas fa-info-circle me-2"></i>Belum ada data ranking
-                                    </td>
-                                </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
+                    @if(count($suratKlasifikasiChart ?? []) > 0)
+                        <div id="chart-surat-klasifikasi" style="min-height: 360px;"></div>
+                    @else
+                        <p class="text-muted text-center mb-0 py-5">Belum ada data surat untuk ditampilkan.</p>
+                    @endif
                 </div>
             </div>
         </div>
-        -->
-
-    </div>
-
-    <!-- Statistik Grafik -->
-    <div class="row g-3">
-       <!-- Jumlah Pegawai per Departemen -->
-    <div class="col-xl-6">
-        <div class="card custom-card">
-            <div class="card-header">
-                <div class="card-title">Jumlah Pegawai per Unit / Departemen</div>
-            </div>
-            <div class="card-body">
-                <h4>Total Pegawai: {{ $jumlahPegawai->sum() }} orang</h4> <!-- Display total pegawai -->
-                <div id="chart-departemen" style="min-height: 365px;"></div> <!-- Tempat untuk grafik -->
+        <div class="col-lg-7">
+            <div class="card custom-card h-100">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">Jumlah per Departemen Pengirim</h6>
+                </div>
+                <div class="card-body">
+                    @if(count($suratDepartemenChart ?? []) > 0)
+                        <div id="chart-surat-departemen" style="min-height: 360px;"></div>
+                    @else
+                        <p class="text-muted text-center mb-0 py-5">Belum ada surat dengan pengirim internal.</p>
+                    @endif
+                </div>
             </div>
         </div>
-    </div>
-
-    <!-- Jumlah Pegawai per Bidang -->
-    <div class="col-xl-6">
-        <div class="card custom-card">
-            <div class="card-header">
-                <div class="card-title">Distribusi Pegawai per Bidang</div>
-            </div>
-            <div class="card-body">
-                <h4>Total Pegawai: {{ $jumlahPerBidang->sum() }} orang</h4> <!-- Display total pegawai per bidang -->
-                <div id="chart-bidang" style="min-height: 365px;"></div> <!-- Tempat untuk grafik -->
-            </div>
-        </div>
-    </div>
     </div>
 </div>
 
-   
+<style>
+.dashboard-surat-card-link .card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.dashboard-surat-card-link:hover .card {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+.dashboard-surat-card-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+</style>
 
+@push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Pastikan ApexCharts sudah dimuat
+document.addEventListener('DOMContentLoaded', function () {
     if (typeof ApexCharts === 'undefined') {
-        console.warn('ApexCharts library not loaded');
         return;
     }
 
-    // Data for Treemap Chart for Departemen
-    var optionsTreemapDepartemen = {
-        series: [{
-            data: {!! json_encode($departemen) !!}
-        }],
-        chart: {
-            type: 'treemap',
-            height: 350
-        },
-        title: {
-            text: 'Jumlah Pegawai per Departemen'
-        },
-        dataLabels: {
-            enabled: true,
-            formatter: function(val, opts) {
-                try {
-                    if (opts && opts.w && opts.w.config && opts.w.config.series && opts.w.config.series[0] && opts.w.config.series[0].data && opts.dataPointIndex !== undefined) {
-                        var departmentName = opts.w.config.series[0].data[opts.dataPointIndex].x;
-                        var label = opts.w.config.series[0].data[opts.dataPointIndex].label;
-                        // Gunakan '\n' untuk memecah baris
-                        return departmentName + "\n" + (label ? label.replace("(", "\n(") : '');
-                    }
-                    return '';
-                } catch (e) {
-                    console.warn('Error in formatter:', e);
-                    return '';
+    const klasifikasiData = @json($suratKlasifikasiChart ?? []);
+    const departemenData = @json($suratDepartemenChart ?? []);
+    const chartColors = ['#0162e8', '#10b759', '#f59e0b', '#ef4444', '#8b5cf6', '#0db2de', '#ec4899', '#14b8a6', '#6366f1', '#f97316'];
+
+    if (klasifikasiData.length && document.querySelector('#chart-surat-klasifikasi')) {
+        new ApexCharts(document.querySelector('#chart-surat-klasifikasi'), {
+            series: klasifikasiData.map(function (item) { return item.total; }),
+            chart: { type: 'pie', height: 360 },
+            labels: klasifikasiData.map(function (item) { return item.label; }),
+            colors: chartColors,
+            legend: { position: 'bottom' },
+            dataLabels: {
+                enabled: true,
+                formatter: function (val, opts) {
+                    return opts.w.config.series[opts.seriesIndex] + ' (' + val.toFixed(1) + '%)';
                 }
             },
-            style: {
-                fontSize: '12px',
-                colors: ['#000'],
-                fontWeight: 'bold'
+            tooltip: {
+                y: { formatter: function (value) { return value + ' surat'; } }
             }
-        }
-    };
-
-    // Render Chart for Departemen
-    var chartDepartemenEl = document.querySelector("#chart-departemen");
-    if (chartDepartemenEl) {
-        try {
-            var chartTreemapDepartemen = new ApexCharts(chartDepartemenEl, optionsTreemapDepartemen);
-            chartTreemapDepartemen.render();
-        } catch (e) {
-            console.error('Error rendering departemen chart:', e);
-        }
+        }).render();
     }
 
-    // Data for Treemap Chart for Bidang
-    var optionsTreemapBidang = {
-        series: [{
-            data: {!! json_encode($bidang) !!}
-        }],
-        chart: {
-            type: 'treemap',
-            height: 350
-        },
-        title: {
-            text: 'Distribusi Pegawai per Bidang'
-        },
-        dataLabels: {
-            enabled: true,
-            formatter: function(val, opts) {
-                try {
-                    if (opts && opts.w && opts.w.config && opts.w.config.series && opts.w.config.series[0] && opts.w.config.series[0].data && opts.dataPointIndex !== undefined) {
-                        var bidangName = opts.w.config.series[0].data[opts.dataPointIndex].x;
-                        var label = opts.w.config.series[0].data[opts.dataPointIndex].label;
-                        // Gunakan '\n' untuk memecah baris
-                        return bidangName + "\n" + (label ? label.replace("(", "\n(") : '');
-                    }
-                    return '';
-                } catch (e) {
-                    console.warn('Error in formatter:', e);
-                    return '';
-                }
+    if (departemenData.length && document.querySelector('#chart-surat-departemen')) {
+        new ApexCharts(document.querySelector('#chart-surat-departemen'), {
+            series: [{ name: 'Jumlah surat', data: departemenData.map(function (item) { return item.total; }) }],
+            chart: { type: 'bar', height: 360, toolbar: { show: false } },
+            plotOptions: {
+                bar: { borderRadius: 4, columnWidth: '55%', distributed: true }
             },
-            style: {
-                fontSize: '12px',
-                colors: ['#000'],
-                fontWeight: 'bold'
+            colors: chartColors,
+            dataLabels: { enabled: true },
+            legend: { show: false },
+            xaxis: {
+                categories: departemenData.map(function (item) { return item.label; }),
+                labels: { rotate: -35, trim: true, style: { fontSize: '11px' } }
+            },
+            yaxis: {
+                labels: { formatter: function (v) { return Math.floor(v) === v ? v : ''; } },
+                title: { text: 'Jumlah surat' }
+            },
+            tooltip: {
+                y: { formatter: function (value) { return value + ' surat'; } }
             }
-        }
-    };
-
-    // Render Chart for Bidang
-    var chartBidangEl = document.querySelector("#chart-bidang");
-    if (chartBidangEl) {
-        try {
-            var chartTreemapBidang = new ApexCharts(chartBidangEl, optionsTreemapBidang);
-            chartTreemapBidang.render();
-        } catch (e) {
-            console.error('Error rendering bidang chart:', e);
-        }
+        }).render();
     }
 });
 </script>
+@endpush
 
 @endsection

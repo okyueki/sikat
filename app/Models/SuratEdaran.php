@@ -2,18 +2,23 @@
 
 namespace App\Models;
 
+use App\Contracts\SignableDocument;
+use App\Models\Concerns\ImplementsSignableDocument;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class SuratEdaran extends Model
+class SuratEdaran extends Model implements SignableDocument
 {
     use HasFactory;
+    use ImplementsSignableDocument;
 
     protected $table = 'surat_edaran';
 
     protected $fillable = [
         'judul_surat',
         'nomor_surat',
+        'no_urut',
         'deskripsi',
         'tanggal',
         'nik_penandatangan',
@@ -30,12 +35,7 @@ class SuratEdaran extends Model
         'tanggal_ditandatangani' => 'datetime',
     ];
 
-    public function penandatangan()
-    {
-        return $this->belongsTo(Pegawai::class, 'nik_penandatangan', 'nik');
-    }
-
-    public function placements()
+    public function placements(): HasMany
     {
         return $this->hasMany(SuratEdaranPlacement::class, 'surat_edaran_id');
     }

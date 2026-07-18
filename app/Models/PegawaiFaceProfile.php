@@ -17,4 +17,12 @@ class PegawaiFaceProfile extends Model
     protected $casts = [
         'enrolled_at' => 'datetime',
     ];
+
+    /**
+     * Pegawai ada di connection server_74 — load manual via pegawai_id, bukan Eloquent relation lintas DB.
+     */
+    public function resolvePegawai(): ?Pegawai
+    {
+        return Pegawai::find($this->pegawai_id);
+    }
 }

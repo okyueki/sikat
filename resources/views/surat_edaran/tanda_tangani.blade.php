@@ -201,6 +201,15 @@
                         <i class="fe fe-calendar text-muted"></i>
                         <span class="small flex-grow-1">Tanggal</span>
                     </div>
+                    <div id="field-nomor-surat" class="draggable-field" draggable="true" data-field-type="nomor_surat" title="Nomor resmi dokumen — tertanam di PDF saat finalisasi">
+                        <span class="drag-handle">⋮⋮</span>
+                        <i class="fe fe-hash text-primary"></i>
+                        <span class="small flex-grow-1">
+                            Nomor Surat
+                            <span class="hint-text d-block">Times New Roman — resize tinggi kotak untuk ubah ukuran (default 11pt)</span>
+                            <span class="hint-text d-block text-truncate" style="max-width:200px;">{{ $surat_edaran->nomor_surat ?? '—' }}</span>
+                        </span>
+                    </div>
                     <div id="field-teks" class="draggable-field" draggable="true" data-field-type="teks" title="Double-click pada kotak untuk edit teks">
                         <span class="drag-handle">⋮⋮</span>
                         <i class="fe fe-type text-muted"></i>
@@ -221,6 +230,14 @@
                             @if(!$masterStempel || !$masterStempel->url)
                                 <span class="hint-text d-block text-warning">Belum diatur</span>
                             @endif
+                        </span>
+                    </div>
+                    <div id="field-qr" class="draggable-field" draggable="true" data-field-type="qr_verifikasi" title="Barcode/QR verifikasi keabsahan — tertanam di dalam PDF (mirip Privy)">
+                        <span class="drag-handle">⋮⋮</span>
+                        <i class="fe fe-grid text-success"></i>
+                        <span class="small flex-grow-1">
+                            QR Verifikasi
+                            <span class="hint-text d-block">Tertanam di dalam file PDF</span>
                         </span>
                     </div>
                 </div>
@@ -427,7 +444,7 @@
 
 <input type="hidden" id="save-url" value="{{ route($routePrefix . '.saveSignature', $surat_edaran) }}">
 <input type="hidden" id="csrf-token" value="{{ csrf_token() }}">
-<input type="hidden" id="redirect-url" value="{{ route($routePrefix . '.show', $surat_edaran) }}">
+<input type="hidden" id="redirect-url" value="{{ !empty($isMemoInternal) ? route('memo_internal.kirimsurat', encrypt($surat_edaran->surat->kode_surat)) : route($routePrefix . '.show', $surat_edaran) }}">
 <input type="hidden" id="delete-url" value="{{ route($routePrefix . '.destroy', $surat_edaran) }}">
 <input type="hidden" id="index-url" value="{{ route($routePrefix . '.index') }}">
 @endsection
@@ -440,6 +457,11 @@ window.SuratEdaranTtdConfig = {
     pdfUrl: @json($pdfUrl),
     placements: @json($placementsForJs ?? []),
     stempelUrl: @json(($masterStempel && $masterStempel->file_path) ? Storage::disk('public')->url($masterStempel->file_path) : null),
+    qrPreviewUrl: @json(\App\Support\DocumentVerificationUrl::qrImageUrl($routePrefix ?? 'surat_edaran', $surat_edaran)),
+    nomorSurat: @json($surat_edaran->nomor_surat ?? ''),
+    routePrefix: @json($routePrefix ?? 'surat_edaran'),
+    documentLabel: @json($documentLabel ?? 'Surat Edaran'),
+    stirlingUiUrl: @json($stirlingUiUrl ?? config('services.stirling_pdf.url')),
     masterStoreUrl: @json(route('master_tanda_tangan.store')),
 };
 </script>

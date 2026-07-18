@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\AdaptsSignableDocumentViews;
 use App\Models\AuditTrail;
 use App\Models\Departemen;
 use App\Models\MasterStempel;
 use App\Models\Pegawai;
 use App\Models\Spo;
+use App\Services\SpoNumberService;
 use App\Services\SpoPdfService;
 use App\Support\DocumentVerificationQr;
+use App\Support\DocumentVerificationUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -16,19 +19,40 @@ use Illuminate\Validation\ValidationException;
 
 class SpoController extends Controller
 {
+    use AdaptsSignableDocumentViews;
+
+    protected function signableRoutePrefix(): string
+    {
+        return 'spo';
+    }
+
+    protected function signableDocumentLabel(): string
+    {
+        return 'SPO';
+    }
+
+    protected function signableDocumentType(): string
+    {
+        return 'SPO';
+    }
+
+    protected function hasMasaBerlakuFields(): bool
+    {
+        return false;
+    }
+
     public function index()
     {
         $title = 'SPO Standart Prosedur Operasional';
         $items = Spo::with(['penandatangan', 'uploaderPegawai'])->orderBy('tanggal', 'desc')->paginate(15);
         $departemenMap = $this->loadDepartemenMapForItems($items);
 
-        return view('surat_edaran.index', [
+        return view('surat_edaran.index', array_merge($this->signableViewAdapter(), [
             'title' => $title,
             'items' => $items,
-            'routePrefix' => 'spo',
             'isSpo' => true,
             'departemenMap' => $departemenMap,
-        ]);
+        ]));
     }
 
     public function create()
@@ -36,22 +60,24 @@ class SpoController extends Controller
         $title = 'Tambah SPO Standart Prosedur Operasional';
         $pegawai = Pegawai::where('stts_aktif', 'AKTIF')->orderBy('nama')->get();
         $departemenList = Departemen::orderBy('nama')->get();
+        $previewNomorSurat = SpoNumberService::previewNext(
+            \Carbon\Carbon::parse(old('tanggal', now()->toDateString()))
+        );
 
-        return view('surat_edaran.create', [
+        return view('surat_edaran.create', array_merge($this->signableViewAdapter(), [
             'title' => $title,
             'pegawai' => $pegawai,
-            'routePrefix' => 'spo',
             'isSpo' => true,
             'departemenList' => $departemenList,
             'selectedDepartemenTerkait' => old('dep_terkait', []),
-        ]);
+            'previewNomorSurat' => $previewNomorSurat,
+        ]));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'judul_surat' => 'required|string|max:255',
-            'nomor_surat' => 'nullable|string|max:100',
             'deskripsi' => 'nullable|string',
             'tanggal' => 'required|date',
             'nik_penandatangan' => 'nullable|string|max:50',
@@ -60,7 +86,6 @@ class SpoController extends Controller
             'file_pdf' => 'required|file|mimes:pdf|max:20480',
         ], [], [
             'judul_surat' => 'Judul SPO',
-            'nomor_surat' => 'Nomor Dokumen',
             'deskripsi' => 'Deskripsi Singkat',
             'tanggal' => 'Tanggal',
             'nik_penandatangan' => 'Yang menyetujui',
@@ -83,18 +108,21 @@ class SpoController extends Controller
             ? Pegawai::query()->where('nik', $uploaderUsername)->first()
             : null;
 
-        $created = Spo::create([
-            'judul_spo' => $validated['judul_surat'],
-            'nomor_dokumen' => $validated['nomor_surat'] ?? null,
-            'deskripsi_singkat' => $validated['deskripsi'] ?? null,
-            'tanggal' => $validated['tanggal'],
-            'nik_penandatangan' => $validated['nik_penandatangan'] ?? null,
-            'dep_terkait_ids' => $this->normalizeDepartemenIds($validated['dep_terkait'] ?? []),
-            'petugas_upload_nik' => $uploaderPegawai?->nik,
-            'departemen_upload_id' => $uploaderPegawai?->departemen,
-            'file_pdf' => $path,
-            'created_by_username' => $uploaderUsername,
-        ]);
+        $created = DB::transaction(function () use ($validated, $path, $uploaderUsername, $uploaderPegawai) {
+            $payload = SpoNumberService::assignOnCreate([
+                'judul_spo' => $validated['judul_surat'],
+                'deskripsi_singkat' => $validated['deskripsi'] ?? null,
+                'tanggal' => $validated['tanggal'],
+                'nik_penandatangan' => $validated['nik_penandatangan'] ?? null,
+                'dep_terkait_ids' => $this->normalizeDepartemenIds($validated['dep_terkait'] ?? []),
+                'petugas_upload_nik' => $uploaderPegawai?->nik,
+                'departemen_upload_id' => $uploaderPegawai?->departemen,
+                'file_pdf' => $path,
+                'created_by_username' => $uploaderUsername,
+            ]);
+
+            return Spo::create($payload);
+        });
 
         AuditTrail::logCreate(
             'spo',
@@ -111,24 +139,23 @@ class SpoController extends Controller
     {
         $spo->load(['penandatangan', 'placements', 'uploaderPegawai']);
         $title = 'Detail SPO Standart Prosedur Operasional';
-        $verifyUrl = route('spo.verify', $spo);
+        $verifyUrl = DocumentVerificationUrl::qrVerifyUrl('spo', $spo);
         $verificationQrUrl = $spo->tanggal_ditandatangani
-            ? route('spo.verifyQr', $spo)
+            ? DocumentVerificationUrl::qrImageUrl('spo', $spo)
             : null;
         $verificationQrDataUri = $spo->tanggal_ditandatangani
             ? DocumentVerificationQr::dataUri($verifyUrl)
             : null;
 
-        return view('surat_edaran.show', [
+        return view('surat_edaran.show', array_merge($this->signableViewAdapter(), [
             'title' => $title,
             'surat_edaran' => $spo,
             'verificationQrDataUri' => $verificationQrDataUri,
             'verificationQrUrl' => $verificationQrUrl,
             'verifyUrl' => $verifyUrl,
-            'routePrefix' => 'spo',
             'isSpo' => true,
             'departemenMap' => $this->loadDepartemenMap([$spo->departemen_upload_id, ...($spo->dep_terkait_ids ?? [])]),
-        ]);
+        ]));
     }
 
     public function verificationQrPng(Spo $spo)
@@ -136,7 +163,7 @@ class SpoController extends Controller
         if (! $spo->tanggal_ditandatangani) {
             abort(404);
         }
-        $verifyUrl = route('spo.verify', $spo);
+        $verifyUrl = DocumentVerificationUrl::qrVerifyUrl('spo', $spo);
         try {
             $png = DocumentVerificationQr::pngBinary($verifyUrl);
         } catch (\Throwable $e) {
@@ -149,7 +176,7 @@ class SpoController extends Controller
 
         return response($png, 200, [
             'Content-Type' => 'image/png',
-            'Cache-Control' => 'public, max-age=86400',
+            'Cache-Control' => 'no-cache, must-revalidate',
         ]);
     }
 
@@ -159,15 +186,14 @@ class SpoController extends Controller
         $pegawai = Pegawai::where('stts_aktif', 'AKTIF')->orderBy('nama')->get();
         $departemenList = Departemen::orderBy('nama')->get();
 
-        return view('surat_edaran.edit', [
+        return view('surat_edaran.edit', array_merge($this->signableViewAdapter(), [
             'title' => $title,
             'surat_edaran' => $spo,
             'pegawai' => $pegawai,
-            'routePrefix' => 'spo',
             'isSpo' => true,
             'departemenList' => $departemenList,
             'selectedDepartemenTerkait' => old('dep_terkait', $spo->dep_terkait_ids ?? []),
-        ]);
+        ]));
     }
 
     public function update(Request $request, Spo $spo)
@@ -178,7 +204,6 @@ class SpoController extends Controller
 
         $validated = $request->validate([
             'judul_surat' => 'required|string|max:255',
-            'nomor_surat' => 'nullable|string|max:100',
             'deskripsi' => 'nullable|string',
             'tanggal' => 'required|date',
             'nik_penandatangan' => 'nullable|string|max:50',
@@ -187,7 +212,6 @@ class SpoController extends Controller
             'file_pdf' => 'nullable|file|mimes:pdf|max:20480',
         ], [], [
             'judul_surat' => 'Judul SPO',
-            'nomor_surat' => 'Nomor Dokumen',
             'deskripsi' => 'Deskripsi Singkat',
             'tanggal' => 'Tanggal',
             'nik_penandatangan' => 'Yang menyetujui',
@@ -197,7 +221,6 @@ class SpoController extends Controller
 
         $updatePayload = [
             'judul_spo' => $validated['judul_surat'],
-            'nomor_dokumen' => $validated['nomor_surat'] ?? null,
             'deskripsi_singkat' => $validated['deskripsi'] ?? null,
             'tanggal' => $validated['tanggal'],
             'nik_penandatangan' => $validated['nik_penandatangan'] ?? null,
@@ -277,7 +300,7 @@ class SpoController extends Controller
         if ($perluSimpanSigned && $spo->file_pdf && Storage::disk('public')->exists($spo->file_pdf)) {
             try {
                 $oldPath = $spo->file_pdf;
-                $signedContent = SpoPdfService::generateSignedPdfContent($spo);
+                $signedContent = SpoPdfService::generateSignedPdfContent($spo, true);
                 $newPath = 'spo/' . $spo->id . '_signed.pdf';
                 Storage::disk('public')->put($newPath, $signedContent);
                 Storage::disk('public')->delete($oldPath);
@@ -312,6 +335,10 @@ class SpoController extends Controller
         }
 
         $spo->load(['penandatangan', 'placements']);
+        if (! $spo->nomor_surat) {
+            SpoNumberService::assignTo($spo);
+            $spo->refresh();
+        }
         $title = 'Tanda tangani PDF SPO';
         $pdfUrl = route('spo.streamPdf', $spo);
         $pegawai = $spo->penandatangan;
@@ -335,8 +362,9 @@ class SpoController extends Controller
 
         $masterTandaTanganList = auth()->user()->masterTandaTangan()->orderByDesc('is_default')->orderBy('id')->get();
         $masterStempel = MasterStempel::getPerusahaan();
+        $verifyUrl = DocumentVerificationUrl::qrVerifyUrl('spo', $spo);
 
-        return view('surat_edaran.tanda_tangani', [
+        return view('surat_edaran.tanda_tangani', array_merge($this->signableViewAdapter(), [
             'title' => $title,
             'surat_edaran' => $spo,
             'pdfUrl' => $pdfUrl,
@@ -344,9 +372,9 @@ class SpoController extends Controller
             'placementsForJs' => $placementsForJs,
             'masterTandaTanganList' => $masterTandaTanganList,
             'masterStempel' => $masterStempel,
-            'routePrefix' => 'spo',
+            'verifyUrl' => $verifyUrl,
             'isSpo' => true,
-        ]);
+        ]));
     }
 
     public function saveSignatureAndPlacements(Request $request, Spo $spo)
@@ -368,7 +396,7 @@ class SpoController extends Controller
             'cropped_signature_image' => 'nullable|string|max:4000000',
             'finalize' => 'nullable|boolean',
             'placements' => 'nullable|array',
-            'placements.*.field_type' => 'required|string|in:signature,inisial,nama,tanggal,teks,stempel',
+            'placements.*.field_type' => 'required|string|in:signature,inisial,nama,tanggal,teks,stempel,qr_verifikasi,nomor_surat',
             'placements.*.page' => 'required|integer|min:1',
             'placements.*.x' => 'required|numeric',
             'placements.*.y' => 'required|numeric',
@@ -432,14 +460,28 @@ class SpoController extends Controller
         $spo->placements()->delete();
         if (! empty($validated['placements'])) {
             foreach ($validated['placements'] as $i => $p) {
+                $width = isset($p['width']) ? (float) $p['width'] : null;
+                $height = isset($p['height']) ? (float) $p['height'] : null;
+                if (($p['field_type'] ?? '') === 'qr_verifikasi') {
+                    [$width, $height] = SpoPdfService::normalizeQrDimensionsMm(
+                        $width ?? 0,
+                        $height ?? 0
+                    );
+                }
+
+                $placementValue = $p['value'] ?? null;
+                if (($p['field_type'] ?? '') === 'nomor_surat') {
+                    $placementValue = $spo->nomor_surat;
+                }
+
                 $spo->placements()->create([
                     'field_type' => $p['field_type'],
                     'page' => (int) $p['page'],
                     'x' => (float) $p['x'],
                     'y' => (float) $p['y'],
-                    'width' => isset($p['width']) ? (float) $p['width'] : null,
-                    'height' => isset($p['height']) ? (float) $p['height'] : null,
-                    'value' => $p['value'] ?? null,
+                    'width' => $width,
+                    'height' => $height,
+                    'value' => $placementValue,
                     'options' => $p['options'] ?? null,
                     'sort_order' => $i,
                 ]);
@@ -464,12 +506,24 @@ class SpoController extends Controller
             ]);
         }
 
+        if (! $spo->nomor_surat) {
+            SpoNumberService::assignTo($spo);
+            $spo->refresh();
+        }
+
         $oldPath = $spo->file_pdf;
+        $sourceRelative = SpoPdfService::sourcePdfRelativePath((int) $spo->id);
         $newPath = 'spo/' . $spo->id . '_signed.pdf';
+
+        if (! Storage::disk('public')->exists($sourceRelative)) {
+            if ($oldPath && ! str_ends_with($oldPath, '_signed.pdf') && Storage::disk('public')->exists($oldPath)) {
+                Storage::disk('public')->copy($oldPath, $sourceRelative);
+            }
+        }
 
         try {
             $spo->load('placements');
-            $signedContent = SpoPdfService::generateSignedPdfContent($spo);
+            $signedContent = SpoPdfService::generateSignedPdfContent($spo, true);
             Storage::disk('public')->put($newPath, $signedContent);
 
             DB::transaction(function () use ($spo, $newPath) {
@@ -480,7 +534,7 @@ class SpoController extends Controller
                 ]);
             });
 
-            if ($oldPath && $oldPath !== $newPath && Storage::disk('public')->exists($oldPath)) {
+            if ($oldPath && $oldPath !== $newPath && $oldPath !== $sourceRelative && Storage::disk('public')->exists($oldPath)) {
                 Storage::disk('public')->delete($oldPath);
             }
         } catch (\Throwable $e) {
@@ -491,11 +545,11 @@ class SpoController extends Controller
             report($e);
             $errorMessage = 'Gagal memfinalisasi dokumen. Draft posisi tanda tangan tetap tersimpan.';
             $errorStatus = 500;
-            if (str_contains(strtolower($e->getMessage()), 'pdf tidak kompatibel') ||
-                str_contains(strtolower($e->getMessage()), 'pdf menggunakan kompresi/struktur') ||
-                str_contains(strtolower($e->getMessage()), 'not supported by the free parser shipped with fpdi')) {
-                $errorMessage = 'Finalisasi gagal karena file PDF tidak kompatibel dengan parser sistem. ' .
-                    'Silakan simpan ulang PDF sebagai PDF standar (Print to PDF), lalu upload ulang.';
+            if (str_contains(strtolower($e->getMessage()), 'stirling pdf') ||
+                str_contains(strtolower($e->getMessage()), 'pdf tidak dapat diproses') ||
+                str_contains(strtolower($e->getMessage()), 'pdf tidak kompatibel')) {
+                $errorMessage = 'Finalisasi gagal: layanan Stirling PDF tidak dapat memproses dokumen ini. ' .
+                    'Pastikan Stirling PDF berjalan dan coba upload ulang PDF asli.';
                 $errorStatus = 422;
             }
 
@@ -522,7 +576,7 @@ class SpoController extends Controller
     public function generateSignedPdf(Spo $spo)
     {
         $spo->load(['penandatangan', 'placements']);
-        $pdfContent = SpoPdfService::generateSignedPdfContent($spo);
+        $pdfContent = SpoPdfService::generateSignedPdfContent($spo, (bool) $spo->tanggal_ditandatangani);
         if ($spo->tanggal_ditandatangani && $spo->file_pdf) {
             Storage::disk('public')->put($spo->file_pdf, $pdfContent);
         }
@@ -585,16 +639,15 @@ class SpoController extends Controller
         });
 
         $title = 'Verifikasi Keabsahan SPO';
-        return view('surat_edaran.verifikasi', [
+        return view('surat_edaran.verifikasi', array_merge($this->signableViewAdapter(), [
             'title' => $title,
             'surat_edaran' => $spo,
             'auditTrails' => $auditTrails,
             'createdLog' => $createdLog,
             'uploadLog' => $uploadLog,
             'userDisplayByUsername' => $userDisplayByUsername,
-            'routePrefix' => 'spo',
             'isSpo' => true,
-        ]);
+        ]));
     }
 
     private function ensureCanSign(Spo $spo): void

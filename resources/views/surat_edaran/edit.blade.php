@@ -4,6 +4,7 @@
 
 @section('content')
 @php($routePrefix = $routePrefix ?? 'surat_edaran')
+@php($numberHint = $numberFormatHint ?? "RS'ASF/EDR/urut/III.6.AU/I/bulan/tahun")
 <div class="row">
     <div class="col-xl-12">
         <div class="card custom-card">
@@ -51,12 +52,23 @@
                             </div>
                             <div class="mb-3">
                                 <label for="nomor_surat" class="form-label">Nomor Surat</label>
-                                <input type="text" name="nomor_surat" id="nomor_surat" class="form-control" value="{{ old('nomor_surat', $surat_edaran->nomor_surat) }}" {{ $surat_edaran->tanggal_ditandatangani ? 'disabled' : '' }}>
+                                <input type="text" id="nomor_surat" class="form-control bg-light" value="{{ old('nomor_surat', $surat_edaran->nomor_surat ?? '— akan digenerate otomatis —') }}" readonly>
+                                <small class="text-muted">Nomor resmi sistem; untuk mencetak di PDF gunakan kotak <strong>Nomor Surat</strong> saat tanda tangan.</small>
                             </div>
                             <div class="mb-3">
                                 <label for="tanggal" class="form-label">Tanggal <span class="text-danger">*</span></label>
                                 <input type="date" name="tanggal" id="tanggal" class="form-control" value="{{ old('tanggal', $surat_edaran->tanggal ? $surat_edaran->tanggal->format('Y-m-d') : '') }}" {{ $surat_edaran->tanggal_ditandatangani ? 'disabled' : '' }} required>
                             </div>
+                            @if(!empty($hasMasaBerlaku))
+                            <div class="mb-3">
+                                <label for="tanggal_mulai_berlaku" class="form-label">Tanggal mulai berlaku <span class="text-danger">*</span></label>
+                                <input type="date" name="tanggal_mulai_berlaku" id="tanggal_mulai_berlaku" class="form-control" value="{{ old('tanggal_mulai_berlaku', $surat_edaran->tanggal_mulai_berlaku ? $surat_edaran->tanggal_mulai_berlaku->format('Y-m-d') : '') }}" {{ $surat_edaran->tanggal_ditandatangani ? 'disabled' : '' }} required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="tanggal_berakhir_berlaku" class="form-label">Tanggal berakhir berlaku <span class="text-danger">*</span></label>
+                                <input type="date" name="tanggal_berakhir_berlaku" id="tanggal_berakhir_berlaku" class="form-control" value="{{ old('tanggal_berakhir_berlaku', $surat_edaran->tanggal_berakhir_berlaku ? $surat_edaran->tanggal_berakhir_berlaku->format('Y-m-d') : '') }}" {{ $surat_edaran->tanggal_ditandatangani ? 'disabled' : '' }} required>
+                            </div>
+                            @endif
                             <div class="mb-3">
                                 <label for="nik_penandatangan" class="form-label">Yang menyetujui (penandatangan)</label>
                                 <select name="nik_penandatangan" id="nik_penandatangan" class="form-select" {{ $surat_edaran->tanggal_ditandatangani ? 'disabled' : '' }}>
@@ -143,6 +155,9 @@
                                     <div class="text-danger small mt-1">{{ $message }}</div>
                                 @enderror
                             </div>
+                            @if(!$surat_edaran->tanggal_ditandatangani)
+                                @include('surat_edaran.partials.stirling-ui-panel')
+                            @endif
                         </div>
                     </div>
                     <hr>

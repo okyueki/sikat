@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AbsensiAgendaAudit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Jenssegers\Agent\Agent;
 
 class AbsensiAgendaAuditService
@@ -70,20 +71,32 @@ class AbsensiAgendaAuditService
             'user_agent' => $request->userAgent(),
         ]);
 
-        return AbsensiAgendaAudit::create([
-            'absensi_id' => $absensiId,
-            'agenda_id' => $agendaId,
-            'nik' => $nik,
-            'aksi' => $aksi,
-            'status_lama' => $statusLama,
-            'status_baru' => $statusBaru,
-            'alasan_perubahan' => $alasan,
-            'perubahan_oleh' => $diubahOleh,
-            'perubahan_pada' => now(),
-            'ip_address' => $request->ip(),
-            'device_token' => $deviceToken,
-            'device_info' => $deviceInfoJson,
-        ]);
+        try {
+            return AbsensiAgendaAudit::create([
+                'absensi_id' => $absensiId,
+                'agenda_id' => $agendaId,
+                'nik' => $nik,
+                'aksi' => $aksi,
+                'status_lama' => $statusLama,
+                'status_baru' => $statusBaru,
+                'alasan_perubahan' => $alasan,
+                'perubahan_oleh' => $diubahOleh,
+                'perubahan_pada' => now(),
+                'ip_address' => $request->ip(),
+                'device_token' => $deviceToken,
+                'device_info' => $deviceInfoJson,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Gagal menulis absensi_agenda_audit', [
+                'absensi_id' => $absensiId,
+                'agenda_id' => $agendaId,
+                'nik' => $nik,
+                'aksi' => $aksi,
+                'error' => $e->getMessage(),
+            ]);
+
+            return new AbsensiAgendaAudit();
+        }
     }
 
     /**
